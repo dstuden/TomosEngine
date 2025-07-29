@@ -10,11 +10,12 @@ namespace Tomos
     Node::Node( const std::string& p_name ) :
         m_name( p_name )
     {
-        m_layerId = Application::getState().config().get<int>( "unassignedLayerId" );
+        m_layerId = Application::getState().config().get<std::string>( "unassignedLayerId" );
     }
 
     void Node::addChild( const std::shared_ptr<Node>& p_child )
     {
+        // TODO: rework this so we don't have to climb the tree every time
         this->m_children.emplace( p_child );
         p_child->m_parent = this;
         p_child->m_active = this->m_active;

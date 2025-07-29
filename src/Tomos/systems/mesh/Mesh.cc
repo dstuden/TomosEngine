@@ -5,18 +5,9 @@
 
 namespace Tomos
 {
-    Mesh::Mesh( const std::shared_ptr<VertexBuffer>& p_position,
-                const std::shared_ptr<VertexBuffer>& p_normal,
-                const std::shared_ptr<VertexBuffer>& p_texCoord,
-                const std::shared_ptr<VertexBuffer>& p_tangent,
-                const std::shared_ptr<IndexBuffer>&  p_index,
-                const std::shared_ptr<Shader>&       p_shader ) :
-        m_position( p_position ),
-        m_normal( p_normal ),
-        m_texCoord( p_texCoord ),
-        m_tangent( p_tangent ),
-        m_index( p_index ),
-        m_shader( p_shader )
+    Mesh::Mesh( const std::shared_ptr<VertexBuffer>& p_position, const std::shared_ptr<VertexBuffer>& p_normal, const std::shared_ptr<VertexBuffer>& p_texCoord,
+                const std::shared_ptr<VertexBuffer>& p_tangent, const std::shared_ptr<IndexBuffer>& p_index, const std::shared_ptr<Shader>& p_shader ) :
+        m_position( p_position ), m_normal( p_normal ), m_texCoord( p_texCoord ), m_tangent( p_tangent ), m_index( p_index ), m_shader( p_shader )
     {
         m_vertexArray = std::make_shared<VertexArray>();
 
@@ -31,55 +22,35 @@ namespace Tomos
 
     void Mesh::setupVertexAttributes() const
     {
-        if ( !m_position )
-        {
-            LOG_ERROR() << "Mesh requires a position buffer";
-            return;
-        }
+        // YES we use asserts here
+        // deal with it
+        // https://tenor.com/pU4HDPnKDf7.gif
+
+        LOG_ASSERT_MSG( m_position, "Mesh requires a position buffer" );
 
         // Position (location = 0)
-        BufferLayout positionLayout = {
-                {ShaderDataType::Float3, "aPosition"}
-        };
+        BufferLayout positionLayout = { { ShaderDataType::Float3, "aPosition" } };
         m_position->setLayout( positionLayout );
         m_vertexArray->addVertexBuffer( m_position );
 
-        // Normal (location = 1) - make optional
-        if ( m_normal )
-        {
-            BufferLayout normalLayout = {
-                    {ShaderDataType::Float3, "aNormal"}
-            };
-            m_normal->setLayout( normalLayout );
-            m_vertexArray->addVertexBuffer( m_normal );
-        }
-        else
-        {
-            LOG_WARN() << "Mesh has no normal buffer - using default";
-        }
+        // Normal (location = 1)
+        LOG_ASSERT_MSG( m_normal, "Mesh requires a normal buffer" );
+        BufferLayout normalLayout = { { ShaderDataType::Float3, "aNormal" } };
+        m_normal->setLayout( normalLayout );
+        m_vertexArray->addVertexBuffer( m_normal );
 
-        // Texture Coordinates (location = 2) - make optional
-        if ( m_texCoord )
-        {
-            BufferLayout texCoordLayout = {
-                    {ShaderDataType::Float2, "aTexCoord"}
-            };
-            m_texCoord->setLayout( texCoordLayout );
-            m_vertexArray->addVertexBuffer( m_texCoord );
-        }
-        else
-        {
-            LOG_WARN() << "Mesh has no texture coordinate buffer - using default";
-        }
 
-        // Tangent (location = 3) - optional
-        if ( m_tangent )
-        {
-            BufferLayout tangentLayout = {
-                    {ShaderDataType::Float4, "aTangent"}
-            };
-            m_tangent->setLayout( tangentLayout );
-            m_vertexArray->addVertexBuffer( m_tangent );
-        }
+        // Texture Coordinates (location = 2)
+        LOG_ASSERT_MSG( m_texCoord, "Mesh requires a texture coordinate buffer" );
+        BufferLayout texCoordLayout = { { ShaderDataType::Float2, "aTexCoord" } };
+        m_texCoord->setLayout( texCoordLayout );
+        m_vertexArray->addVertexBuffer( m_texCoord );
+
+
+        // Tangent (location = 3)
+        LOG_ASSERT_MSG( m_normal, "Mesh requires a normal buffer to set up tangents" );
+        BufferLayout tangentLayout = { { ShaderDataType::Float4, "aTangent" } };
+        m_tangent->setLayout( tangentLayout );
+        m_vertexArray->addVertexBuffer( m_tangent );
     }
-} // namespace Tomos
+}  // namespace Tomos

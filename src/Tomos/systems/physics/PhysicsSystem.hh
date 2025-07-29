@@ -26,9 +26,9 @@ namespace Tomos
         void componentAdded( const std::shared_ptr<Component>& p_component, const std::shared_ptr<Node>& p_node ) override;
         void componentRemoved( const std::shared_ptr<Component>& p_component, const std::shared_ptr<Node>& p_node ) override;
 
-        void update( int p_layerId ) override;
+        void update( const std::string& p_layerId ) override;
 
-        void update( float p_deltaTime, int p_layerId ) override;
+        void update( float p_deltaTime, const std::string& p_layerId ) override;
 
     private:
         void initJolt();

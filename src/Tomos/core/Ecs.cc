@@ -71,7 +71,7 @@ namespace Tomos
     // TODO: this sould be done in a more efficient way
     void ECS::updateLayerComponents()
     {
-        auto unassignedLayer = Application::getState().config().get<int>( "unassignedLayerId" );
+        auto unassignedLayer = Application::getState().config().get<std::string>( "unassignedLayerId" );
 
         for ( auto& [_, system] : m_systems )
         {
@@ -101,7 +101,7 @@ namespace Tomos
         }
     }
 
-    void ECS::earlyUpdate( int p_layerId )
+    void ECS::earlyUpdate( const std::string& p_layerId )
     {
         for ( auto& [_, system] : m_systems )
         {
@@ -109,7 +109,7 @@ namespace Tomos
         }
     }
 
-    void ECS::update( int p_layerId )
+    void ECS::update( const std::string& p_layerId )
     {
         for ( auto& [_, system] : m_systems )
         {
@@ -117,7 +117,7 @@ namespace Tomos
         }
     }
 
-    void ECS::lateUpdate( int p_layerId )
+    void ECS::lateUpdate( const std::string& p_layerId )
     {
         for ( auto& [_, system] : m_systems )
         {
@@ -125,7 +125,7 @@ namespace Tomos
         }
     }
 
-    void ECS::updateFixedTimeStep( float p_deltaTime, int p_layerId )
+    void ECS::updateFixedTimeStep( float p_deltaTime, const std::string& p_layerId )
     {
         for ( auto& [_, system] : m_fixedTimeStepSystems )
         {

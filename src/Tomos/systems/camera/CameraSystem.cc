@@ -23,7 +23,7 @@ namespace Tomos
             m_components[p_node->getLayerId()].erase( p_component );
     }
 
-    void CameraSystem::lateUpdate( int p_layerId )
+    void CameraSystem::update( const std::string& p_layerId )
     {
         if ( !m_components.contains( p_layerId ) )
         {
@@ -55,7 +55,7 @@ namespace Tomos
         m_layerActiveData[p_layerId].m_viewProjMatInv = m_layerActiveData[p_layerId].m_viewMatInv * cc->getInvProjection();
     }
 
-    std::shared_ptr<Node> CameraSystem::getActiveCameraNode( int p_layerId )
+    std::shared_ptr<Node> CameraSystem::getActiveCameraNode( const std::string& p_layerId )
     {
         if ( !m_components.contains( p_layerId ) )
         {
@@ -78,7 +78,7 @@ namespace Tomos
         return nullptr;
     }
 
-    const std::shared_ptr<CameraComponent>& CameraSystem::getActiveCamera( int p_layerId )
+    const std::shared_ptr<CameraComponent>& CameraSystem::getActiveCamera( const std::string& p_layerId )
     {
         if ( !m_layerActiveData.contains( p_layerId ) )
         {
@@ -88,7 +88,7 @@ namespace Tomos
         return m_layerActiveData[p_layerId].m_activeCamera;
     }
 
-    const glm::mat4& CameraSystem::getViewProjectionMat( int p_layerId )
+    const glm::mat4& CameraSystem::getViewProjectionMat( const std::string& p_layerId )
     {
         if ( !m_layerActiveData.contains( p_layerId ) )
         {
@@ -98,7 +98,7 @@ namespace Tomos
         return m_layerActiveData[p_layerId].m_viewProjMat;
     }
 
-    const glm::mat4& CameraSystem::getViewProjectionInvMat( int p_layerId )
+    const glm::mat4& CameraSystem::getViewProjectionInvMat( const std::string& p_layerId )
     {
         if ( !m_layerActiveData.contains( p_layerId ) )
         {
@@ -108,7 +108,7 @@ namespace Tomos
         return m_layerActiveData[p_layerId].m_viewProjMatInv;
     }
 
-    const glm::mat4& CameraSystem::getViewMat( int p_layerId )
+    const glm::mat4& CameraSystem::getViewMat( const std::string& p_layerId )
     {
         if ( !m_layerActiveData.contains( p_layerId ) )
         {
@@ -118,7 +118,7 @@ namespace Tomos
         return m_layerActiveData[p_layerId].m_viewMat;
     }
 
-    const glm::mat4& CameraSystem::getViewInvMat( int p_layerId )
+    const glm::mat4& CameraSystem::getViewInvMat( const std::string& p_layerId )
     {
         if ( !m_layerActiveData.contains( p_layerId ) )
         {

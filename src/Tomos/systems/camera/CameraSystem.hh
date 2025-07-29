@@ -1,33 +1,31 @@
 #pragma once
 
+#include <glm/glm.hpp>
+
 #include "../System.hh"
 #include "CameraComponent.hh"
-
-#include <glm/glm.hpp>
 
 namespace Tomos
 {
     class CameraSystem : public System
     {
     public:
-        CameraSystem()
-        {
-        }
+        CameraSystem() = default;
 
         void componentAdded( const std::shared_ptr<Component>& p_component, const std::shared_ptr<Node>& p_node ) override;
         void componentRemoved( const std::shared_ptr<Component>& p_component, const std::shared_ptr<Node>& p_node ) override;
 
-        void lateUpdate( int p_layerId ) override;
+        void update( const std::string& p_layerId ) override;
 
         std::type_index getComponentType() const override { return typeid( CameraComponent ); }
 
-        std::shared_ptr<Node> getActiveCameraNode( int p_layerId );
+        std::shared_ptr<Node> getActiveCameraNode( const std::string& p_layerId );
 
-        const std::shared_ptr<CameraComponent>& getActiveCamera( int p_layerId );
-        const glm::mat4&                        getViewProjectionMat( int p_layerId );
-        const glm::mat4&                        getViewProjectionInvMat( int p_layerId );
-        const glm::mat4&                        getViewMat( int p_layerId );
-        const glm::mat4&                        getViewInvMat( int p_layerId );
+        const std::shared_ptr<CameraComponent>& getActiveCamera( const std::string& p_layerId );
+        const glm::mat4&                        getViewProjectionMat( const std::string& p_layerId );
+        const glm::mat4&                        getViewProjectionInvMat( const std::string& p_layerId );
+        const glm::mat4&                        getViewMat( const std::string& p_layerId );
+        const glm::mat4&                        getViewInvMat( const std::string& p_layerId );
 
         struct CameraData
         {
@@ -39,7 +37,7 @@ namespace Tomos
         };
 
     private:
-        std::unordered_map<int, CameraData> m_layerActiveData;
-        CameraData                          m_defaultCameraData;
+        std::unordered_map<std::string, CameraData> m_layerActiveData;
+        CameraData                                  m_defaultCameraData;
     };
-} // namespace Tomos
+}  // namespace Tomos

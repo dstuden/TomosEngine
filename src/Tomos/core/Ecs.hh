@@ -12,7 +12,6 @@ namespace Tomos
     class ECS
     {
     public:
-        // Leave layer id -1 for systems that don't need to be in a specific layer and will be global
         template<typename T>
         void registerSystem()
         {
@@ -50,11 +49,11 @@ namespace Tomos
 
         void updateLayerComponents();
 
-        void earlyUpdate( int p_layerId );
-        void update( int p_layerId );
-        void lateUpdate( int p_layerId );
+        void earlyUpdate( const std::string& p_layerId );
+        void update( const std::string& p_layerId );
+        void lateUpdate( const std::string& p_layerId );
 
-        void updateFixedTimeStep( float p_deltaTime, int p_layerId );
+        void updateFixedTimeStep( float p_deltaTime, const std::string& p_layerId );
 
         template<typename T>
         T& getSystem()

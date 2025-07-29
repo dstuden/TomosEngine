@@ -75,33 +75,18 @@ namespace Tomos
 
                 for ( auto& pass : layer->getRenderPasses() )
                 {
-                    pass->apply( layer->getLayerId(), getState().ecs().getSystem<CameraSystem>().getViewProjectionMat( layer->getLayerId() ) );
-
-                    // Composite this pass's output to layer's main FB
-                    if ( auto passOutput = pass->getOutput() )
-                    {
-                        Renderer::beginFrameBufferRender( layer->getLayerFramebuffer() );
-                        Renderer::setClearedColor( glm::vec4( 0.0f, 0.0f, 0.0f, 1.0f ) );
-                        Renderer::clear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
-
-                        Renderer::renderFrameBuffer(
-                                passOutput,
-                                pass->getShader()
-                                );
-
-                        Renderer::endFrameBufferRender();
-                    }
+                    pass->execute();
                 }
             }
 
             // Second pass: Composite all layers
-            Renderer::beginFrameBufferRender( nullptr );
+            Renderer::clearFrameBuffer();  // To the screen
             Renderer::setClearedColor( glm::vec4( 0.0f, 0.0f, 0.0f, 1.0f ) );
             Renderer::clear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
             for ( auto& layer : getState().layerStack() )
             {
-                Renderer::renderFrameBuffer( layer->getLayerFramebuffer(), layer->getShader() );
+                Renderer::renderLayerFrameBufferToQuad( layer->getLayerFramebuffer(), layer->getQuad(), layer->getShader() );
             }
 
             // Window update
@@ -122,7 +107,7 @@ namespace Tomos
                 {
                     auto& e = dynamic_cast<WindowResizeEvent&>( p_event );
                     int   viewportWidth, viewportHeight;
-                    int   offsetX = 0,   offsetY = 0;
+                    int   offsetX = 0, offsetY = 0;
 
                     if ( ( float ) e.getWidth() / ( float ) e.getHeight() > getWindow().getData().m_aspectRatio )
                     {
@@ -176,4 +161,4 @@ namespace Tomos
         getState().layerStack().pushOverlay( p_overlay );
         p_overlay->onAttach();
     }
-} // namespace Tomos
+}  // namespace Tomos

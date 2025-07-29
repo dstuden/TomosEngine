@@ -17,7 +17,7 @@ namespace Tomos
     {
     public:
         explicit Node( const std::string& p_name = "UnnamedNode" );
-        virtual  ~Node() { destroy(); };
+        virtual ~Node() { destroy(); };
 
         void                                   addChild( const std::shared_ptr<Node>& p_child );
         bool                                   removeChild( const std::shared_ptr<Node>& p_child );
@@ -34,8 +34,7 @@ namespace Tomos
         void destroy();
 
         // 333 those who know
-        std::shared_ptr<Node> findChild( const std::function<bool( Node& )>& predicate,
-                                         unsigned int                        maxDepth = 333 ) const;
+        std::shared_ptr<Node> findChild( const std::function<bool( Node& )>& predicate, unsigned int maxDepth = 333 ) const;
 
         template<typename T>
         std::shared_ptr<T> assertComponent() const;
@@ -51,7 +50,7 @@ namespace Tomos
         void setActive( bool p_active );
         bool isActive() const { return m_active; }
 
-        int getLayerId() const { return m_layerId; }
+        const std::string& getLayerId() const { return m_layerId; }
 
     protected:
         Node*                                   m_parent = nullptr;
@@ -60,7 +59,7 @@ namespace Tomos
 
         bool m_active = false;
         // start as unassigned
-        int m_layerId;
+        std::string m_layerId;
     };
 
     static void updateTransforms( Node* node )
@@ -75,12 +74,8 @@ namespace Tomos
     class SceneNode : public Node
     {
     public:
-        explicit SceneNode( int p_layerId, const std::string& p_name = "SceneNode" ) :
-            Node( p_name )
-        {
-            m_layerId = p_layerId;
-        }
+        explicit SceneNode( const std::string& p_layerId, const std::string& p_name = "SceneNode" ) : Node( p_name ) { m_layerId = p_layerId; }
 
         void computeTransforms() { updateTransforms( this ); }
     };
-} // namespace Tomos
+}  // namespace Tomos

@@ -8,6 +8,7 @@ find_package(glfw3 3.4 REQUIRED)
 find_package(GLEW 2.1 REQUIRED)
 find_package(OpenGL REQUIRED)
 find_package(Jolt REQUIRED)
+find_package(assimp 6 REQUIRED)
 
 # Gather all .cc files recursively
 file(GLOB_RECURSE ENGINE_SOURCES CONFIGURE_DEPENDS
@@ -102,62 +103,41 @@ add_library(${PROJECT_NAME} STATIC
         src/Tomos/core/Scene.hh
         src/Tomos/util/conf/Config.hh
         src/Tomos/util/renderer/passes/RenderPass.hh
-        src/Tomos/util/renderer/passes/mesh/BasePass.cc
-        src/Tomos/util/renderer/passes/mesh/BasePass.hh
-        src/Tomos/systems/billboard/BillboardSystem.cc
-        src/Tomos/systems/billboard/BillboardSystem.hh
-        src/Tomos/systems/billboard/BillboardComponent.hh
         src/Tomos/util/resourceManager/ResourceManager.cc
-
+        src/Tomos/util/renderer/passes/mesh/GBufferPass.cc
+        src/Tomos/util/renderer/passes/mesh/GBufferPass.hh
+        src/Tomos/systems/light/LightComponent.hh
+        src/Tomos/systems/light/LightSystem.cc
+        src/Tomos/systems/light/LightSystem.hh
+        src/Tomos/util/renderer/passes/light/LightPass.cc
+        src/Tomos/util/renderer/passes/light/LightPass.hh
 )
 
-# Set absolute paths for source and destination directories
-set(RESOURCE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/Tomos/resources")
-set(RESOURCE_DEST_DIR "${CMAKE_BINARY_DIR}/resources")
+# Set paths for engine resources
+set(ENGINE_RESOURCE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/Tomos/resources")
 
-# Always create the destination directory at configure time
-file(MAKE_DIRECTORY "${RESOURCE_DEST_DIR}")
-
-if (EXISTS "${RESOURCE_SOURCE_DIR}")
-    # Use file(GLOB_RECURSE) with absolute paths
-    file(GLOB_RECURSE RESOURCE_FILES
+# Copy engine resources to game binary directory (will be set up when game is built)
+if (EXISTS "${ENGINE_RESOURCE_SOURCE_DIR}")
+    file(GLOB_RECURSE ENGINE_RESOURCE_FILES
             LIST_DIRECTORIES false
-            RELATIVE "${RESOURCE_SOURCE_DIR}"
+            RELATIVE "${ENGINE_RESOURCE_SOURCE_DIR}"
             CONFIGURE_DEPENDS
-            "${RESOURCE_SOURCE_DIR}/*")
+            "${ENGINE_RESOURCE_SOURCE_DIR}/*")
 
-    # Debug output to verify found files
-    message(STATUS "Found ${RESOURCE_FILES} resource files to copy")
+    message(STATUS "Found ${ENGINE_RESOURCE_FILES} engine resource files to copy")
 
-    # Create a custom target for resource copying
-    add_custom_target(CopyResources ALL
-            COMMENT "Preparing to copy resources..."
+    # Create a custom target for engine resource copying
+    add_custom_target(CopyEngineResources ALL
+            COMMENT "Engine resources ready for copying..."
     )
 
-    # Add copy commands for each file
-    foreach (RESOURCE_FILE ${RESOURCE_FILES})
-        # Get relative directory path
-        get_filename_component(RESOURCE_DIR "${RESOURCE_FILE}" DIRECTORY)
-
-        # Create the copy command
-        add_custom_command(
-                TARGET CopyResources
-                COMMAND ${CMAKE_COMMAND} -E make_directory "${RESOURCE_DEST_DIR}/${RESOURCE_DIR}"
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${RESOURCE_SOURCE_DIR}/${RESOURCE_FILE}"
-                "${RESOURCE_DEST_DIR}/${RESOURCE_FILE}"
-                COMMENT "Copying ${RESOURCE_FILE}..."
-                VERBATIM
-        )
-    endforeach ()
-
-    # Make main project depend on resource copying
-    add_dependencies(${PROJECT_NAME} CopyResources)
-
-    # Install step (optional)
-    install(DIRECTORY "${RESOURCE_SOURCE_DIR}/" DESTINATION "${CMAKE_INSTALL_PREFIX}/resources")
+    # Store engine resources info for the game to use
+    set_target_properties(CopyEngineResources PROPERTIES
+            ENGINE_RESOURCE_SOURCE_DIR "${ENGINE_RESOURCE_SOURCE_DIR}"
+            ENGINE_RESOURCE_FILES "${ENGINE_RESOURCE_FILES}"
+    )
 else ()
-    message(WARNING "Resource directory not found: ${RESOURCE_SOURCE_DIR}")
+    message(STATUS "Engine resource directory not found: ${ENGINE_RESOURCE_SOURCE_DIR}")
 endif ()
 
 # Automatically include all directories with headers
@@ -169,4 +149,4 @@ if (CMAKE_BUILD_TYPE STREQUAL "Release")
     add_definitions(-DNDEBUG)
 endif ()
 
-target_link_libraries(${PROJECT_NAME} PRIVATE glm::glm glfw GLEW::GLEW OpenGL::GL Jolt::Jolt)
+target_link_libraries(${PROJECT_NAME} PRIVATE glm::glm glfw GLEW::GLEW OpenGL::GL Jolt::Jolt assimp)

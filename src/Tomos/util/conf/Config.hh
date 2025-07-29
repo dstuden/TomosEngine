@@ -1,12 +1,13 @@
 #pragma once
 
-#include <iostream>
 #include <fstream>
+#include <iostream>
 #include <string>
-#include <variant>
 #include <type_traits>
 #include <unordered_map>
+#include <variant>
 #include <vector>
+
 #include "Tomos/lib/json.hpp"
 #include "Tomos/util/logger/Logger.hh"
 
@@ -17,22 +18,21 @@ namespace Tomos
     class ConfigManager;
 
     // Type alias for all supported JSON/C++ types
-    using ConfigValue = std::variant<
-        int, // JSON number (integer)
-        unsigned int, // JSON number (unsigned)
-        float, // JSON number (float)
-        double, // JSON number (double)
-        bool, // JSON boolean
-        long, // JSON number (long)
-        unsigned long, // JSON number (unsigned long)
-        std::string, // JSON string
-        std::vector<int>, // JSON array of integers
-        std::vector<float>, // JSON array of floats
-        std::vector<double>, // JSON array of doubles
-        std::vector<bool>, // JSON array of booleans
-        std::vector<std::string>, // JSON array of strings
-        json // For nested objects or untyped values
-    >;
+    using ConfigValue = std::variant<int,  // JSON number (integer)
+                                     unsigned int,  // JSON number (unsigned)
+                                     float,  // JSON number (float)
+                                     double,  // JSON number (double)
+                                     bool,  // JSON boolean
+                                     long,  // JSON number (long)
+                                     unsigned long,  // JSON number (unsigned long)
+                                     std::string,  // JSON string
+                                     std::vector<int>,  // JSON array of integers
+                                     std::vector<float>,  // JSON array of floats
+                                     std::vector<double>,  // JSON array of doubles
+                                     std::vector<bool>,  // JSON array of booleans
+                                     std::vector<std::string>,  // JSON array of strings
+                                     json  // For nested objects or untyped values
+                                     >;
 
     // Base class for configuration schemas
     class ConfigSchema
@@ -52,15 +52,9 @@ namespace Tomos
     class ConfigSchemaImpl : public ConfigSchema
     {
     public:
-        void registerFields( ConfigManager& p_manager ) override
-        {
-            static_cast<T*>( this )->defineFields( p_manager );
-        }
+        void registerFields( ConfigManager& p_manager ) override { static_cast<T*>( this )->defineFields( p_manager ); }
 
-        void load( const json& p_data ) override
-        {
-            static_cast<T*>( this )->loadFields( p_data );
-        }
+        void load( const json& p_data ) override { static_cast<T*>( this )->loadFields( p_data ); }
     };
 
     class ConfigManager
@@ -71,8 +65,7 @@ namespace Tomos
         void setSchema()
         {
             bool isBase = std::is_base_of_v<ConfigSchema, Schema>;
-            LOG_ASSERT_MSG( isBase,
-                            "Schema must inherit from ConfigSchema" );
+            LOG_ASSERT_MSG( isBase, "Schema must inherit from ConfigSchema" );
 
             m_currentSchema = std::make_unique<Schema>();
             m_currentSchema->registerFields( *this );
@@ -81,16 +74,14 @@ namespace Tomos
         // Load configuration from file
         bool loadConfig( const std::string& p_configPath )
         {
-            LOG_ASSERT_MSG( m_currentSchema,
-                            "No schema set. Call setSchema() first." );
+            LOG_ASSERT_MSG( m_currentSchema, "No schema set. Call setSchema() first." );
 
             try
             {
                 std::ifstream configFile( p_configPath );
                 if ( !configFile.is_open() )
                 {
-                    LOG_ERROR() << "Warning: Could not open config file: " << p_configPath
-                            << ". Using defaults.";
+                    LOG_ERROR() << "Warning: Could not open config file: " << p_configPath << ". Using defaults.";
                     return false;
                 }
 
@@ -109,7 +100,8 @@ namespace Tomos
             {
                 LOG_ERROR() << "JSON parse error: " << e.what();
                 return false;
-            } catch ( const std::exception& e )
+            }
+            catch ( const std::exception& e )
             {
                 LOG_ERROR() << "Error loading config: " << e.what();
                 return false;
@@ -174,19 +166,29 @@ namespace Tomos
     class BaseConfig : public ConfigSchemaImpl<BaseConfig>
     {
     public:
-        int           m_unassignedLayerId   = -1;
-        unsigned long m_maxInstancesPerDraw = 1024;
+        std::string   m_unassignedLayerId      = "UNASSIGNED_LAYER";
+        unsigned long m_maxInstancesPerDraw    = 1024;
+        int           m_maxShadowsMaps         = 16;
+        int           m_maxLights              = 128;
+        int           m_directionalLightRadius = 16;
+
 
         void defineFields( ConfigManager& p_manager )
         {
             p_manager.registerField( "unassignedLayerId", &m_unassignedLayerId, m_unassignedLayerId );
             p_manager.registerField( "maxInstancesPerDraw", &m_maxInstancesPerDraw, m_maxInstancesPerDraw );
+            p_manager.registerField( "maxShadowMaps", &m_maxShadowsMaps, m_maxShadowsMaps );
+            p_manager.registerField( "maxLights", &m_maxLights, m_maxLights );
+            p_manager.registerField( "directionalLightRadius", &m_directionalLightRadius, m_directionalLightRadius );
         }
 
         void loadFields( const json& p_data )
         {
-            if ( p_data.contains( "unnasignedLayerId" ) ) m_unassignedLayerId = p_data["unnasignedLayerId"];
-            if ( p_data.contains( "maxInstancesPerDraw" ) ) m_maxInstancesPerDraw = p_data["maxInstancesPerDraw"];
+            if ( p_data.contains( "unassignedLayerId" ) ) m_unassignedLayerId = p_data["unassignedLayerId"].get<std::string>();
+            if ( p_data.contains( "maxInstancesPerDraw" ) ) m_maxInstancesPerDraw = p_data["maxInstancesPerDraw"].get<unsigned long>();
+            if ( p_data.contains( "maxShadowMaps" ) ) m_maxShadowsMaps = p_data["maxShadowMaps"].get<int>();
+            if ( p_data.contains( "maxLights" ) ) m_maxLights = p_data["maxLights"].get<int>();
+            if ( p_data.contains( "directionalLightRadius" ) ) m_directionalLightRadius = p_data["directionalLightRadius"].get<int>();
         }
     };
-} // Tomos
+}  // namespace Tomos

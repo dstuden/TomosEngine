@@ -21,15 +21,13 @@ namespace Tomos
 
     void MeshSystem::componentRemoved( const std::shared_ptr<Component>& p_component, const std::shared_ptr<Node>& p_node )
     {
-        if ( m_components.contains( p_node->getLayerId() ) )
-            m_components[p_node->getLayerId()].erase( p_component );
+        if ( m_components.contains( p_node->getLayerId() ) ) m_components[p_node->getLayerId()].erase( p_component );
     }
 
-    void MeshSystem::lateUpdate( int p_layerId )
+    void MeshSystem::lateUpdate( const std::string& p_layerId )
     {
         // Get view projection matrix once
         auto sys      = Application::getState().ecs().getSystem<CameraSystem>();
-        auto viewProj = sys.getViewProjectionMat( p_layerId );
 
         if ( !m_components.contains( p_layerId ) )
         {
@@ -48,25 +46,17 @@ namespace Tomos
 
             if ( mesh && material )
             {
-                m_drawCalls[p_layerId].push_back( {
-                        mesh->getShader(),
-                        material,
-                        mesh->getVertexArray(),
-                        node->m_transform.m_globMat
-                } );
+                m_drawCalls[p_layerId].push_back( { mesh->getShader(), material, mesh->getVertexArray(), node->m_transform.m_globMat } );
             }
         }
     }
 
-    const std::vector<DrawCall>& MeshSystem::getDrawCalls( int layerId ) const
+    const std::vector<DrawCall>& MeshSystem::getDrawCalls( const std::string& layerId ) const
     {
         static const std::vector<DrawCall> empty;
         auto                               it = m_drawCalls.find( layerId );
         return it != m_drawCalls.end() ? it->second : empty;
     }
 
-    void MeshSystem::clearDrawCalls( int layerId )
-    {
-        m_drawCalls[layerId].clear();
-    }
-} // Tomos
+    void MeshSystem::clearDrawCalls( const std::string& layerId ) { m_drawCalls[layerId].clear(); }
+}  // namespace Tomos

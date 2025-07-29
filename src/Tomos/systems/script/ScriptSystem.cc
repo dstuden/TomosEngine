@@ -29,7 +29,7 @@ namespace Tomos
         }
     }
 
-    void ScriptSystem::earlyUpdate( int p_layerId )
+    void ScriptSystem::earlyUpdate( const std::string& p_layerId )
     {
         if ( !m_components.contains( p_layerId ) )
         {
@@ -45,7 +45,7 @@ namespace Tomos
         }
     }
 
-    void ScriptSystem::update( int p_layerId )
+    void ScriptSystem::update( const std::string& p_layerId )
     {
         if ( !m_components.contains( p_layerId ) )
         {
@@ -59,7 +59,7 @@ namespace Tomos
         }
     }
 
-    void ScriptSystem::lateUpdate( int p_layerId )
+    void ScriptSystem::lateUpdate( const std::string& p_layerId )
     {
         if ( !m_components.contains( p_layerId ) )
         {

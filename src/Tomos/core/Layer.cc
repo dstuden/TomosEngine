@@ -3,24 +3,20 @@
 //
 
 #include "Layer.hh"
-#include "Application.hh"
 
+#include "Application.hh"
 #include "Tomos/util/logger/Logger.hh"
 
 namespace Tomos
 {
-    Layer::Layer( const std::string& p_name ) :
-        m_name( p_name )
+    Layer::Layer( const std::string& p_id ) : m_layerId( p_id )
     {
         auto& window       = Application::get()->getWindow();
-        m_layerId          = getNewLayerId();
         m_sceneManager     = SceneManager();
-        m_layerFramebuffer = std::make_shared<FrameBuffer>( window.getData().m_width, window.getData().m_height );
+        m_layerFramebuffer = std::make_shared<LayerFrameBuffer>( window.getData().m_width, window.getData().m_height );
     }
 
-    LayerStack::LayerStack()
-    {
-    }
+    LayerStack::LayerStack() {}
 
     LayerStack::~LayerStack()
     {
@@ -64,22 +60,16 @@ namespace Tomos
         LOG_DEBUG() << "End";
     }
 
-    void Layer::addRenderPass( std::unique_ptr<RenderPass> p_pass )
-    {
-        m_passes.push_back( std::move( p_pass ) );
-    }
+    void Layer::addRenderPass( std::shared_ptr<RenderPass> p_pass ) { m_passes.push_back( p_pass ); }
 
-    const std::vector<std::unique_ptr<RenderPass>>& Layer::getRenderPasses() const
-    {
-        return m_passes;
-    }
+    const std::vector<std::shared_ptr<RenderPass>>& Layer::getRenderPasses() const { return m_passes; }
 
     void Layer::onResize( int p_width, int p_height )
     {
         m_layerFramebuffer->resize( p_width, p_height );
         for ( auto& pass : m_passes )
         {
-            pass->onResize( p_width, p_height );
+            pass->resize( p_width, p_height );
         }
     }
-} // namespace Tomos
+}  // namespace Tomos

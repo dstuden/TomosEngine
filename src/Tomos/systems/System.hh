@@ -12,54 +12,35 @@ namespace Tomos
         friend class ECS;
 
     public:
-        System()
-        {
-        }
+        System() {}
 
         virtual ~System() = default;
 
-        virtual void earlyUpdate( int p_layerId )
-        {
-        };
+        virtual void earlyUpdate( const std::string& p_layerId ) {};
 
-        virtual void update( int p_layerId )
-        {
-        };
+        virtual void update( const std::string& p_layerId ) {};
 
-        virtual void lateUpdate( int p_layerId )
-        {
-        };
+        virtual void lateUpdate( const std::string& p_layerId ) {};
 
-        virtual void componentAdded( const std::shared_ptr<Component>& p_component, const std::shared_ptr<Node>& p_node )
-        {
-        };
+        virtual void componentAdded( const std::shared_ptr<Component>& p_component, const std::shared_ptr<Node>& p_node ) {};
 
-        virtual void componentRemoved( const std::shared_ptr<Component>& p_component, const std::shared_ptr<Node>& p_node )
-        {
-        };
+        virtual void componentRemoved( const std::shared_ptr<Component>& p_component, const std::shared_ptr<Node>& p_node ) {};
 
         virtual std::type_index getComponentType() const { return typeid( nullptr ); };
 
-        std::unordered_map<int, std::unordered_map<std::shared_ptr<Component>, std::shared_ptr<Node>>>& getComponents()
-        {
-            return m_components;
-        }
+        std::unordered_map<std::string, std::unordered_map<std::shared_ptr<Component>, std::shared_ptr<Node>>>& getComponents() { return m_components; }
 
     protected:
         // Component, Node pairs for each layer
-        // Layer -1 is unassigned
-        std::unordered_map<int, std::unordered_map<std::shared_ptr<Component>, std::shared_ptr<Node>>> m_components;
+        std::unordered_map<std::string, std::unordered_map<std::shared_ptr<Component>, std::shared_ptr<Node>>> m_components;
     };
 
     class FixedTimeStepSystem : public System
     {
     public:
-        FixedTimeStepSystem( float p_fixedTimeStep = 0.01f ) :
-            m_fixedTimeStep( p_fixedTimeStep )
-        {
-        }
+        FixedTimeStepSystem( float p_fixedTimeStep = 0.01f ) : m_fixedTimeStep( p_fixedTimeStep ) {}
 
-        virtual void update( float p_deltaTime, int p_layerId )
+        virtual void update( float p_deltaTime, const std::string& p_layerId )
         {
             m_accumulator += p_deltaTime;
 
@@ -73,7 +54,7 @@ namespace Tomos
         }
 
     protected:
-        float m_fixedTimeStep = 0.01; // 100Hz
+        float m_fixedTimeStep = 0.01;  // 100Hz
         float m_accumulator   = 0.0f;
     };
-} // namespace Tomos
+}  // namespace Tomos

@@ -8,7 +8,7 @@ namespace Tomos
     class Scene
     {
     public:
-        explicit Scene( int p_layerId, const std::string& p_name = "UnnamedScene" ) :
+        explicit Scene( const std::string& p_layerId, const std::string& p_name = "UnnamedScene" ) :
             m_root( p_layerId ),
             m_name( p_name )
         {

@@ -1,49 +1,52 @@
-//
-// Created by dstuden on 5/10/25.
-//
-
 #include "FrameBuffer.hh"
+
 #include "Tomos/util/logger/Logger.hh"
 
 namespace Tomos
 {
-    FrameBuffer::FrameBuffer( unsigned int  p_width, unsigned int        p_height,
-                              TextureFormat p_colorFormat, TextureFormat p_depthFormat ) :
-        m_size( p_width, p_height ), m_colorFormat( p_colorFormat ), m_depthFormat( p_depthFormat )
+    FrameBuffer::FrameBuffer( unsigned int p_width, unsigned int p_height, const std::vector<TextureFormat>& p_colorFormats, TextureFormat p_depthFormat ) :
+        m_size( p_width, p_height ), m_colorFormats( p_colorFormats ), m_depthFormat( p_depthFormat )
     {
         initialize();
     }
 
-    FrameBuffer::~FrameBuffer()
-    {
-        cleanup();
-    }
+    FrameBuffer::~FrameBuffer() { cleanup(); }
 
     void FrameBuffer::initialize()
     {
-        // Create and bind framebuffer
         glGenFramebuffers( 1, &m_fbo );
         glBindFramebuffer( GL_FRAMEBUFFER, m_fbo );
 
-        // Create color texture attachment
-        m_colorTexture = Texture::create( m_colorFormat, m_size );
-        m_colorTexture->setFilter( TextureFilter::Linear, TextureFilter::Linear );
-        m_colorTexture->setWrap( TextureWrap::ClampToEdge, TextureWrap::ClampToEdge );
+        m_colorTextures.clear();
+        std::vector<GLenum> drawBuffers;
 
-        // Attach color texture to framebuffer
-        glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                                GL_TEXTURE_2D, m_colorTexture->getID(), 0 );
+        for ( unsigned int i = 0; i < m_colorFormats.size(); ++i )
+        {
+            auto tex = Texture::create( m_colorFormats[i], m_size );
+            tex->setFilter( TextureFilter::Linear, TextureFilter::Linear );
+            tex->setWrap( TextureWrap::ClampToEdge, TextureWrap::ClampToEdge );
 
-        // Create depth texture attachment
+            glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, tex->getID(), 0 );
+
+            m_colorTextures.push_back( tex );
+            drawBuffers.push_back( GL_COLOR_ATTACHMENT0 + i );
+        }
+
+        if ( !drawBuffers.empty() )
+        {
+            glDrawBuffers( static_cast<GLsizei>( drawBuffers.size() ), drawBuffers.data() );
+        }
+        else
+        {
+            glDrawBuffer( GL_NONE );
+        }
+
         m_depthTexture = Texture::create( m_depthFormat, m_size );
         m_depthTexture->setFilter( TextureFilter::Nearest, TextureFilter::Nearest );
         m_depthTexture->setWrap( TextureWrap::ClampToEdge, TextureWrap::ClampToEdge );
 
-        // Attach depth texture to framebuffer
-        glFramebufferTexture2D( GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
-                                GL_TEXTURE_2D, m_depthTexture->getID(), 0 );
+        glFramebufferTexture2D( GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, m_depthTexture->getID(), 0 );
 
-        // Check completeness
         if ( glCheckFramebufferStatus( GL_FRAMEBUFFER ) != GL_FRAMEBUFFER_COMPLETE )
         {
             LOG_ERROR() << "Framebuffer is not complete!";
@@ -60,11 +63,8 @@ namespace Tomos
             glDeleteFramebuffers( 1, &m_fbo );
             m_fbo = 0;
         }
-        if ( m_rbo )
-        {
-            glDeleteRenderbuffers( 1, &m_rbo );
-            m_rbo = 0;
-        }
+        m_colorTextures.clear();
+        m_depthTexture.reset();
     }
 
     void FrameBuffer::bind() const
@@ -74,23 +74,13 @@ namespace Tomos
         glViewport( 0, 0, m_size.x, m_size.y );
     }
 
-    void FrameBuffer::unbind() const
-    {
-        glBindFramebuffer( GL_FRAMEBUFFER, 0 );
-    }
+    void FrameBuffer::unbind() const { glBindFramebuffer( GL_FRAMEBUFFER, 0 ); }
 
     void FrameBuffer::resize( unsigned int p_width, unsigned int p_height )
     {
         if ( p_width == m_size.x && p_height == m_size.y ) return;
-
-        m_size = {p_width, p_height};
-
-        // Resize textures
-        m_colorTexture->resize( m_size );
-        m_depthTexture->resize( m_size );
-
-        // Reinitialize if needed (though texture resize should be sufficient)
+        m_size = { p_width, p_height };
         cleanup();
         initialize();
     }
-}
+}  // namespace Tomos

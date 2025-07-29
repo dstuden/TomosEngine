@@ -1,12 +1,10 @@
 #define GLM_ENABLE_EXPERIMENTAL
-#define CGLTF_IMPLEMENTATION
 
 #include "GLBLoader.hh"
 
 #include <filesystem>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/matrix_decompose.hpp>
-#include <unordered_map>
 
 #include "Tomos/systems/mesh/MeshComponent.hh"
 #include "Tomos/util/logger/Logger.hh"
@@ -18,22 +16,22 @@ namespace Tomos
     {
         LoadResult result;
 
-        cgltf_options options     = {};
-        cgltf_data*   data        = nullptr;
-        cgltf_result  parseResult = cgltf_parse_file( &options, p_filepath.c_str(), &data );
+        Assimp::Importer importer;
 
-        if ( parseResult != cgltf_result_success )
+        unsigned int flags = aiProcess_CalcTangentSpace |
+                             aiProcess_ImproveCacheLocality;
+
+        const aiScene* scene = importer.ReadFile( p_filepath, flags );
+
+        if ( !scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode )
         {
-            LOG_ERROR() << "Failed to load GLB file: " << p_filepath << " Error: " << parseResult;
+            LOG_ERROR() << "Assimp error: " << importer.GetErrorString();
             return result;
         }
 
-        // Load buffers
-        cgltf_result loadResult = cgltf_load_buffers( &options, data, p_filepath.c_str() );
-        if ( loadResult != cgltf_result_success )
+        if ( scene->mNumMeshes == 0 )
         {
-            LOG_ERROR() << "Failed to load GLB buffers: " << p_filepath << " Error: " << loadResult;
-            cgltf_free( data );
+            LOG_ERROR() << "No meshes found in GLB file: " << p_filepath;
             return result;
         }
 
@@ -42,16 +40,7 @@ namespace Tomos
         result.m_rootNode = rootNode;
 
         // Process all nodes recursively
-        for ( size_t i = 0; i < data->nodes_count; i++ )
-        {
-            if ( !data->nodes[i].parent ) // Only process root nodes, children will be processed recursively
-            {
-                processNode( &data->nodes[i], data, rootNode, p_shader, result.m_materials, p_useCache );
-            }
-        }
-
-        // Free cgltf data
-        cgltf_free( data );
+        processNode( scene->mRootNode, scene, rootNode, p_shader, result.m_materials, p_useCache );
 
         return result;
     }
@@ -89,213 +78,194 @@ namespace Tomos
         return copy;
     }
 
-    void GLBLoader::processNode( cgltf_node* p_node, cgltf_data* p_data, const std::shared_ptr<Node>& p_parentNode, const std::shared_ptr<Shader>& p_shader,
-                                 std::vector<std::shared_ptr<Material>>& p_materials, bool p_useCache )
+    void GLBLoader::processNode( const aiNode* p_node, const aiScene* p_scene, const std::shared_ptr<Node>& p_parentNode,
+                                 const std::shared_ptr<Shader>& p_shader, std::vector<std::shared_ptr<Material>>& p_materials, bool p_useCache )
     {
         // Create a new node
-        auto newNode = std::make_shared<Node>( p_node->name ? p_node->name : "UnnamedNode" );
+        auto newNode = std::make_shared<Node>( p_node->mName.C_Str() );
 
         // Set transform
-        if ( p_node->has_matrix )
-        {
-            // Decompose matrix into translation, rotation, scale
-            glm::mat4 matrix = glm::make_mat4( p_node->matrix );
-            glm::vec3 scale;
-            glm::quat rotation;
-            glm::vec3 translation;
-            glm::vec3 skew;
-            glm::vec4 perspective;
-            glm::decompose( matrix, scale, rotation, translation, skew, perspective );
+        aiMatrix4x4 transform = p_node->mTransformation;
+        glm::mat4   matrix    = glm::mat4( transform.a1, transform.b1, transform.c1, transform.d1, transform.a2, transform.b2, transform.c2, transform.d2,
+                                           transform.a3, transform.b3, transform.c3, transform.d3, transform.a4, transform.b4, transform.c4, transform.d4 );
 
-            //            newNode->m_transform.m_translation = translation;
-            //            newNode->m_transform.m_rotation    = rotation;
-            //            newNode->m_transform.m_scale       = scale;
-        }
-        else
-        {
-            if ( p_node->has_translation )
-            {
-                newNode->m_transform.m_translation = glm::vec3( p_node->translation[0], p_node->translation[1], p_node->translation[2] );
-            }
+        // Decompose matrix into translation, rotation, scale
+        glm::vec3 scale;
+        glm::quat rotation;
+        glm::vec3 translation;
+        glm::vec3 skew;
+        glm::vec4 perspective;
+        glm::decompose( matrix, scale, rotation, translation, skew, perspective );
 
-            if ( p_node->has_rotation )
-            {
-                newNode->m_transform.m_rotation = glm::quat( p_node->rotation[3], // w
-                                                             p_node->rotation[0], // x
-                                                             p_node->rotation[1], // y
-                                                             p_node->rotation[2] // z
-                        );
-            }
-
-            if ( p_node->has_scale )
-            {
-                newNode->m_transform.m_scale = glm::vec3( p_node->scale[0], p_node->scale[1], p_node->scale[2] );
-            }
-        }
+        newNode->m_transform.m_translation = translation;
+        newNode->m_transform.m_rotation    = rotation;
+        newNode->m_transform.m_scale       = scale;
         newNode->m_transform.update();
 
-        // Process mesh if this node has one
-        if ( p_node->mesh )
+        // Process meshes if this node has any
+        for ( unsigned int i = 0; i < p_node->mNumMeshes; i++ )
         {
-            processMesh( p_node->mesh, p_data, newNode, p_shader, p_materials, p_useCache );
+            aiMesh* mesh = p_scene->mMeshes[p_node->mMeshes[i]];
+            processMesh( mesh, p_scene, newNode, p_shader, p_materials, p_useCache );
         }
 
         // Process children recursively
-        for ( size_t i = 0; i < p_node->children_count; i++ )
+        for ( unsigned int i = 0; i < p_node->mNumChildren; i++ )
         {
-            processNode( p_node->children[i], p_data, newNode, p_shader, p_materials, p_useCache );
+            processNode( p_node->mChildren[i], p_scene, newNode, p_shader, p_materials, p_useCache );
         }
 
         p_parentNode->addChild( newNode );
     }
 
-    void GLBLoader::processMesh( cgltf_mesh* p_mesh, cgltf_data* p_data, const std::shared_ptr<Node>& p_node, const std::shared_ptr<Shader>& p_shader,
+    void GLBLoader::processMesh( const aiMesh* p_mesh, const aiScene* p_scene, const std::shared_ptr<Node>& p_node, const std::shared_ptr<Shader>& p_shader,
                                  std::vector<std::shared_ptr<Material>>& p_materials, bool p_useCache )
     {
-        for ( size_t i = 0; i < p_mesh->primitives_count; i++ )
+        // Generate a unique key for this mesh
+        std::string meshKey = std::string( p_mesh->mName.C_Str() ) + "_mesh";
+
+        std::shared_ptr<Mesh> meshComponent;
+
+        // Check cache if enabled
+        if ( p_useCache )
         {
-            cgltf_primitive* primitive = &p_mesh->primitives[i];
+            meshComponent = ResourceManager::getMesh( meshKey );
+        }
 
-            // Generate a unique key for this mesh primitive
-            std::string meshKey = std::string( p_mesh->name ? p_mesh->name : "unnamed" ) + "_primitive_" + std::to_string( i );
+        // If not in cache, create new mesh
+        if ( !meshComponent )
+        {
+            // Extract vertex data
+            std::vector<float>    positions;
+            std::vector<float>    normals;
+            std::vector<float>    texCoords;
+            std::vector<float>    tangents;
+            std::vector<uint32_t> indices;
 
-            std::shared_ptr<Mesh> meshComponent;
+            // Positions
+            positions.reserve( p_mesh->mNumVertices * 3 );
+            for ( unsigned int i = 0; i < p_mesh->mNumVertices; i++ )
+            {
+                positions.push_back( p_mesh->mVertices[i].x );
+                positions.push_back( p_mesh->mVertices[i].y );
+                positions.push_back( p_mesh->mVertices[i].z );
+            }
 
-            // Check cache if enabled
+            // Normals
+            normals.reserve( p_mesh->mNumVertices * 3 );
+            if ( p_mesh->HasNormals() )
+            {
+                for ( unsigned int i = 0; i < p_mesh->mNumVertices; i++ )
+                {
+                    normals.push_back( p_mesh->mNormals[i].x );
+                    normals.push_back( p_mesh->mNormals[i].y );
+                    normals.push_back( p_mesh->mNormals[i].z );
+                }
+            }
+
+            // Texture Coordinates
+            texCoords.reserve( p_mesh->mNumVertices * 2 );
+            if ( p_mesh->HasTextureCoords( 0 ) )
+            {
+                for ( unsigned int i = 0; i < p_mesh->mNumVertices; i++ )
+                {
+                    texCoords.push_back( p_mesh->mTextureCoords[0][i].x );
+                    texCoords.push_back( p_mesh->mTextureCoords[0][i].y );
+                }
+            }
+
+            // Tangents
+            tangents.reserve( p_mesh->mNumVertices * 4 );
+            if ( p_mesh->HasTangentsAndBitangents() && p_mesh->HasNormals() )  // Ensure normals are also present for cross product
+            {
+                for ( unsigned int i = 0; i < p_mesh->mNumVertices; i++ )
+                {
+                    glm::vec3 assimpTangent   = glm::vec3( p_mesh->mTangents[i].x, p_mesh->mTangents[i].y, p_mesh->mTangents[i].z );
+                    glm::vec3 assimpBitangent = glm::vec3( p_mesh->mBitangents[i].x, p_mesh->mBitangents[i].y, p_mesh->mBitangents[i].z );
+                    glm::vec3 assimpNormal    = glm::vec3( p_mesh->mNormals[i].x, p_mesh->mNormals[i].y, p_mesh->mNormals[i].z );
+
+                    glm::vec3 calculatedBitangent = glm::cross( assimpNormal, assimpTangent );
+                    float     bitangentSign       = glm::dot( calculatedBitangent, assimpBitangent ) > 0.0f ? 1.0f : -1.0f;
+
+                    tangents.push_back( assimpTangent.x );
+                    tangents.push_back( assimpTangent.y );
+                    tangents.push_back( assimpTangent.z );
+                    tangents.push_back( bitangentSign );
+                }
+            }
+            // If the mesh doesn't have tangents/bitangents, you might want to push a default vec4(0,0,0,1)
+            // or ensure your shader handles this case by not applying normal mapping.
+            else if ( !p_mesh->HasTangentsAndBitangents() && p_mesh->HasNormals() )
+            {
+                // If no tangents, but normals are present, push a default.
+                // The shader should then ideally bypass normal map calculations.
+                for ( unsigned int i = 0; i < p_mesh->mNumVertices; i++ )
+                {
+                    tangents.push_back( 0.0f );
+                    tangents.push_back( 0.0f );
+                    tangents.push_back( 0.0f );
+                    tangents.push_back( 1.0f );  // Default sign to 1.0
+                }
+            }
+
+            // Indices
+            indices.reserve( p_mesh->mNumFaces * 3 );
+            for ( unsigned int i = 0; i < p_mesh->mNumFaces; i++ )
+            {
+                aiFace face = p_mesh->mFaces[i];
+                for ( unsigned int j = 0; j < face.mNumIndices; j++ )
+                {
+                    indices.push_back( face.mIndices[j] );
+                }
+            }
+
+            // Create buffers
+            auto positionBuffer = std::make_shared<VertexBuffer>( positions.data(), positions.size() * sizeof( float ) );
+
+            auto normalBuffer = normals.empty() ? nullptr : std::make_shared<VertexBuffer>( normals.data(), normals.size() * sizeof( float ) );
+
+            auto texCoordBuffer = texCoords.empty() ? nullptr : std::make_shared<VertexBuffer>( texCoords.data(), texCoords.size() * sizeof( float ) );
+
+            auto tangentBuffer = tangents.empty() ? nullptr : std::make_shared<VertexBuffer>( tangents.data(), tangents.size() * sizeof( float ) );
+
+            auto indexBuffer = std::make_shared<IndexBuffer>( indices.data(), indices.size() );
+
+            // Create mesh
+            meshComponent = std::make_shared<Mesh>( positionBuffer, normalBuffer, texCoordBuffer, tangentBuffer, indexBuffer, p_shader );
+
+            // Add to cache if enabled
             if ( p_useCache )
             {
-                meshComponent = ResourceManager::getMesh( meshKey );
+                ResourceManager::cacheMesh( meshKey, meshComponent );
             }
-
-            // If not in cache, create new mesh
-            if ( !meshComponent )
-            {
-                std::vector<float>    positions;
-                std::vector<float>    normals;
-                std::vector<float>    texCoords;
-                std::vector<float>    tangents;
-                std::vector<uint32_t> indices;
-
-                // Process attributes
-                for ( size_t j = 0; j < primitive->attributes_count; j++ )
-                {
-                    cgltf_attribute*   attribute = &primitive->attributes[j];
-                    cgltf_accessor*    accessor  = attribute->data;
-                    cgltf_buffer_view* view      = accessor->buffer_view;
-
-                    if ( attribute->type == cgltf_attribute_type_position )
-                    {
-                        positions.resize( accessor->count * 3 );
-                        for ( size_t k = 0; k < accessor->count; k++ )
-                        {
-                            cgltf_accessor_read_float( accessor, k, &positions[k * 3], 3 );
-                        }
-                    }
-                    else if ( attribute->type == cgltf_attribute_type_normal )
-                    {
-                        normals.resize( accessor->count * 3 );
-                        for ( size_t k = 0; k < accessor->count; k++ )
-                        {
-                            cgltf_accessor_read_float( accessor, k, &normals[k * 3], 3 );
-                        }
-                    }
-                    else if ( attribute->type == cgltf_attribute_type_texcoord )
-                    {
-                        texCoords.resize( accessor->count * 2 );
-                        for ( size_t k = 0; k < accessor->count; k++ )
-                        {
-                            cgltf_accessor_read_float( accessor, k, &texCoords[k * 2], 2 );
-                            // Flip Y coordinate for OpenGL
-                            texCoords[k * 2 + 1] = 1.0f - texCoords[k * 2 + 1];
-                        }
-                    }
-                    else if ( attribute->type == cgltf_attribute_type_tangent )
-                    {
-                        tangents.resize( accessor->count * 4 );
-                        for ( size_t k = 0; k < accessor->count; k++ )
-                        {
-                            cgltf_accessor_read_float( accessor, k, &tangents[k * 4], 4 );
-                        }
-                    }
-                }
-
-                // Process indices
-                if ( primitive->indices )
-                {
-                    cgltf_accessor* accessor = primitive->indices;
-                    indices.resize( accessor->count );
-
-                    if ( accessor->component_type == cgltf_component_type_r_16u )
-                    {
-                        const uint16_t* src =
-                                ( const uint16_t* ) ( ( uint8_t* ) accessor->buffer_view->buffer->data + accessor->offset + accessor->buffer_view->offset );
-                        for ( size_t k = 0; k < accessor->count; k++ )
-                        {
-                            indices[k] = src[k];
-                        }
-                    }
-                    else if ( accessor->component_type == cgltf_component_type_r_32u )
-                    {
-                        const uint32_t* src =
-                                ( const uint32_t* ) ( ( uint8_t* ) accessor->buffer_view->buffer->data + accessor->offset + accessor->buffer_view->offset );
-                        for ( size_t k = 0; k < accessor->count; k++ )
-                        {
-                            indices[k] = src[k];
-                        }
-                    }
-                    else
-                    {
-                        LOG_WARN() << "Unsupported index component type in GLB file";
-                        indices.resize( 0 );
-                    }
-                }
-
-                // Create buffers
-                auto positionBuffer = std::make_shared<VertexBuffer>( positions.data(), positions.size() * sizeof( float ) );
-
-                auto normalBuffer = normals.empty() ? nullptr : std::make_shared<VertexBuffer>( normals.data(), normals.size() * sizeof( float ) );
-
-                auto texCoordBuffer = texCoords.empty() ? nullptr : std::make_shared<VertexBuffer>( texCoords.data(), texCoords.size() * sizeof( float ) );
-
-                auto tangentBuffer = tangents.empty() ? nullptr : std::make_shared<VertexBuffer>( tangents.data(), tangents.size() * sizeof( float ) );
-
-                auto indexBuffer = indices.empty() ? nullptr : std::make_shared<IndexBuffer>( indices.data(), indices.size() );
-
-                // Create mesh
-                meshComponent = std::make_shared<Mesh>( positionBuffer, normalBuffer, texCoordBuffer, tangentBuffer, indexBuffer, p_shader );
-
-                // Add to cache if enabled
-                if ( p_useCache )
-                {
-                    ResourceManager::cacheMesh( meshKey, meshComponent );
-                }
-            }
-
-            // Load material (with caching)
-            std::shared_ptr<Material> material;
-            if ( primitive->material )
-            {
-                material = loadMaterial( primitive->material, p_shader, p_data, p_useCache );
-            }
-            else
-            {
-                material = createDefaultMaterial( p_shader );
-            }
-
-            p_materials.push_back( material );
-
-            // Create a MeshComponent and add it to the node
-            auto meshComp = std::make_shared<MeshComponent>( meshComponent, material );
-            p_node->addComponent( meshComp );
         }
+
+        // Load material
+        std::shared_ptr<Material> material;
+        if ( p_mesh->mMaterialIndex >= 0 )
+        {
+            aiMaterial* aiMat = p_scene->mMaterials[p_mesh->mMaterialIndex];
+            material          = loadMaterial( aiMat, p_shader, p_scene, p_useCache );
+        }
+        else
+        {
+            material = createDefaultMaterial( p_shader );
+        }
+
+        p_materials.push_back( material );
+
+        // Create a MeshComponent and add it to the node
+        auto meshComp = std::make_shared<MeshComponent>( meshComponent, material );
+        p_node->addComponent( meshComp );
     }
 
-    std::shared_ptr<Material> GLBLoader::loadMaterial( cgltf_material* p_cgltfMat, const std::shared_ptr<Shader>& p_shader, cgltf_data* p_data,
-                                                       bool            p_useCache )
+    std::shared_ptr<Material> GLBLoader::loadMaterial( aiMaterial* p_aiMat, const std::shared_ptr<Shader>& p_shader, const aiScene* p_scene, bool p_useCache )
     {
-        std::string materialKey = p_cgltfMat->name
-                                      ? std::string( "GLB_Material_" ) + p_cgltfMat->name
-                                      : std::string( "GLB_Material_" ) + std::to_string( ResourceManager::getNewResourceId() );
+        // Generate material key
+        aiString matName;
+        p_aiMat->Get( AI_MATKEY_NAME, matName );
+        std::string materialKey =
+                std::string( "GLB_Material_" ) + ( matName.length > 0 ? matName.C_Str() : std::to_string( ResourceManager::getNewResourceId() ) );
 
         // Check cache if enabled
         if ( p_useCache )
@@ -307,66 +277,98 @@ namespace Tomos
             }
         }
 
-        // Load textures (with caching)
+        // Base color texture
         std::shared_ptr<Texture> baseTexture = nullptr;
-        if ( p_cgltfMat->has_pbr_metallic_roughness && p_cgltfMat->pbr_metallic_roughness.base_color_texture.texture )
+        aiString                 texPath;
+        if ( p_aiMat->GetTexture( aiTextureType_DIFFUSE, 0, &texPath ) == AI_SUCCESS )
         {
-            baseTexture = loadTexture( p_cgltfMat->pbr_metallic_roughness.base_color_texture.texture, p_data, p_useCache );
+            // Check for embedded texture
+            if ( texPath.data[0] == '*' )
+            {
+                int texIndex = std::atoi( texPath.C_Str() + 1 );
+                if ( texIndex >= 0 && texIndex < ( int ) p_scene->mNumTextures )
+                {
+                    baseTexture = loadTexture( p_scene->mTextures[texIndex], p_scene, p_useCache );
+                }
+            }
+            else
+            {
+                // External texture (shouldn't happen with GLB)
+                std::string fullPath = ResourceManager::getTexturePath( texPath.C_Str() );
+                baseTexture          = Texture::createFromFile( fullPath, TextureFormat::RGBA16F );
+            }
         }
 
+        // Normal map
         std::shared_ptr<Texture> normalTexture = nullptr;
-        if ( p_cgltfMat->normal_texture.texture )
+        if ( p_aiMat->GetTexture( aiTextureType_NORMALS, 0, &texPath ) == AI_SUCCESS || p_aiMat->GetTexture( aiTextureType_HEIGHT, 0, &texPath ) == AI_SUCCESS )
         {
-            normalTexture = loadTexture( p_cgltfMat->normal_texture.texture, p_data, p_useCache );
+            if ( texPath.data[0] == '*' )
+            {
+                int texIndex = std::atoi( texPath.C_Str() + 1 );
+                if ( texIndex >= 0 && texIndex < ( int ) p_scene->mNumTextures )
+                {
+                    normalTexture = loadTexture( p_scene->mTextures[texIndex], p_scene, p_useCache );
+                }
+            }
         }
 
+        // Metallic/roughness
         std::shared_ptr<Texture> metallicRoughnessTexture = nullptr;
-        if ( p_cgltfMat->has_pbr_metallic_roughness && p_cgltfMat->pbr_metallic_roughness.metallic_roughness_texture.texture )
+        if ( p_aiMat->GetTexture( aiTextureType_UNKNOWN, 0, &texPath ) == AI_SUCCESS )
         {
-            metallicRoughnessTexture = loadTexture( p_cgltfMat->pbr_metallic_roughness.metallic_roughness_texture.texture, p_data, p_useCache );
+            if ( texPath.data[0] == '*' )
+            {
+                int texIndex = std::atoi( texPath.C_Str() + 1 );
+                if ( texIndex >= 0 && texIndex < ( int ) p_scene->mNumTextures )
+                {
+                    metallicRoughnessTexture = loadTexture( p_scene->mTextures[texIndex], p_scene, p_useCache );
+                }
+            }
         }
 
+        // Emission texture
         std::shared_ptr<Texture> emissionTexture = nullptr;
-        if ( p_cgltfMat->emissive_texture.texture )
+        if ( p_aiMat->GetTexture( aiTextureType_EMISSIVE, 0, &texPath ) == AI_SUCCESS )
         {
-            emissionTexture = loadTexture( p_cgltfMat->emissive_texture.texture, p_data, p_useCache );
+            if ( texPath.data[0] == '*' )
+            {
+                int texIndex = std::atoi( texPath.C_Str() + 1 );
+                if ( texIndex >= 0 && texIndex < ( int ) p_scene->mNumTextures )
+                {
+                    emissionTexture = loadTexture( p_scene->mTextures[texIndex], p_scene, p_useCache );
+                }
+            }
         }
 
         // Material properties
-        glm::vec4 baseColor( 1.0f );
-        if ( p_cgltfMat->has_pbr_metallic_roughness )
-        {
-            baseColor = glm::vec4( p_cgltfMat->pbr_metallic_roughness.base_color_factor[0], p_cgltfMat->pbr_metallic_roughness.base_color_factor[1],
-                                   p_cgltfMat->pbr_metallic_roughness.base_color_factor[2], p_cgltfMat->pbr_metallic_roughness.base_color_factor[3] );
-        }
+        aiColor3D baseColor( 1.0f, 1.0f, 1.0f );
+        p_aiMat->Get( AI_MATKEY_COLOR_DIFFUSE, baseColor );
 
-        float metallic = p_cgltfMat->has_pbr_metallic_roughness ? p_cgltfMat->pbr_metallic_roughness.metallic_factor : 0.0f;
+        float metallic = 0.0f;
+        // Note: Assimp doesn't have direct metallic factor support, using default
+        // p_aiMat->Get( AI_MATKEY_METALLIC_FACTOR, metallic );
 
-        float roughness = p_cgltfMat->has_pbr_metallic_roughness ? p_cgltfMat->pbr_metallic_roughness.roughness_factor : 1.0f;
+        float roughness = 1.0f;
+        // Note: Assimp doesn't have direct roughness factor support, using default
+        // p_aiMat->Get( AI_MATKEY_ROUGHNESS_FACTOR, roughness );
 
-        glm::vec3 emission( 0.0f );
-        if ( p_cgltfMat->has_emissive_strength )
-        {
-            emission = glm::vec3( p_cgltfMat->emissive_factor[0] * p_cgltfMat->emissive_strength.emissive_strength,
-                                  p_cgltfMat->emissive_factor[1] * p_cgltfMat->emissive_strength.emissive_strength,
-                                  p_cgltfMat->emissive_factor[2] * p_cgltfMat->emissive_strength.emissive_strength );
-        }
+        aiColor3D emission( 0.0f, 0.0f, 0.0f );
+        p_aiMat->Get( AI_MATKEY_COLOR_EMISSIVE, emission );
 
-        // Alpha mode
-        AlphaMode alphaMode = AlphaMode::OPAQUE;
-        if ( p_cgltfMat->alpha_mode == cgltf_alpha_mode_mask )
-        {
-            alphaMode = AlphaMode::MASK;
-        }
-        else if ( p_cgltfMat->alpha_mode == cgltf_alpha_mode_blend )
-        {
-            alphaMode = AlphaMode::BLEND;
-        }
+        // Alpha mode - using standard Assimp properties
+        AlphaMode alphaMode    = AlphaMode::OPAQUE;
+        int       alphaModeInt = 0;
+        // Note: Assimp doesn't have direct GLTF alpha mode support, using default
+        // if ( p_aiMat->Get( AI_MATKEY_GLTF_ALPHAMODE, alphaModeInt ) == AI_SUCCESS )
 
-        float alphaCutoff = p_cgltfMat->alpha_cutoff;
+        float alphaCutoff = 0.5f;
+        // Note: Assimp doesn't have direct GLTF alpha cutoff support, using default
+        // p_aiMat->Get( AI_MATKEY_GLTF_ALPHACUTOFF, alphaCutoff );
 
-        auto material = std::make_shared<Material>( p_shader, baseColor, emission, metallic, roughness,
-                                                    1.0f, // normal scale
+        auto material = std::make_shared<Material>( p_shader, glm::vec4( baseColor.r, baseColor.g, baseColor.b, 1.0f ),
+                                                    glm::vec3( emission.r, emission.g, emission.b ), metallic, roughness,
+                                                    1.0f,  // normal scale
                                                     alphaCutoff, alphaMode, baseTexture ? baseTexture : Material::getDefaultWhite(), metallicRoughnessTexture,
                                                     emissionTexture, normalTexture, Sampler::createLinearRepeat(), materialKey );
 
@@ -379,29 +381,15 @@ namespace Tomos
         return material;
     }
 
-    std::shared_ptr<Texture> GLBLoader::loadTexture( cgltf_texture* p_texture, cgltf_data* p_data, bool p_useCache )
+    std::shared_ptr<Texture> GLBLoader::loadTexture( aiTexture* p_texture, const aiScene* p_scene, bool p_useCache )
     {
-        if ( !p_texture || !p_texture->image )
+        if ( !p_texture )
         {
             return nullptr;
         }
 
-        cgltf_image* image = p_texture->image;
-
         // Generate a unique key for this texture
-        std::string textureKey;
-        if ( image->uri )
-        {
-            textureKey = std::string( image->uri );
-        }
-        else if ( image->buffer_view )
-        {
-            textureKey = "embedded_" + std::to_string( ( size_t ) image->buffer_view );
-        }
-        else
-        {
-            textureKey = "unknown_texture_" + std::to_string( ResourceManager::getNewResourceId() );
-        }
+        std::string textureKey = "embedded_texture_" + std::to_string( ( size_t ) p_texture );
 
         // Check cache if enabled
         if ( p_useCache )
@@ -415,19 +403,20 @@ namespace Tomos
 
         std::shared_ptr<Texture> textureObj = nullptr;
 
-        // Handle embedded texture
-        if ( image->buffer_view )
+        // Handle compressed embedded textures (most common in GLB)
+        if ( p_texture->mHeight == 0 )
         {
-            const uint8_t* data_ptr  = ( const uint8_t* ) image->buffer_view->buffer->data + image->buffer_view->offset;
-            size_t         data_size = image->buffer_view->size;
-
-            textureObj = Texture::createFromMemory( data_ptr, data_size, TextureFormat::SRGBA8 );
+            // Texture is compressed (e.g., PNG/JPG data)
+            textureObj = Texture::createFromMemory( reinterpret_cast<const unsigned char*>( p_texture->pcData ),
+                                                    p_texture->mWidth,  // This contains the size for compressed textures
+                                                    TextureFormat::SRGBA8 );
         }
-        else if ( image->uri )
+        else
         {
-            // Handle external texture
-            std::string fullPath = ResourceManager::getTexturePath( image->uri );
-            textureObj           = Texture::createFromFile( fullPath, TextureFormat::SRGBA8 );
+            // Uncompressed texture (rare in GLB)
+            // Note: Assimp stores uncompressed textures as RGBA8
+            textureObj = Texture::createFromPixels( reinterpret_cast<const unsigned char*>( p_texture->pcData ), p_texture->mWidth, p_texture->mHeight,
+                                                    TextureFormat::RGBA8 );
         }
 
         // Add to cache if enabled and loaded successfully
@@ -442,13 +431,13 @@ namespace Tomos
     std::shared_ptr<Material> GLBLoader::createDefaultMaterial( const std::shared_ptr<Shader>& p_shader )
     {
         return std::make_shared<Material>( p_shader,
-                                           glm::vec4( 1.0f ), // white
-                                           glm::vec3( 0.0f ), // no emission
-                                           0.0f, // non-metallic
-                                           1.0f, // fully rough
-                                           1.0f, // normal scale
-                                           0.5f, // alpha cutoff
+                                           glm::vec4( 1.0f ),  // white
+                                           glm::vec3( 0.0f ),  // no emission
+                                           0.0f,  // non-metallic
+                                           1.0f,  // fully rough
+                                           1.0f,  // normal scale
+                                           0.5f,  // alpha cutoff
                                            AlphaMode::OPAQUE, Material::getDefaultWhite(), Material::getDefaultWhite(), nullptr, Material::getDefaultNormal(),
                                            Sampler::createLinearRepeat(), "DefaultMaterial" );
     }
-} // namespace Tomos
+}  // namespace Tomos
