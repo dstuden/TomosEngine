@@ -4,23 +4,23 @@
 
 #include "ImGuiLayer.hh"
 
-#include "Tomos/core/Application.hh"
+#include "Tomos/core/TApplication.hh"
 #include "Tomos/lib/imgui/imgui.h"
 #include "Tomos/lib/imgui/imgui_impl_glfw.h"
 #include "Tomos/lib/imgui/imgui_impl_opengl3.h"
 #include "Tomos/lib/imgui/imgui_internal.h"
-#include "Tomos/util/logger/Logger.hh"
+#include "Tomos/util/logger/TLogger.hh"
 
 namespace Tomos
 {
-    ImGuiLayer::ImGuiLayer( const std::string& p_name ) : Layer( p_name ) {}
+    ImGuiLayer::ImGuiLayer( const std::string& p_name ) : TLayer( p_name ) {}
 
     ImGuiLayer::~ImGuiLayer() {}
 
     void ImGuiLayer::onUpdate()
     {
         ImGuiIO&     io  = ImGui::GetIO();
-        Application* app = Application::get();
+        TApplication* app = TApplication::get();
         io.DisplaySize   = ImVec2( app->getWindow().getData().m_width, app->getWindow().getData().m_height );
 
         float time   = ( float ) glfwGetTime();
@@ -37,7 +37,7 @@ namespace Tomos
         ImGui_ImplOpenGL3_RenderDrawData( ImGui::GetDrawData() );
     }
 
-    void ImGuiLayer::onEvent( Event& p_event )
+    void ImGuiLayer::onEvent( TEvent& p_event )
     {
         // Handle events here
     }

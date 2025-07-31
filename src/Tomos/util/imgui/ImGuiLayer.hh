@@ -1,18 +1,18 @@
 #pragma once
 
-#include "Tomos/core/Layer.hh"
+#include "Tomos/core/TLayer.hh"
 
 namespace Tomos
 {
 
-    class ImGuiLayer : public Layer
+    class ImGuiLayer : public TLayer
     {
     public:
         ImGuiLayer( const std::string& p_name = "ImGuiLayer" );
         ~ImGuiLayer() override;
 
         void onUpdate() override;
-        void onEvent( Event& p_event ) override;
+        void onEvent( TEvent& p_event ) override;
 
         void onAttach() override;
         void onDetach() override;

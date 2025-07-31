@@ -21,7 +21,9 @@ uniform float uFar;
 
 struct Light {
     vec3 position;
+    float pad0;  // 4 bytes padding
     vec3 direction;
+    float pad0;  // 4 bytes padding
     vec3 color;
 
     int type;
@@ -34,6 +36,7 @@ struct Light {
 // Lights as SSBO
 layout (std430, binding = 0) buffer Lights {
     Light lights[MAX_LIGHTS];
+    int lightCount;
 };
 
 // G-buffer tex coord
@@ -117,7 +120,7 @@ void main() {
 
     vec3 result = vec3(0.0);
 
-    for (int i = 0; i < MAX_LIGHTS; ++i) {
+    for (int i = 0; i < lightCount; ++i) {
         if (lights[i].intensity < 0.001) continue;
 
         vec3 lightDir;
@@ -142,7 +145,6 @@ void main() {
                                             float cone = clamp((angle - coneOuter) / (coneInner - coneOuter), 0.0, 1.0);
                                             attenuation *= cone;
                  }
-                 // For Point Lights (type 1), the correct lightDir and attenuation from delta will be used here.
         }
 
         vec3 radiance = lights[i].color * lights[i].intensity * attenuation;

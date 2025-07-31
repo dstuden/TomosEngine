@@ -21,66 +21,66 @@ file(GLOB_RECURSE ENGINE_HEADERS CONFIGURE_DEPENDS
 )
 
 add_library(${PROJECT_NAME} STATIC
-        src/Tomos/util/logger/Logger.cc
-        src/Tomos/util/logger/Logger.hh
-        src/Tomos/core/Window.cc
-        src/Tomos/core/Window.hh
-        src/Tomos/events/Event.cc
-        src/Tomos/events/Event.hh
-        src/Tomos/events/key/KeyEvent.cc
-        src/Tomos/events/key/KeyEvent.hh
-        src/Tomos/events/mouse/MouseEvent.cc
-        src/Tomos/events/mouse/MouseEvent.hh
-        src/Tomos/events/application/ApplicationEvent.cc
-        src/Tomos/events/application/ApplicationEvent.hh
-        src/Tomos/core/Application.cc
-        src/Tomos/core/Application.hh
-        src/Tomos/util/renderer/Shader.cc
-        src/Tomos/util/renderer/Shader.hh
-        src/Tomos/core/Node.cc
-        src/Tomos/core/Node.hh
+        src/Tomos/util/logger/TLogger.cc
+        src/Tomos/util/logger/TLogger.hh
+        src/Tomos/core/TWindow.cc
+        src/Tomos/core/TWindow.hh
+        src/Tomos/events/TEvent.cc
+        src/Tomos/events/TEvent.hh
+        src/Tomos/events/key/TKeyEvent.cc
+        src/Tomos/events/key/TKeyEvent.hh
+        src/Tomos/events/mouse/TMouseEvent.cc
+        src/Tomos/events/mouse/TMouseEvent.hh
+        src/Tomos/events/application/TApplicationEvent.cc
+        src/Tomos/events/application/TApplicationEvent.hh
+        src/Tomos/core/TApplication.cc
+        src/Tomos/core/TApplication.hh
+        src/Tomos/util/renderer/TShader.cc
+        src/Tomos/util/renderer/TShader.hh
+        src/Tomos/core/TNode.cc
+        src/Tomos/core/TNode.hh
         src/Tomos/lib/stb_image.h
-        src/Tomos/core/Ecs.cc
-        src/Tomos/core/Ecs.hh
-        src/Tomos/systems/System.hh
-        src/Tomos/systems/Component.hh
-        src/Tomos/util/transform/Transform.cc
-        src/Tomos/util/transform/Transform.hh
-        src/Tomos/systems/camera/CameraComponent.cc
-        src/Tomos/systems/camera/CameraComponent.hh
-        src/Tomos/systems/camera/CameraSystem.cc
-        src/Tomos/systems/camera/CameraSystem.hh
-        src/Tomos/util/input/Input.cc
-        src/Tomos/util/input/Input.hh
-        src/Tomos/core/Layer.cc
-        src/Tomos/core/Layer.hh
-        src/Tomos/util/renderer/Buffer.cc
-        src/Tomos/util/renderer/Buffer.hh
-        src/Tomos/util/renderer/VertexArray.cc
-        src/Tomos/util/renderer/VertexArray.hh
-        src/Tomos/util/renderer/Renderer.cc
-        src/Tomos/util/renderer/Renderer.hh
-        src/Tomos/util/time/Time.cc
-        src/Tomos/util/time/Time.hh
-        src/Tomos/util/resourceManager/ResourceManager.hh
-        src/Tomos/systems/script/ScriptSystem.cc
-        src/Tomos/systems/script/ScriptSystem.hh
-        src/Tomos/systems/script/ScriptComponent.hh
+        src/Tomos/core/TEcs.cc
+        src/Tomos/core/TEcs.hh
+        src/Tomos/systems/TSystem.hh
+        src/Tomos/systems/TComponent.hh
+        src/Tomos/util/transform/TTransform.cc
+        src/Tomos/util/transform/TTransform.hh
+        src/Tomos/systems/camera/TCameraComponent.cc
+        src/Tomos/systems/camera/TCameraComponent.hh
+        src/Tomos/systems/camera/TCameraSystem.cc
+        src/Tomos/systems/camera/TCameraSystem.hh
+        src/Tomos/util/input/TInput.cc
+        src/Tomos/util/input/TInput.hh
+        src/Tomos/core/TLayer.cc
+        src/Tomos/core/TLayer.hh
+        src/Tomos/util/renderer/TBuffer.cc
+        src/Tomos/util/renderer/TBuffer.hh
+        src/Tomos/util/renderer/TVertexArray.cc
+        src/Tomos/util/renderer/TVertexArray.hh
+        src/Tomos/util/renderer/TRenderer.cc
+        src/Tomos/util/renderer/TRenderer.hh
+        src/Tomos/util/time/TTime.cc
+        src/Tomos/util/time/TTime.hh
+        src/Tomos/util/resourceManager/TResourceManager.hh
+        src/Tomos/systems/script/TScriptSystem.cc
+        src/Tomos/systems/script/TScriptSystem.hh
+        src/Tomos/systems/script/TScriptComponent.hh
         src/Tomos/lib/lib.cc
         src/Tomos/lib/json.hpp
-        src/Tomos/systems/mesh/MeshComponent.hh
-        src/Tomos/systems/mesh/MeshSystem.cc
-        src/Tomos/systems/mesh/MeshSystem.hh
-        src/Tomos/systems/mesh/Mesh.cc
-        src/Tomos/systems/mesh/Mesh.hh
-        src/Tomos/util/gltfLoader/GLBLoader.cc
-        src/Tomos/util/gltfLoader/GLBLoader.hh
-        src/Tomos/util/renderer/Texture.cc
-        src/Tomos/util/renderer/Texture.hh
-        src/Tomos/util/renderer/Sampler.cc
-        src/Tomos/util/renderer/Sampler.hh
-        src/Tomos/systems/physics/PhysicsSystem.cc
-        src/Tomos/systems/physics/PhysicsSystem.hh
+        src/Tomos/systems/mesh/TMeshComponent.hh
+        src/Tomos/systems/mesh/TMeshSystem.cc
+        src/Tomos/systems/mesh/TMeshSystem.hh
+        src/Tomos/systems/mesh/TMesh.cc
+        src/Tomos/systems/mesh/TMesh.hh
+        src/Tomos/util/gltfLoader/TGLBLoader.cc
+        src/Tomos/util/gltfLoader/TGLBLoader.hh
+        src/Tomos/util/renderer/TTexture.cc
+        src/Tomos/util/renderer/TTexture.hh
+        src/Tomos/util/renderer/TSampler.cc
+        src/Tomos/util/renderer/TSampler.hh
+        src/Tomos/systems/physics/TPhysicsSystem.cc
+        src/Tomos/systems/physics/TPhysicsSystem.hh
         src/Tomos/util/imgui/ImGuiLayer.cc
         src/Tomos/util/imgui/ImGuiLayer.hh
         src/Tomos/lib/imgui/imgui.cpp
@@ -95,22 +95,22 @@ add_library(${PROJECT_NAME} STATIC
         src/Tomos/lib/imgui/imstb_rectpack.h
         src/Tomos/lib/imgui/imstb_textedit.h
         src/Tomos/lib/imgui/imstb_truetype.h
-        src/Tomos/util/renderer/Material.cc
-        src/Tomos/util/renderer/Material.hh
-        src/Tomos/util/renderer/FrameBuffer.cc
-        src/Tomos/util/renderer/FrameBuffer.hh
-        src/Tomos/core/Scene.cc
-        src/Tomos/core/Scene.hh
-        src/Tomos/util/conf/Config.hh
-        src/Tomos/util/renderer/passes/RenderPass.hh
-        src/Tomos/util/resourceManager/ResourceManager.cc
-        src/Tomos/util/renderer/passes/mesh/GBufferPass.cc
-        src/Tomos/util/renderer/passes/mesh/GBufferPass.hh
-        src/Tomos/systems/light/LightComponent.hh
-        src/Tomos/systems/light/LightSystem.cc
-        src/Tomos/systems/light/LightSystem.hh
-        src/Tomos/util/renderer/passes/light/LightPass.cc
-        src/Tomos/util/renderer/passes/light/LightPass.hh
+        src/Tomos/util/renderer/TMaterial.cc
+        src/Tomos/util/renderer/TMaterial.hh
+        src/Tomos/util/renderer/TFrameBuffer.cc
+        src/Tomos/util/renderer/TFrameBuffer.hh
+        src/Tomos/core/TScene.cc
+        src/Tomos/core/TScene.hh
+        src/Tomos/util/conf/TConfig.hh
+        src/Tomos/util/renderer/passes/TRenderPass.hh
+        src/Tomos/util/resourceManager/TResourceManager.cc
+        src/Tomos/util/renderer/passes/gbuff/TGBufferPass.cc
+        src/Tomos/util/renderer/passes/gbuff/TGBufferPass.hh
+        src/Tomos/systems/light/TLightComponent.hh
+        src/Tomos/systems/light/TLightSystem.cc
+        src/Tomos/systems/light/TLightSystem.hh
+        src/Tomos/util/renderer/passes/light/TLightPass.cc
+        src/Tomos/util/renderer/passes/light/TLightPass.hh
 )
 
 # Set paths for engine resources
