@@ -8,67 +8,87 @@
 #include "Tomos/lib/imgui/imgui.h"
 #include "Tomos/lib/imgui/imgui_impl_glfw.h"
 #include "Tomos/lib/imgui/imgui_impl_opengl3.h"
-#include "Tomos/lib/imgui/imgui_internal.h"
 #include "Tomos/util/logger/TLogger.hh"
+#include "Tomos/util/renderer/TBuffer.hh"
+#include "Tomos/util/renderer/TRenderer.hh"
+#include "Tomos/util/renderer/TVertexArray.hh"
 
 namespace Tomos
 {
-    ImGuiLayer::ImGuiLayer( const std::string& p_name ) : TLayer( p_name ) {}
+    ImGuiLayer::ImGuiLayer( const std::string& p_id ) : TLayer( p_id )
+    {
+        float quadVertices[] = {
+                // positions, texcoords
+                -1.0f, 1.0f,  0.0f, 1.0f,  // Top-left
+                -1.0f, -1.0f, 0.0f, 0.0f,  // Bottom-left
+                1.0f,  -1.0f, 1.0f, 0.0f,  // Bottom-right
+
+                -1.0f, 1.0f,  0.0f, 1.0f,  // Top-left
+                1.0f,  -1.0f, 1.0f, 0.0f,  // Bottom-right
+                1.0f,  1.0f,  1.0f, 1.0f  // Top-right
+        };
+
+        auto vbo = std::make_shared<TVertexBuffer>( quadVertices, sizeof( quadVertices ) );
+        vbo->setLayout( { { ShaderDataType::Float2, "aPosition" }, { ShaderDataType::Float2, "aTexCoord" } } );
+
+        auto layerQuad = std::make_shared<TVertexArray>();
+        layerQuad->addVertexBuffer( vbo );
+        this->setQuad( layerQuad );
+    }
 
     ImGuiLayer::~ImGuiLayer() {}
 
     void ImGuiLayer::onUpdate()
     {
-        ImGuiIO&      io  = ImGui::GetIO();
-        TApplication* app = TApplication::get();
-        io.DisplaySize    = ImVec2( app->getWindow().getData().m_width, app->getWindow().getData().m_height );
+        this->getLayerFramebuffer()->bind();
 
-        float time   = ( float ) glfwGetTime();
-        io.DeltaTime = m_time > 0.0f ? ( time - m_time ) : ( 1.0f / 60.0f );
-        m_time       = time;
+        TRenderer::setClearedColor( { 0, 0, 0, 0 } );
+        TRenderer::clear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
         ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
         static bool show = true;
         ImGui::ShowDemoWindow( &show );
 
         ImGui::Render();
+
         ImGui_ImplOpenGL3_RenderDrawData( ImGui::GetDrawData() );
+
+        this->getLayerFramebuffer()->unbind();
     }
 
     void ImGuiLayer::onEvent( TEvent& p_event )
     {
-        // Handle events here
+        if ( m_blockEvents )
+        {
+            ImGuiIO& io = ImGui::GetIO();
+            p_event.setHandled( p_event.isHandled() | ( p_event.isInCategory( EventCategory::MOUSE ) & io.WantCaptureMouse ) );
+            p_event.setHandled( p_event.isHandled() | ( p_event.isInCategory( EventCategory::KEYBOARD ) & io.WantCaptureKeyboard ) );
+        }
     }
 
     void ImGuiLayer::onAttach()
     {
-        // Create ImGui context.
+        IMGUI_CHECKVERSION();
         ImGui::CreateContext();
+        ImGuiIO& io = ImGui::GetIO();
+        ( void ) io;
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
 
-        // Configure ImGui style.
         ImGui::StyleColorsDark();
 
-        // Get ImGui IO object.
-        ImGuiIO& io = ImGui::GetIO();
-        io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;
-        io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;
-
-        // CRITICAL FIX: Initialize ImGui's GLFW backend.
-        // This links ImGui to your GLFW window and enables input handling.
-        // We get the GLFWwindow handle from the TApplication's window object.
         ImGui_ImplGlfw_InitForOpenGL( TApplication::get()->getWindow().getNativeWindow(), true );
-
-        // Initialize ImGui's OpenGL3 backend.
-        ImGui_ImplOpenGL3_Init( "#version 410" );
+        ImGui_ImplOpenGL3_Init( "#version 430" );
     }
 
     void ImGuiLayer::onDetach()
     {
-        // Shutdown ImGui backends and destroy context.
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplGlfw_Shutdown();
         ImGui::DestroyContext();
     }
+
+    void ImGuiLayer::blockEvents( bool p_block ) { m_blockEvents = p_block; }
 }  // namespace Tomos

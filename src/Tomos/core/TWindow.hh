@@ -51,7 +51,7 @@ namespace Tomos
             Normal   = GLFW_CURSOR_NORMAL,
             Hidden   = GLFW_CURSOR_HIDDEN,
             Disabled = GLFW_CURSOR_DISABLED,
-            Captured  = GLFW_CURSOR_CAPTURED
+            Captured = GLFW_CURSOR_CAPTURED
         };
 
         void setCursorMode( CursorMode mode ) { glfwSetInputMode( m_window, GLFW_CURSOR, static_cast<int>( mode ) ); }

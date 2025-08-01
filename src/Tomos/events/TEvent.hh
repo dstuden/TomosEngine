@@ -26,11 +26,11 @@ namespace Tomos
 
     enum class EventCategory
     {
-        NONE = 0,
-        APPLICATION = 1 << 0,
-        INPUT = 1 << 1,
-        KEYBOARD = 1 << 2,
-        MOUSE = 1 << 3,
+        NONE         = 0,
+        APPLICATION  = 1 << 0,
+        INPUT        = 1 << 1,
+        KEYBOARD     = 1 << 2,
+        MOUSE        = 1 << 3,
         MOUSE_BUTTON = 1 << 4
     };
 
@@ -39,14 +39,16 @@ namespace Tomos
         friend class EventDispatcher;
 
     public:
-        virtual EventType   getEventType() const = 0;
+        virtual EventType   getEventType() const     = 0;
         virtual int         getCategoryFlags() const = 0;
-        virtual const char* getName() const = 0;
+        virtual const char* getName() const          = 0;
         virtual std::string toString() const;
         static EventType    getStaticType() { return EventType::NONE; }
 
-        inline bool isInCategory( EventCategory p_category ) const;
+        bool isInCategory( EventCategory p_category ) const;
         inline bool isHandled() const { return m_handled; }
+
+        void setHandled( bool p_handled = true ) { m_handled = p_handled; }
 
     protected:
         bool      m_handled = false;
@@ -59,10 +61,7 @@ namespace Tomos
         using EventFn = std::function<bool( T& )>;
 
     public:
-        explicit EventDispatcher( TEvent& p_event ) :
-            m_event( p_event )
-        {
-        }
+        explicit EventDispatcher( TEvent& p_event ) : m_event( p_event ) {}
 
         template<typename T>
         bool dispatch( EventFn<T> p_func )
@@ -78,4 +77,4 @@ namespace Tomos
     private:
         TEvent& m_event;
     };
-} // namespace Tomos
+}  // namespace Tomos

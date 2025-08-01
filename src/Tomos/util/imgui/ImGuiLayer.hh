@@ -8,7 +8,7 @@ namespace Tomos
     class ImGuiLayer : public TLayer
     {
     public:
-        ImGuiLayer( const std::string& p_name = "ImGuiLayer" );
+        ImGuiLayer( const std::string& p_id = "ImGuiLayer" );
         ~ImGuiLayer() override;
 
         void onUpdate() override;
@@ -17,8 +17,11 @@ namespace Tomos
         void onAttach() override;
         void onDetach() override;
 
+        void blockEvents( bool p_block = true );
+
     protected:
-        float m_time = 0.0f;
+        float m_time        = 0.0f;
+        bool  m_blockEvents = false;
     };
 
 }  // namespace Tomos

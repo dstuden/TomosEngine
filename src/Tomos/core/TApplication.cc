@@ -39,7 +39,13 @@ namespace Tomos
         if ( g_instance )
         {
             TLOG_INFO() << "Cleaning up Application";
-            g_instance->m_window.reset();
+
+            for ( auto& layer : getState().layerStack() )
+            {
+                layer->onDetach();
+            }
+            getState().layerStack().clear();
+
             delete g_instance;
             g_instance = nullptr;
         }
@@ -75,6 +81,8 @@ namespace Tomos
 
             for ( auto& layer : getState().layerStack() )
             {
+                if ( !layer->isActive() ) continue;
+
                 // Layer specific ECS update
                 getState().ecs().earlyUpdate( layer->getLayerId() );
                 getState().ecs().update( layer->getLayerId() );
@@ -101,6 +109,8 @@ namespace Tomos
 
             for ( auto& layer : getState().layerStack() )
             {
+                if ( !layer->isActive() ) continue;
+
                 TRenderer::renderLayerFrameBufferToQuad( layer->getLayerFramebuffer(), layer->getQuad(), layer->getShader() );
             }
 
@@ -149,7 +159,7 @@ namespace Tomos
 
         for ( auto it = getState().layerStack().end(); it != getState().layerStack().begin(); )
         {
-            ( *--it )->onEvent( p_e );
+            ( *( --it ) )->onEvent( p_e );
             if ( p_e.isHandled() )
             {
                 break;

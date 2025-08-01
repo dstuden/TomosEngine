@@ -50,6 +50,9 @@ namespace Tomos
         inline const std::shared_ptr<TVertexArray>& getQuad() const { return m_quad; }
         void                                        setQuad( const std::shared_ptr<TVertexArray>& p_quad ) { m_quad = p_quad; }
 
+        void setActive( bool p_active ) { m_active = p_active; }
+        bool isActive() const { return m_active; }
+
     protected:
         std::string m_layerId;
 
@@ -59,6 +62,9 @@ namespace Tomos
         std::shared_ptr<LayerFrameBuffer>         m_layerFramebuffer;
         std::shared_ptr<TVertexArray>             m_quad;
         std::shared_ptr<TShader>                  m_shader;
+
+        bool m_active = true;
+        ;
     };
 
     /**
@@ -97,6 +103,13 @@ namespace Tomos
         std::vector<std::shared_ptr<TLayer>>::const_iterator         end() const { return m_layers.end(); }
         std::vector<std::shared_ptr<TLayer>>::const_reverse_iterator rbegin() const { return m_layers.rbegin(); }
         std::vector<std::shared_ptr<TLayer>>::const_reverse_iterator rend() const { return m_layers.rend(); }
+
+        void clear()
+        {
+            m_layers.clear();
+            m_layerMap.clear();
+            m_layerInsertIndex = 0;
+        }
 
     private:
         std::vector<std::shared_ptr<TLayer>>                     m_layers;
