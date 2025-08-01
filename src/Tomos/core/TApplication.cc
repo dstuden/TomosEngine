@@ -122,8 +122,6 @@ namespace Tomos
 
     void TApplication::onEvent( TEvent& p_e )
     {
-        TLOG_DEBUG() << p_e.toString();
-
         EventDispatcher dispatcher( p_e );
         dispatcher.dispatch<WindowCloseEvent>( [this]( TEvent& p_event ) { return onWindowClose( dynamic_cast<WindowCloseEvent&>( p_event ) ); } );
 

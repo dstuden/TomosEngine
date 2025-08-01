@@ -37,7 +37,7 @@ namespace Tomos
         static std::shared_ptr<TMaterial> loadMaterial( aiMaterial* p_aiMat, const std::shared_ptr<TShader>& p_shader, const aiScene* p_scene,
                                                         bool p_useCache );
 
-        static std::shared_ptr<TTexture> loadTexture( aiTexture* p_texture, const aiScene* p_scene, bool p_useCache, TextureFormat p_format );
+        static std::shared_ptr<TTexture> loadTexture( aiTexture* p_texture, const aiScene* p_scene, bool p_useCache, TTextureFormat p_format );
 
         static std::shared_ptr<TMaterial> createDefaultMaterial( const std::shared_ptr<TShader>& p_shader );
 

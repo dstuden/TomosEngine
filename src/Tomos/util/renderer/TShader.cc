@@ -68,7 +68,7 @@ namespace Tomos
         if ( !success )
         {
             glGetShaderInfoLog( fragment, 512, nullptr, infoLog );
-            TLogger::log( LogLevel::ERROR ) << "Fragment shader compilation failed: " << infoLog;
+            TLogger::log( TLogLevel::ERROR ) << "Fragment shader compilation failed: " << infoLog;
         };
 
         m_rendererId = glCreateProgram();
@@ -80,7 +80,7 @@ namespace Tomos
         if ( !success )
         {
             glGetProgramInfoLog( m_rendererId, 512, nullptr, infoLog );
-            TLogger::log( LogLevel::ERROR ) << "Shader program linking failed: " << infoLog;
+            TLogger::log( TLogLevel::ERROR ) << "Shader program linking failed: " << infoLog;
             glDeleteProgram( m_rendererId );
 
             glDeleteShader( vertex );

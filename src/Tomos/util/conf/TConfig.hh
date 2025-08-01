@@ -57,6 +57,8 @@ namespace Tomos
         void load( const json& p_data ) override { static_cast<T*>( this )->loadFields( p_data ); }
     };
 
+    class TBaseConfig;
+
     class TConfigManager
     {
     public:
@@ -64,7 +66,7 @@ namespace Tomos
         template<typename Schema>
         void setSchema()
         {
-            bool isBase = std::is_base_of_v<TConfigSchema, Schema>;
+            bool isBase = std::is_base_of_v<TBaseConfig, Schema>;
             TLOG_ASSERT_MSG( isBase, "Schema must inherit from ConfigSchema" );
 
             m_currentSchema = std::make_unique<Schema>();
@@ -172,7 +174,7 @@ namespace Tomos
         int           m_maxLights              = 128;
         int           m_directionalLightRadius = 16;
         int           m_maxNodeDepth           = 333;
-        std::string   m_logDir                 = "logs/" + std::to_string( std::time( nullptr ) ) + ".log";
+        std::string   m_logDir                 = "logs"; // Default log directory next to the executable
 
         void defineFields( TConfigManager& p_manager )
         {
@@ -182,7 +184,7 @@ namespace Tomos
             p_manager.registerField( "maxLights", &m_maxLights, m_maxLights );
             p_manager.registerField( "directionalLightRadius", &m_directionalLightRadius, m_directionalLightRadius );
             p_manager.registerField( "maxNodeDepth", &m_maxNodeDepth, m_maxNodeDepth );
-            p_manager.registerField( "logFilePath", &m_logDir, m_logDir );
+            p_manager.registerField( "logDir", &m_logDir, m_logDir );
         }
 
         void loadFields( const json& p_data )
@@ -193,7 +195,7 @@ namespace Tomos
             if ( p_data.contains( "maxLights" ) ) m_maxLights = p_data["maxLights"].get<int>();
             if ( p_data.contains( "directionalLightRadius" ) ) m_directionalLightRadius = p_data["directionalLightRadius"].get<int>();
             if ( p_data.contains( "maxNodeDepth" ) ) m_maxNodeDepth = p_data["maxNodeDepth"].get<int>();
-            if ( p_data.contains( "logFilePath" ) ) m_logDir = p_data["logFilePath"].get<std::string>();
+            if ( p_data.contains( "logDir" ) ) m_logDir = p_data["logDir"].get<std::string>();
         }
     };
 

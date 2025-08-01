@@ -25,7 +25,7 @@ namespace Tomos
         glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );
         glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT );
 
-        return std::shared_ptr<TTexture>( new TTexture( textureID, TextureFormat::RGBA8, glm::uvec2( 1, 1 ) ) );
+        return std::shared_ptr<TTexture>( new TTexture( textureID, TTextureFormat::RGBA8, glm::uvec2( 1, 1 ) ) );
     }
 
     std::shared_ptr<TTexture> TTexture::createBlackTexture()
@@ -42,7 +42,7 @@ namespace Tomos
         glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );
         glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT );
 
-        return std::shared_ptr<TTexture>( new TTexture( textureID, TextureFormat::RGBA8, glm::uvec2( 1, 1 ) ) );
+        return std::shared_ptr<TTexture>( new TTexture( textureID, TTextureFormat::RGBA8, glm::uvec2( 1, 1 ) ) );
     }
 
     std::shared_ptr<TTexture> TTexture::createDefaultNormalMap()
@@ -59,11 +59,11 @@ namespace Tomos
         glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );
         glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT );
 
-        return std::shared_ptr<TTexture>( new TTexture( textureID, TextureFormat::RGBA8, glm::uvec2( 1, 1 ) ) );
+        return std::shared_ptr<TTexture>( new TTexture( textureID, TTextureFormat::RGBA8, glm::uvec2( 1, 1 ) ) );
     }
 
     std::shared_ptr<TTexture> TTexture::createFromFile( const std::string& p_path,
-                                                      TextureFormat      p_format,
+                                                      TTextureFormat      p_format,
                                                       bool               p_generateMipmaps )
     {
         int width, height, channels;
@@ -117,7 +117,7 @@ namespace Tomos
         return std::shared_ptr<TTexture>( new TTexture( textureID, p_format, glm::uvec2( width, height ) ) );
     }
 
-    std::shared_ptr<TTexture> TTexture::createFromMemory( const unsigned char* p_data, size_t p_length, TextureFormat p_format )
+    std::shared_ptr<TTexture> TTexture::createFromMemory( const unsigned char* p_data, size_t p_length, TTextureFormat p_format )
     {
         int width, height, channels;
         stbi_set_flip_vertically_on_load( true );
@@ -165,7 +165,7 @@ namespace Tomos
         return std::shared_ptr<TTexture>( new TTexture( textureID, p_format, glm::uvec2( width, height ) ) );
     }
 
-    std::shared_ptr<TTexture> TTexture::createFromPixels( const unsigned char* p_pixels, int p_width, int p_height, TextureFormat p_format )
+    std::shared_ptr<TTexture> TTexture::createFromPixels( const unsigned char* p_pixels, int p_width, int p_height, TTextureFormat p_format )
     {
         GLuint textureID;
         glGenTextures( 1, &textureID );
@@ -186,7 +186,7 @@ namespace Tomos
     }
 
 
-    std::shared_ptr<TTexture> TTexture::create( TextureFormat     p_format,
+    std::shared_ptr<TTexture> TTexture::create( TTextureFormat     p_format,
                                               const glm::uvec2& p_size,
                                               bool              p_generateMipmaps )
     {
@@ -267,129 +267,129 @@ namespace Tomos
         }
     }
 
-    void TTexture::setFilter( TextureFilter p_minFilter, TextureFilter p_magFilter ) const
+    void TTexture::setFilter( TTextureFilter p_minFilter, TTextureFilter p_magFilter ) const
     {
         glBindTexture( GL_TEXTURE_2D, m_id );
         glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, toGLFilter( p_minFilter ) );
         glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, toGLFilter( p_magFilter ) );
     }
 
-    void TTexture::setWrap( TextureWrap p_wrapS, TextureWrap p_wrapT ) const
+    void TTexture::setWrap( TTextureWrap p_wrapS, TTextureWrap p_wrapT ) const
     {
         glBindTexture( GL_TEXTURE_2D, m_id );
         glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, toGLWrap( p_wrapS ) );
         glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, toGLWrap( p_wrapT ) );
     }
 
-    TTexture::TTexture( GLuint p_id, TextureFormat p_format, const glm::uvec2& p_size ) :
+    TTexture::TTexture( GLuint p_id, TTextureFormat p_format, const glm::uvec2& p_size ) :
         m_id( p_id ), m_format( p_format ), m_size( p_size ), m_hasMipmaps( false )
     {
     }
 
-    GLenum TTexture::toGLFormat( TextureFormat p_format )
+    GLenum TTexture::toGLFormat( TTextureFormat p_format )
     {
         switch ( p_format )
         {
-            case TextureFormat::R8:
+            case TTextureFormat::R8:
                 return GL_RED;
-            case TextureFormat::RG8:
+            case TTextureFormat::RG8:
                 return GL_RG;
-            case TextureFormat::RGB8:
-            case TextureFormat::SRGB8:
+            case TTextureFormat::RGB8:
+            case TTextureFormat::SRGB8:
                 return GL_RGB;
-            case TextureFormat::RGBA8:
-            case TextureFormat::SRGBA8:
+            case TTextureFormat::RGBA8:
+            case TTextureFormat::SRGBA8:
                 return GL_RGBA;
-            case TextureFormat::RGB16F:
+            case TTextureFormat::RGB16F:
                 return GL_RGB;
-            case TextureFormat::RGBA16F:
+            case TTextureFormat::RGBA16F:
                 return GL_RGBA;
-            case TextureFormat::Depth16:
-            case TextureFormat::Depth24:
-            case TextureFormat::Depth32F:
+            case TTextureFormat::Depth16:
+            case TTextureFormat::Depth24:
+            case TTextureFormat::Depth32F:
                 return GL_DEPTH_COMPONENT;
             default:
                 return GL_RGBA;
         }
     }
 
-    GLenum TTexture::toGLInternalFormat( TextureFormat p_format )
+    GLenum TTexture::toGLInternalFormat( TTextureFormat p_format )
     {
         switch ( p_format )
         {
-            case TextureFormat::R8:
+            case TTextureFormat::R8:
                 return GL_R8;
-            case TextureFormat::RG8:
+            case TTextureFormat::RG8:
                 return GL_RG8;
-            case TextureFormat::RGB8:
+            case TTextureFormat::RGB8:
                 return GL_RGB8;
-            case TextureFormat::RGBA8:
+            case TTextureFormat::RGBA8:
                 return GL_RGBA8;
-            case TextureFormat::SRGB8:
+            case TTextureFormat::SRGB8:
                 return GL_SRGB8;
-            case TextureFormat::SRGBA8:
+            case TTextureFormat::SRGBA8:
                 return GL_SRGB8_ALPHA8;
-            case TextureFormat::RGB16F:
+            case TTextureFormat::RGB16F:
                 return GL_RGB16F;
-            case TextureFormat::RGBA16F:
+            case TTextureFormat::RGBA16F:
                 return GL_RGBA16F;
-            case TextureFormat::Depth16:
+            case TTextureFormat::Depth16:
                 return GL_DEPTH_COMPONENT16;
-            case TextureFormat::Depth24:
+            case TTextureFormat::Depth24:
                 return GL_DEPTH_COMPONENT24;
-            case TextureFormat::Depth32F:
+            case TTextureFormat::Depth32F:
                 return GL_DEPTH_COMPONENT32F;
             default:
                 return GL_RGBA8;
         }
     }
 
-    GLenum TTexture::toGLDataType( TextureFormat p_format )
+    GLenum TTexture::toGLDataType( TTextureFormat p_format )
     {
         switch ( p_format )
         {
-            case TextureFormat::RGB16F:
-            case TextureFormat::RGBA16F:
+            case TTextureFormat::RGB16F:
+            case TTextureFormat::RGBA16F:
                 return GL_FLOAT;
-            case TextureFormat::Depth32F:
+            case TTextureFormat::Depth32F:
                 return GL_FLOAT;
             default:
                 return GL_UNSIGNED_BYTE;
         }
     }
 
-    GLenum TTexture::toGLFilter( TextureFilter p_filter )
+    GLenum TTexture::toGLFilter( TTextureFilter p_filter )
     {
         switch ( p_filter )
         {
-            case TextureFilter::Nearest:
+            case TTextureFilter::Nearest:
                 return GL_NEAREST;
-            case TextureFilter::Linear:
+            case TTextureFilter::Linear:
                 return GL_LINEAR;
-            case TextureFilter::NearestMipmapNearest:
+            case TTextureFilter::NearestMipmapNearest:
                 return GL_NEAREST_MIPMAP_NEAREST;
-            case TextureFilter::LinearMipmapNearest:
+            case TTextureFilter::LinearMipmapNearest:
                 return GL_LINEAR_MIPMAP_NEAREST;
-            case TextureFilter::NearestMipmapLinear:
+            case TTextureFilter::NearestMipmapLinear:
                 return GL_NEAREST_MIPMAP_LINEAR;
-            case TextureFilter::LinearMipmapLinear:
+            case TTextureFilter::LinearMipmapLinear:
                 return GL_LINEAR_MIPMAP_LINEAR;
             default:
                 return GL_LINEAR;
         }
     }
 
-    GLenum TTexture::toGLWrap( TextureWrap p_wrap )
+    GLenum TTexture::toGLWrap( TTextureWrap p_wrap )
     {
         switch ( p_wrap )
         {
-            case TextureWrap::Repeat:
+            case TTextureWrap::Repeat:
                 return GL_REPEAT;
-            case TextureWrap::MirroredRepeat:
+            case TTextureWrap::MirroredRepeat:
                 return GL_MIRRORED_REPEAT;
-            case TextureWrap::ClampToEdge:
+            case TTextureWrap::ClampToEdge:
                 return GL_CLAMP_TO_EDGE;
-            case TextureWrap::ClampToBorder:
+            case TTextureWrap::ClampToBorder:
                 return GL_CLAMP_TO_BORDER;
             default:
                 return GL_REPEAT;

@@ -60,7 +60,6 @@ add_library(${PROJECT_NAME} STATIC
         src/Tomos/util/renderer/TVertexArray.hh
         src/Tomos/util/renderer/TRenderer.cc
         src/Tomos/util/renderer/TRenderer.hh
-        src/Tomos/util/time/TTime.cc
         src/Tomos/util/time/TTime.hh
         src/Tomos/util/resourceManager/TResourceManager.hh
         src/Tomos/systems/script/TScriptSystem.cc

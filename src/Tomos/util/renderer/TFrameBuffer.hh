@@ -11,8 +11,8 @@ namespace Tomos
     class TFrameBuffer
     {
     public:
-        TFrameBuffer( unsigned int p_width, unsigned int p_height, const std::vector<TextureFormat>& p_colorFormats = { TextureFormat::RGBA8 },
-                     TextureFormat p_depthFormat = TextureFormat::Depth24 );
+        TFrameBuffer( unsigned int p_width, unsigned int p_height, const std::vector<TTextureFormat>& p_colorFormats = { TTextureFormat::RGBA8 },
+                     TTextureFormat p_depthFormat = TTextureFormat::Depth24 );
         ~TFrameBuffer();
 
         void bind() const;
@@ -34,8 +34,8 @@ namespace Tomos
         std::vector<std::shared_ptr<TTexture>> m_colorTextures;
         std::shared_ptr<TTexture>              m_depthTexture;
         glm::uvec2                            m_size;
-        std::vector<TextureFormat>            m_colorFormats;
-        TextureFormat                         m_depthFormat;
+        std::vector<TTextureFormat>            m_colorFormats;
+        TTextureFormat                         m_depthFormat;
 
         void initialize();
         void cleanup();
@@ -49,8 +49,8 @@ namespace Tomos
     class LayerFrameBuffer : public TFrameBuffer
     {
     public:
-        LayerFrameBuffer( unsigned int p_width, unsigned int p_height, TextureFormat p_colorFormat = TextureFormat::RGBA8,
-                          TextureFormat p_depthFormat = TextureFormat::Depth24 )
+        LayerFrameBuffer( unsigned int p_width, unsigned int p_height, TTextureFormat p_colorFormat = TTextureFormat::RGBA8,
+                          TTextureFormat p_depthFormat = TTextureFormat::Depth24 )
             : TFrameBuffer( p_width, p_height, { p_colorFormat }, p_depthFormat )
         {
         }

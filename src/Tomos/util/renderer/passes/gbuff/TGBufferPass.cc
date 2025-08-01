@@ -13,14 +13,14 @@ namespace Tomos
 {
     TGBufferPass::TGBufferPass( unsigned int p_width, unsigned int p_height, const std::string& p_layerId ) : TRenderPass( "GBufferPass", p_layerId )
     {
-        std::vector<TextureFormat> colorFormats = {
-                TextureFormat::SRGBA8,  // baseColor
-                TextureFormat::RGBA16F,  // normal
-                TextureFormat::RG8,  // metallic + roughness
-                TextureFormat::RGBA8  // emission
+        std::vector<TTextureFormat> colorFormats = {
+                TTextureFormat::SRGBA8,  // baseColor
+                TTextureFormat::RGBA16F,  // normal
+                TTextureFormat::RG8,  // metallic + roughness
+                TTextureFormat::RGBA8  // emission
         };
 
-        m_frameBuffer = std::make_shared<TFrameBuffer>( p_width, p_height, colorFormats, TextureFormat::Depth24 );
+        m_frameBuffer = std::make_shared<TFrameBuffer>( p_width, p_height, colorFormats, TTextureFormat::Depth24 );
     }
 
     void TGBufferPass::resize( unsigned int p_width, unsigned int p_height ) { m_frameBuffer->resize( p_width, p_height ); }

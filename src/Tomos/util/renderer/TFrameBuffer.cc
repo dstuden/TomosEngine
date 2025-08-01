@@ -3,7 +3,7 @@
 
 namespace Tomos
 {
-    TFrameBuffer::TFrameBuffer( unsigned int p_width, unsigned int p_height, const std::vector<TextureFormat>& p_colorFormats, TextureFormat p_depthFormat ) :
+    TFrameBuffer::TFrameBuffer( unsigned int p_width, unsigned int p_height, const std::vector<TTextureFormat>& p_colorFormats, TTextureFormat p_depthFormat ) :
         m_size( p_width, p_height ), m_colorFormats( p_colorFormats ), m_depthFormat( p_depthFormat )
     {
         initialize();
@@ -22,8 +22,8 @@ namespace Tomos
         for ( unsigned int i = 0; i < m_colorFormats.size(); ++i )
         {
             auto tex = TTexture::create( m_colorFormats[i], m_size );
-            tex->setFilter( TextureFilter::Linear, TextureFilter::Linear );
-            tex->setWrap( TextureWrap::ClampToEdge, TextureWrap::ClampToEdge );
+            tex->setFilter( TTextureFilter::Linear, TTextureFilter::Linear );
+            tex->setWrap( TTextureWrap::ClampToEdge, TTextureWrap::ClampToEdge );
 
             glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, tex->getID(), 0 );
 
@@ -41,8 +41,8 @@ namespace Tomos
         }
 
         m_depthTexture = TTexture::create( m_depthFormat, m_size );
-        m_depthTexture->setFilter( TextureFilter::Nearest, TextureFilter::Nearest );
-        m_depthTexture->setWrap( TextureWrap::ClampToEdge, TextureWrap::ClampToEdge );
+        m_depthTexture->setFilter( TTextureFilter::Nearest, TTextureFilter::Nearest );
+        m_depthTexture->setWrap( TTextureWrap::ClampToEdge, TTextureWrap::ClampToEdge );
 
         glFramebufferTexture2D( GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, m_depthTexture->getID(), 0 );
 

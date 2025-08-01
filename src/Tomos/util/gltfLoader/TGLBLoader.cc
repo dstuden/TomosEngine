@@ -289,14 +289,14 @@ namespace Tomos
                 if ( texIndex >= 0 && texIndex < ( int ) p_scene->mNumTextures )
                 {
                     // FIX: Load base color as SRGBA8 for gamma correction
-                    baseTexture = loadTexture( p_scene->mTextures[texIndex], p_scene, p_useCache, TextureFormat::SRGBA8 );
+                    baseTexture = loadTexture( p_scene->mTextures[texIndex], p_scene, p_useCache, TTextureFormat::SRGBA8 );
                 }
             }
             else
             {
                 // External texture (shouldn't happen with GLB)
                 std::string fullPath = TResourceManager::getTexturePath( texPath.C_Str() );
-                baseTexture          = TTexture::createFromFile( fullPath, TextureFormat::SRGBA8 );
+                baseTexture          = TTexture::createFromFile( fullPath, TTextureFormat::SRGBA8 );
             }
         }
 
@@ -310,7 +310,7 @@ namespace Tomos
                 if ( texIndex >= 0 && texIndex < ( int ) p_scene->mNumTextures )
                 {
                     // ** CRITICAL FIX **: Load normal map as RGBA8 (linear)
-                    normalTexture = loadTexture( p_scene->mTextures[texIndex], p_scene, p_useCache, TextureFormat::RGBA8 );
+                    normalTexture = loadTexture( p_scene->mTextures[texIndex], p_scene, p_useCache, TTextureFormat::RGBA8 );
                 }
             }
         }
@@ -325,7 +325,7 @@ namespace Tomos
                 if ( texIndex >= 0 && texIndex < ( int ) p_scene->mNumTextures )
                 {
                     // PBR metallic-roughness textures are typically linear, use RG8
-                    metallicRoughnessTexture = loadTexture( p_scene->mTextures[texIndex], p_scene, p_useCache, TextureFormat::RG8 );
+                    metallicRoughnessTexture = loadTexture( p_scene->mTextures[texIndex], p_scene, p_useCache, TTextureFormat::RG8 );
                 }
             }
         }
@@ -340,7 +340,7 @@ namespace Tomos
                 if ( texIndex >= 0 && texIndex < ( int ) p_scene->mNumTextures )
                 {
                     // Emission maps are linear, use RGBA8
-                    emissionTexture = loadTexture( p_scene->mTextures[texIndex], p_scene, p_useCache, TextureFormat::RGBA8 );
+                    emissionTexture = loadTexture( p_scene->mTextures[texIndex], p_scene, p_useCache, TTextureFormat::RGBA8 );
                 }
             }
         }
@@ -386,7 +386,7 @@ namespace Tomos
     }
 
     // New loadTexture function signature with format parameter
-    std::shared_ptr<TTexture> TGLBLoader::loadTexture( aiTexture* p_texture, const aiScene* p_scene, bool p_useCache, TextureFormat p_format )
+    std::shared_ptr<TTexture> TGLBLoader::loadTexture( aiTexture* p_texture, const aiScene* p_scene, bool p_useCache, TTextureFormat p_format )
     {
         if ( !p_texture )
         {
