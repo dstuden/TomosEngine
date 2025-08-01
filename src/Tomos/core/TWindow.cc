@@ -30,13 +30,13 @@ namespace Tomos
         glfwWindowHint( GLFW_CONTEXT_VERSION_MAJOR, 4 );
         glfwWindowHint( GLFW_CONTEXT_VERSION_MINOR, 3 );
         glfwWindowHint( GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE );
+        glfwWindowHint( GLFW_SCALE_FRAMEBUFFER, false );
 
         m_window = glfwCreateWindow( m_data.m_width, m_data.m_height, m_data.m_title.c_str(), nullptr, nullptr );
         glfwMakeContextCurrent( m_window );
         glfwSetWindowUserPointer( m_window, &m_data );
 
-        if ( glfwRawMouseMotionSupported() )
-            glfwSetInputMode( m_window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE );
+        if ( glfwRawMouseMotionSupported() ) glfwSetInputMode( m_window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE );
 
         glewExperimental = GL_TRUE;
         auto res         = glewInit();
@@ -156,4 +156,4 @@ namespace Tomos
     void TWindow::setEventCallback( const EventCallback& p_callback ) { m_data.m_eventCallback = p_callback; }
 
     GLFWwindow* TWindow::getNativeWindow() const { return m_window; }
-} // namespace Tomos
+}  // namespace Tomos

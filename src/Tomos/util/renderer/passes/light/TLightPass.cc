@@ -51,7 +51,7 @@ namespace Tomos
         // 5. Camera info
         auto&     cameraSystem = TApplication::getState().ecs().getSystem<TCameraSystem>();
         auto      cameraNode   = cameraSystem.getActiveCameraNode( m_layerId );
-        glm::vec3 cameraPos    = cameraNode ? glm::vec3( cameraNode->m_transform.m_globMat[3] ) : glm::vec3( 0.0f );
+        glm::vec3 cameraPos    = cameraNode ? glm::vec3( cameraNode->getTransform().m_globMat[3] ) : glm::vec3( 0.0f );
 
         glm::mat4 inverseViewProj = cameraSystem.getViewProjectionInvMat( m_layerId );
         shader->setVec3( "uCameraPos", cameraPos );

@@ -46,7 +46,7 @@ namespace Tomos
         }
 
         const auto cc = std::dynamic_pointer_cast<TCameraComponent>( cam->first );
-        const auto tc = cam->second->m_transform;
+        const auto tc = cam->second->getTransform();
 
         m_layerActiveData[p_layerId].m_activeCamera   = cc;
         m_layerActiveData[p_layerId].m_viewMat        = tc.m_globInvMat;

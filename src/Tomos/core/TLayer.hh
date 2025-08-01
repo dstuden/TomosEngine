@@ -35,55 +35,73 @@ namespace Tomos
 
         void onResize( int p_width, int p_height );
 
-        inline SceneManager& getSceneManager() { return m_sceneManager; }
+        inline TSceneManager& getSceneManager() { return m_sceneManager; }
 
         const std::string& getLayerId() const { return m_layerId; }
 
-        void                                            addRenderPass( std::shared_ptr<TRenderPass> p_pass );
+        void                                             addRenderPass( std::shared_ptr<TRenderPass> p_pass );
         const std::vector<std::shared_ptr<TRenderPass>>& getRenderPasses() const;
 
         std::shared_ptr<LayerFrameBuffer> getLayerFramebuffer() const { return m_layerFramebuffer; }
 
         inline const std::shared_ptr<TShader>& getShader() const { return m_shader; }
-        void                                  setShader( const std::shared_ptr<TShader>& p_shader ) { m_shader = p_shader; }
+        void                                   setShader( const std::shared_ptr<TShader>& p_shader ) { m_shader = p_shader; }
 
         inline const std::shared_ptr<TVertexArray>& getQuad() const { return m_quad; }
-        void                                       setQuad( const std::shared_ptr<TVertexArray>& p_quad ) { m_quad = p_quad; }
+        void                                        setQuad( const std::shared_ptr<TVertexArray>& p_quad ) { m_quad = p_quad; }
 
     protected:
         std::string m_layerId;
 
-        SceneManager m_sceneManager;
+        TSceneManager m_sceneManager;
 
         std::vector<std::shared_ptr<TRenderPass>> m_passes;
-        std::shared_ptr<LayerFrameBuffer>        m_layerFramebuffer;
+        std::shared_ptr<LayerFrameBuffer>         m_layerFramebuffer;
         std::shared_ptr<TVertexArray>             m_quad;
         std::shared_ptr<TShader>                  m_shader;
     };
 
+    /**
+     * Not a real stack but it behaves like one for event propagation and layer management.
+     */
     class LayerStack
     {
     public:
         LayerStack();
         ~LayerStack();
 
-        void pushLayer( TLayer* p_layer );
-        void pushOverlay( TLayer* p_overlay );
-        void popLayer( TLayer* p_layer );
-        void popOverlay( TLayer* p_overlay );
+        // Push a layer and an overlay
+        void pushLayer( std::shared_ptr<TLayer> p_layer );
+        void pushOverlay( std::shared_ptr<TLayer> p_overlay );
 
-        std::vector<TLayer*>::iterator         begin() { return m_layers.begin(); }
-        std::vector<TLayer*>::iterator         end() { return m_layers.end(); }
-        std::vector<TLayer*>::reverse_iterator rbegin() { return m_layers.rbegin(); }
-        std::vector<TLayer*>::reverse_iterator rend() { return m_layers.rend(); }
+        // Pop a layer or an overlay by its shared_ptr
+        void popLayer( const std::shared_ptr<TLayer>& p_layer );
+        void popOverlay( const std::shared_ptr<TLayer>& p_overlay );
 
-        std::vector<TLayer*>::const_iterator         begin() const { return m_layers.begin(); }
-        std::vector<TLayer*>::const_iterator         end() const { return m_layers.end(); }
-        std::vector<TLayer*>::const_reverse_iterator rbegin() const { return m_layers.rbegin(); }
-        std::vector<TLayer*>::const_reverse_iterator rend() const { return m_layers.rend(); }
+        // Pop a layer by its ID (convenience function)
+        void popLayerById( const std::string& p_layerId );
+
+        // Fast access to a layer by its ID
+        std::shared_ptr<TLayer>       getLayer( const std::string& p_layerId );
+        const std::shared_ptr<TLayer> getLayer( const std::string& p_layerId ) const;
+
+        std::set<std::string> getLayerIds() const;
+
+        // Iterators for ordered traversal
+        std::vector<std::shared_ptr<TLayer>>::iterator         begin() { return m_layers.begin(); }
+        std::vector<std::shared_ptr<TLayer>>::iterator         end() { return m_layers.end(); }
+        std::vector<std::shared_ptr<TLayer>>::reverse_iterator rbegin() { return m_layers.rbegin(); }
+        std::vector<std::shared_ptr<TLayer>>::reverse_iterator rend() { return m_layers.rend(); }
+
+        std::vector<std::shared_ptr<TLayer>>::const_iterator         begin() const { return m_layers.begin(); }
+        std::vector<std::shared_ptr<TLayer>>::const_iterator         end() const { return m_layers.end(); }
+        std::vector<std::shared_ptr<TLayer>>::const_reverse_iterator rbegin() const { return m_layers.rbegin(); }
+        std::vector<std::shared_ptr<TLayer>>::const_reverse_iterator rend() const { return m_layers.rend(); }
 
     private:
-        std::vector<TLayer*> m_layers;
-        unsigned int        m_layerInsertIndex = 0;
+        std::vector<std::shared_ptr<TLayer>>                     m_layers;
+        std::unordered_map<std::string, std::shared_ptr<TLayer>> m_layerMap;
+
+        unsigned int m_layerInsertIndex = 0;
     };
 }  // namespace Tomos

@@ -85,5 +85,5 @@ namespace Tomos
 #define TLOG_DEBUG() Tomos::TLogger::log( Tomos::LogLevel::DEBUG )
 #else  // real
 #define TLOG_DEBUG() \
-    if ( false ) Tomos::Logger::log( Tomos::LogLevel::DEBUG )
+    if ( false ) Tomos::TLogger::log( Tomos::LogLevel::DEBUG )
 #endif

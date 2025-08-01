@@ -15,33 +15,33 @@ using json = nlohmann::json;
 
 namespace Tomos
 {
-    class ConfigManager;
+    class TConfigManager;
 
     // Type alias for all supported JSON/C++ types
-    using ConfigValue = std::variant<int,  // JSON number (integer)
-                                     unsigned int,  // JSON number (unsigned)
-                                     float,  // JSON number (float)
-                                     double,  // JSON number (double)
-                                     bool,  // JSON boolean
-                                     long,  // JSON number (long)
-                                     unsigned long,  // JSON number (unsigned long)
-                                     std::string,  // JSON string
-                                     std::vector<int>,  // JSON array of integers
-                                     std::vector<float>,  // JSON array of floats
-                                     std::vector<double>,  // JSON array of doubles
-                                     std::vector<bool>,  // JSON array of booleans
-                                     std::vector<std::string>,  // JSON array of strings
-                                     json  // For nested objects or untyped values
-                                     >;
+    using TConfigValue = std::variant<int,  // JSON number (integer)
+                                      unsigned int,  // JSON number (unsigned)
+                                      float,  // JSON number (float)
+                                      double,  // JSON number (double)
+                                      bool,  // JSON boolean
+                                      long,  // JSON number (long)
+                                      unsigned long,  // JSON number (unsigned long)
+                                      std::string,  // JSON string
+                                      std::vector<int>,  // JSON array of integers
+                                      std::vector<float>,  // JSON array of floats
+                                      std::vector<double>,  // JSON array of doubles
+                                      std::vector<bool>,  // JSON array of booleans
+                                      std::vector<std::string>,  // JSON array of strings
+                                      json  // For nested objects or untyped values
+                                      >;
 
     // Base class for configuration schemas
-    class ConfigSchema
+    class TConfigSchema
     {
     public:
-        virtual ~ConfigSchema() = default;
+        virtual ~TConfigSchema() = default;
 
         // Register all fields with the ConfigManager
-        virtual void registerFields( ConfigManager& p_manager ) = 0;
+        virtual void registerFields( TConfigManager& p_manager ) = 0;
 
         // Load values from JSON
         virtual void load( const json& p_data ) = 0;
@@ -49,22 +49,22 @@ namespace Tomos
 
     // Concrete schema implementation using CRTP
     template<typename T>
-    class ConfigSchemaImpl : public ConfigSchema
+    class TConfigSchemaImpl : public TConfigSchema
     {
     public:
-        void registerFields( ConfigManager& p_manager ) override { static_cast<T*>( this )->defineFields( p_manager ); }
+        void registerFields( TConfigManager& p_manager ) override { static_cast<T*>( this )->defineFields( p_manager ); }
 
         void load( const json& p_data ) override { static_cast<T*>( this )->loadFields( p_data ); }
     };
 
-    class ConfigManager
+    class TConfigManager
     {
     public:
         // Register a schema and its fields
         template<typename Schema>
         void setSchema()
         {
-            bool isBase = std::is_base_of_v<ConfigSchema, Schema>;
+            bool isBase = std::is_base_of_v<TConfigSchema, Schema>;
             TLOG_ASSERT_MSG( isBase, "Schema must inherit from ConfigSchema" );
 
             m_currentSchema = std::make_unique<Schema>();
@@ -155,15 +155,15 @@ namespace Tomos
         const json& getRawData() const { return m_configData; }
 
     private:
-        std::unique_ptr<ConfigSchema>                m_currentSchema;
-        std::unordered_map<std::string, void*>       m_fieldRegistry;
-        std::unordered_map<std::string, ConfigValue> m_defaultValues;
-        json                                         m_configData;
-        std::string                                  m_currentConfigPath;
+        std::unique_ptr<TConfigSchema>                m_currentSchema;
+        std::unordered_map<std::string, void*>        m_fieldRegistry;
+        std::unordered_map<std::string, TConfigValue> m_defaultValues;
+        json                                          m_configData;
+        std::string                                   m_currentConfigPath;
     };
 
 
-    class BaseConfig : public ConfigSchemaImpl<BaseConfig>
+    class TBaseConfig : public TConfigSchemaImpl<TBaseConfig>
     {
     public:
         std::string   m_unassignedLayerId      = "UNASSIGNED_LAYER";
@@ -171,17 +171,19 @@ namespace Tomos
         int           m_maxShadowsMaps         = 16;
         int           m_maxLights              = 128;
         int           m_directionalLightRadius = 16;
-        std::string m_logFilePath = "logs/" + std::to_string( std::time( nullptr ) ) + ".log";
+        int           m_maxNodeDepth           = 333;
+        std::string   m_logDir                 = "logs/" + std::to_string( std::time( nullptr ) ) + ".log";
 
 
-        void defineFields( ConfigManager& p_manager )
+        void defineFields( TConfigManager& p_manager )
         {
             p_manager.registerField( "unassignedLayerId", &m_unassignedLayerId, m_unassignedLayerId );
             p_manager.registerField( "maxInstancesPerDraw", &m_maxInstancesPerDraw, m_maxInstancesPerDraw );
             p_manager.registerField( "maxShadowMaps", &m_maxShadowsMaps, m_maxShadowsMaps );
             p_manager.registerField( "maxLights", &m_maxLights, m_maxLights );
             p_manager.registerField( "directionalLightRadius", &m_directionalLightRadius, m_directionalLightRadius );
-            p_manager.registerField( "logFilePath", &m_logFilePath, m_logFilePath );
+            p_manager.registerField( "maxNodeDepth", &m_maxNodeDepth, m_maxNodeDepth );
+            p_manager.registerField( "logFilePath", &m_logDir, m_logDir );
         }
 
         void loadFields( const json& p_data )
@@ -191,7 +193,14 @@ namespace Tomos
             if ( p_data.contains( "maxShadowMaps" ) ) m_maxShadowsMaps = p_data["maxShadowMaps"].get<int>();
             if ( p_data.contains( "maxLights" ) ) m_maxLights = p_data["maxLights"].get<int>();
             if ( p_data.contains( "directionalLightRadius" ) ) m_directionalLightRadius = p_data["directionalLightRadius"].get<int>();
-            if ( p_data.contains( "logFilePath" ) ) m_logFilePath = p_data["logFilePath"].get<std::string>();
+            if ( p_data.contains( "maxNodeDepth" ) ) m_maxNodeDepth = p_data["maxNodeDepth"].get<int>();
+            if ( p_data.contains( "logFilePath" ) ) m_logDir = p_data["logFilePath"].get<std::string>();
         }
     };
+
+    // Global instance of the configuration manager
+    namespace Global
+    {
+        inline TConfigManager config;  // NOLINT(*-identifier-naming)
+    }
 }  // namespace Tomos

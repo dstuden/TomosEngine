@@ -35,7 +35,7 @@ namespace Tomos
         }
 
         // Create root node
-        auto rootNode     = std::make_shared<TNode>( "GLB_Root_" + p_filepath.substr( p_filepath.find_last_of( "/\\" ) + 1 ) );
+        auto rootNode     = TNode::create( "GLB_Root_" + p_filepath.substr( p_filepath.find_last_of( "/\\" ) + 1 ) );
         result.m_rootNode = rootNode;
 
         // Process all nodes recursively
@@ -54,10 +54,10 @@ namespace Tomos
 
     std::shared_ptr<TNode> TGLBLoader::deepCopyNode( const std::shared_ptr<TNode>& p_original )
     {
-        auto copy = std::make_shared<TNode>( p_original->m_name + "_Instance" );
+        auto copy = TNode::create( p_original->getName() + "_Instance" );
 
         // Copy transform
-        copy->m_transform = p_original->m_transform;
+        copy->getTransform() = p_original->getTransform();
 
         for ( const auto& component : p_original->getComponents() )
         {
@@ -81,7 +81,7 @@ namespace Tomos
                                   const std::shared_ptr<TShader>& p_shader, std::vector<std::shared_ptr<TMaterial>>& p_materials, bool p_useCache )
     {
         // Create a new node
-        auto newNode = std::make_shared<TNode>( p_node->mName.C_Str() );
+        auto newNode = TNode::create( p_node->mName.C_Str() );
 
         // Set transform
         aiMatrix4x4 transform = p_node->mTransformation;
@@ -96,10 +96,10 @@ namespace Tomos
         glm::vec4 perspective;
         glm::decompose( matrix, scale, rotation, translation, skew, perspective );
 
-        newNode->m_transform.m_translation = translation;
-        newNode->m_transform.m_rotation    = rotation;
-        newNode->m_transform.m_scale       = scale;
-        newNode->m_transform.update();
+        newNode->getTransform().m_translation = translation;
+        newNode->getTransform().m_rotation    = rotation;
+        newNode->getTransform().m_scale       = scale;
+        newNode->getTransform().update();
 
         // Process meshes if this node has any
         for ( unsigned int i = 0; i < p_node->mNumMeshes; i++ )
@@ -432,12 +432,6 @@ namespace Tomos
 
         return textureObj;
     }
-
-    // Old loadTexture function, now deprecated. This should be removed.
-    // std::shared_ptr<TTexture> TGLBLoader::loadTexture( aiTexture* p_texture, const aiScene* p_scene, bool p_useCache )
-    // {
-    //     return loadTexture( p_texture, p_scene, p_useCache, TextureFormat::RGBA8 ); // Default to linear
-    // }
 
     std::shared_ptr<TMaterial> TGLBLoader::createDefaultMaterial( const std::shared_ptr<TShader>& p_shader )
     {

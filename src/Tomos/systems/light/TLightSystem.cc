@@ -1,5 +1,7 @@
 #include "TLightSystem.hh"
 
+#include "Tomos/util/conf/TConfig.hh"
+
 namespace Tomos
 {
     TLightSystem::TLightSystem() {}
@@ -30,12 +32,15 @@ namespace Tomos
 
         int shadowIndex = 0;
 
+        int dirRadius = Global::config.get<int>( "directionalLightRadius" );
+        int maxLights = Global::config.get<int>( "maxLights" );
+
         for ( auto& [component, node] : m_components[p_layerId] )
         {
             auto light = std::dynamic_pointer_cast<TLightComponent>( component );
             if ( light->getLightInfo()->m_intensity < 0.001f ) continue;
 
-            TTransform transform = node->m_transform;
+            TTransform transform = node->getTransform();
             glm::mat4  viewProj( 1.0f );
 
             LightData data = {};
@@ -44,8 +49,7 @@ namespace Tomos
             {
                 if ( light->getLightInfo()->m_type == LightType::Directional )
                 {
-                    auto info      = std::dynamic_pointer_cast<DirectionalLightInfo>( light->getLightInfo() );
-                    int  dirRadius = TApplication::getState().config().get<int>( "directionalLightRadius" );
+                    auto info = std::dynamic_pointer_cast<DirectionalLightInfo>( light->getLightInfo() );
 
                     proj              = glm::ortho( -dirRadius, dirRadius, -dirRadius, dirRadius, -dirRadius, dirRadius );
                     data.m_range      = 0.0f;
@@ -88,7 +92,7 @@ namespace Tomos
 
         if ( !m_lightsBuffers.contains( p_layerId ) )
         {
-            unsigned int bufferSize = TApplication::getState().config().get<int>( "maxLights" ) * sizeof( LightData ) + sizeof( int );
+            unsigned int bufferSize = maxLights * sizeof( LightData ) + sizeof( int );
             m_lightsBuffers.emplace( p_layerId, std::make_shared<TStorageBuffer>( bufferSize, GL_DYNAMIC_DRAW ) );
         }
 
@@ -99,7 +103,7 @@ namespace Tomos
 
             memcpy( bufferData, lights.data(), lights.size() * sizeof( LightData ) );
 
-            unsigned int lightCountOffset = TApplication::getState().config().get<int>( "maxLights" ) * sizeof( LightData );
+            unsigned int lightCountOffset = maxLights * sizeof( LightData );
 
             int* lightCountPtr = ( int* ) ( ( char* ) bufferData + lightCountOffset );
             *lightCountPtr     = lights.size();
@@ -109,7 +113,7 @@ namespace Tomos
         else
         {
             void*        bufferData       = m_lightsBuffers[p_layerId]->map( GL_WRITE_ONLY );
-            unsigned int lightCountOffset = TApplication::getState().config().get<int>( "maxLights" ) * sizeof( LightData );
+            unsigned int lightCountOffset = maxLights * sizeof( LightData );
             int*         lightCountPtr    = ( int* ) ( ( char* ) bufferData + lightCountOffset );
             *lightCountPtr                = 0;
             m_lightsBuffers[p_layerId]->unmap();

@@ -34,6 +34,21 @@ namespace Tomos
         return g_instance;
     }
 
+    void TApplication::cleanup()
+    {
+        if ( g_instance )
+        {
+            TLOG_INFO() << "Cleaning up Application";
+            g_instance->m_window.reset();
+            delete g_instance;
+            g_instance = nullptr;
+        }
+        else
+        {
+            TLOG_ERROR() << "Application is not initialized!";
+        }
+    }
+
     void TApplication::init( const WindowProps& p_props )
     {
         if ( g_instance == nullptr )
@@ -149,16 +164,4 @@ namespace Tomos
     }
 
     TWindow& TApplication::getWindow() const { return *m_window; }
-
-    void TApplication::pushLayer( TLayer* p_layer )
-    {
-        getState().layerStack().pushLayer( p_layer );
-        p_layer->onAttach();
-    }
-
-    void TApplication::pushOverlay( TLayer* p_overlay )
-    {
-        getState().layerStack().pushOverlay( p_overlay );
-        p_overlay->onAttach();
-    }
 }  // namespace Tomos

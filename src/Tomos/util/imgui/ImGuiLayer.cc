@@ -19,9 +19,9 @@ namespace Tomos
 
     void ImGuiLayer::onUpdate()
     {
-        ImGuiIO&     io  = ImGui::GetIO();
+        ImGuiIO&      io  = ImGui::GetIO();
         TApplication* app = TApplication::get();
-        io.DisplaySize   = ImVec2( app->getWindow().getData().m_width, app->getWindow().getData().m_height );
+        io.DisplaySize    = ImVec2( app->getWindow().getData().m_width, app->getWindow().getData().m_height );
 
         float time   = ( float ) glfwGetTime();
         io.DeltaTime = m_time > 0.0f ? ( time - m_time ) : ( 1.0f / 60.0f );
@@ -44,18 +44,29 @@ namespace Tomos
 
     void ImGuiLayer::onAttach()
     {
+        // Create ImGui context.
         ImGui::CreateContext();
+
+        // Configure ImGui style.
         ImGui::StyleColorsDark();
 
+        // Get ImGui IO object.
         ImGuiIO& io = ImGui::GetIO();
         io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;
         io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;
 
+        // CRITICAL FIX: Initialize ImGui's GLFW backend.
+        // This links ImGui to your GLFW window and enables input handling.
+        // We get the GLFWwindow handle from the TApplication's window object.
+        ImGui_ImplGlfw_InitForOpenGL( TApplication::get()->getWindow().getNativeWindow(), true );
+
+        // Initialize ImGui's OpenGL3 backend.
         ImGui_ImplOpenGL3_Init( "#version 410" );
     }
 
     void ImGuiLayer::onDetach()
     {
+        // Shutdown ImGui backends and destroy context.
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplGlfw_Shutdown();
         ImGui::DestroyContext();

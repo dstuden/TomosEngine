@@ -1,10 +1,10 @@
 #pragma once
+
 #include <memory>
 
 #include "TEcs.hh"
 #include "TLayer.hh"
 #include "TWindow.hh"
-#include "Tomos/util/conf/TConfig.hh"
 #include "Tomos/util/input/TInput.hh"
 #include "Tomos/util/time/TTime.hh"
 
@@ -18,11 +18,10 @@ namespace Tomos
     public:
         State() = default;
 
-        ECS&           ecs() { return m_ecs; }
-        LayerStack&    layerStack() { return m_layerStack; }
-        TInput&         input() { return m_input; }
-        TTime&          time() { return m_time; }
-        ConfigManager& config() { return m_config; }
+        ECS&        ecs() { return m_ecs; }
+        LayerStack& layerStack() { return m_layerStack; }
+        TInput&     input() { return m_input; }
+        TTime&      time() { return m_time; }
 
     private:
         ECS m_ecs;
@@ -31,15 +30,14 @@ namespace Tomos
 
         TInput m_input;
         TTime  m_time;
-
-        ConfigManager m_config;
     };
 
     class TApplication
     {
     public:
         static TApplication* get();
-        static void         init( const WindowProps& p_props = WindowProps() );
+        static void          cleanup();
+        static void          init( const WindowProps& p_props = WindowProps() );
 
         void run();
 
@@ -50,22 +48,15 @@ namespace Tomos
 
         static State& getState()
         {
-            TLOG_ASSERT_MSG( g_instance,
-                            "Application is not initialized!" );
+            TLOG_ASSERT_MSG( g_instance, "Application is not initialized!" );
 
             return g_instance->m_state;
         }
 
-        void pushLayer( TLayer* p_layer );
-        void pushOverlay( TLayer* p_overlay );
-
     private:
         TApplication( const WindowProps& p_props = WindowProps() );
 
-        ~TApplication()
-        {
-            delete g_instance;
-        };
+        ~TApplication() {};
 
         TApplication( const TApplication& )            = delete;
         TApplication& operator=( const TApplication& ) = delete;
@@ -74,7 +65,7 @@ namespace Tomos
 
         bool m_running = true;
 
-        static TApplication* g_instance;
-        State               m_state;
+        static TApplication*                   g_instance;
+        State                                  m_state;
     };
-} // namespace Tomos
+}  // namespace Tomos

@@ -2,8 +2,10 @@
 // Created by dstuden on 1/20/25.
 //
 
-#include "TApplication.hh"
 #include "TEcs.hh"
+
+#include "TApplication.hh"
+#include "Tomos/util/conf/TConfig.hh"
 
 namespace Tomos
 {
@@ -70,7 +72,7 @@ namespace Tomos
     // TODO: this sould be done in a more efficient way
     void ECS::updateLayerComponents()
     {
-        auto unassignedLayer = TApplication::getState().config().get<std::string>( "unassignedLayerId" );
+        auto unassignedLayer = Global::config.get<std::string>( "unassignedLayerId" );
 
         for ( auto& [_, system] : m_systems )
         {

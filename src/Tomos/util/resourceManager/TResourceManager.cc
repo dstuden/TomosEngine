@@ -3,6 +3,7 @@
 //
 
 #include "TResourceManager.hh"
+
 #include "Tomos/util/logger/TLogger.hh"
 
 namespace Tomos
@@ -17,7 +18,6 @@ namespace Tomos
             return it->second;
         }
 
-        TLOG_WARN() << "Mesh not cached: " << p_meshName;
         return nullptr;
     }
 
@@ -29,7 +29,6 @@ namespace Tomos
             return it->second;
         }
 
-        TLOG_WARN() << "Material not cached: " << p_materialName;
         return nullptr;
     }
 
@@ -41,7 +40,6 @@ namespace Tomos
             return it->second;
         }
 
-        TLOG_WARN() << "Texture not cached: " << p_textureName;
         return nullptr;
     }
 
@@ -53,7 +51,6 @@ namespace Tomos
             return it->second;
         }
 
-        TLOG_WARN() << "Shader not cached: " << p_shaderName;
         return nullptr;
     }
 
@@ -62,7 +59,7 @@ namespace Tomos
         if ( !p_mesh ) return;
 
         g_resourceCache.m_meshCache[p_meshName] = p_mesh;
-        TLOG_INFO() << "Mesh added to cache: " << p_meshName;
+        TLOG_DEBUG() << "Mesh added to cache: " << p_meshName;
     }
 
     void TResourceManager::cacheMaterial( const std::string& p_materialName, const std::shared_ptr<TMaterial>& p_material )
@@ -70,7 +67,7 @@ namespace Tomos
         if ( !p_material ) return;
 
         g_resourceCache.m_materialCache[p_materialName] = p_material;
-        TLOG_INFO() << "Material added to cache: " << p_materialName;
+        TLOG_DEBUG() << "Material added to cache: " << p_materialName;
     }
 
     void TResourceManager::cacheShader( const std::string& p_shaderName, const std::shared_ptr<TShader>& p_shader )
@@ -78,7 +75,7 @@ namespace Tomos
         if ( !p_shader ) return;
 
         g_resourceCache.m_shaderCache[p_shaderName] = p_shader;
-        TLOG_INFO() << "Shader added to cache: " << p_shaderName;
+        TLOG_DEBUG() << "Shader added to cache: " << p_shaderName;
     }
 
     void TResourceManager::cacheTexture( const std::string& p_textureName, const std::shared_ptr<TTexture>& p_texture )
@@ -86,6 +83,6 @@ namespace Tomos
         if ( !p_texture ) return;
 
         g_resourceCache.m_textureCache[p_textureName] = p_texture;
-        TLOG_INFO() << "Texture added to cache: " << p_textureName;
+        TLOG_DEBUG() << "Texture added to cache: " << p_textureName;
     }
-}
+}  // namespace Tomos

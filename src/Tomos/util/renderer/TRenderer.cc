@@ -1,5 +1,7 @@
 #include "TRenderer.hh"
+
 #include "Tomos/core/TApplication.hh"
+#include "Tomos/util/conf/TConfig.hh"
 #include "Tomos/util/logger/TLogger.hh"
 
 namespace Tomos
@@ -123,7 +125,7 @@ namespace Tomos
         size_t instanceCount  = p_instances.size();
         size_t instancesDrawn = 0;
 
-        auto maxInstances = TApplication::getState().config().get<size_t>( "maxInstancesPerDraw" );
+        auto maxInstances = Global::config.get<size_t>( "maxInstancesPerDraw" );
 
         while ( instancesDrawn < instanceCount )
         {

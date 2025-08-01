@@ -45,7 +45,7 @@ namespace Tomos
 
             if ( mesh && material )
             {
-                m_drawCalls[p_layerId].push_back( { mesh->getShader(), material, mesh->getVertexArray(), node->m_transform.m_globMat } );
+                m_drawCalls[p_layerId].push_back( { mesh->getShader(), material, mesh->getVertexArray(), node->getTransform().m_globMat } );
             }
         }
     }
