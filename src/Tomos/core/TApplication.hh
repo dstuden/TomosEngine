@@ -56,8 +56,6 @@ namespace Tomos
     private:
         TApplication( const WindowProps& p_props = WindowProps() );
 
-        ~TApplication() {};
-
         TApplication( const TApplication& )            = delete;
         TApplication& operator=( const TApplication& ) = delete;
 

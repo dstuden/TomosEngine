@@ -174,7 +174,6 @@ namespace Tomos
         int           m_maxNodeDepth           = 333;
         std::string   m_logDir                 = "logs/" + std::to_string( std::time( nullptr ) ) + ".log";
 
-
         void defineFields( TConfigManager& p_manager )
         {
             p_manager.registerField( "unassignedLayerId", &m_unassignedLayerId, m_unassignedLayerId );
