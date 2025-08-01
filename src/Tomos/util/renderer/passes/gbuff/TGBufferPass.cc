@@ -28,7 +28,7 @@ namespace Tomos
     void TGBufferPass::execute()
     {
         m_frameBuffer->bind();
-        TRenderer::setClearedColor( { 0.0f, 0.0f, 0.0, 1 } );
+        TRenderer::setClearedColor( { 0.0f, 0.0f, 0.0, 0 } );
         TRenderer::clear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
         auto        meshSystem = TApplication::getState().ecs().getSystem<TMeshSystem>();

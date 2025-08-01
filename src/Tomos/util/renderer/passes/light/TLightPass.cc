@@ -22,7 +22,7 @@ namespace Tomos
     void TLightPass::execute()
     {
         m_layer->getLayerFramebuffer()->bind();
-        TRenderer::setClearedColor( { 0, 0, 0, 1 } );
+        TRenderer::setClearedColor( { 0, 0, 0, 0 } );
         TRenderer::clear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
         auto shader = TResourceManager::getShader( "light_pass" );

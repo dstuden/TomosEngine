@@ -104,7 +104,7 @@ namespace Tomos
 
             // Second pass: Composite all layers
             TRenderer::clearFrameBuffer();  // To the screen
-            TRenderer::setClearedColor( glm::vec4( 0.0f, 0.0f, 0.0f, 1.0f ) );
+            TRenderer::setClearedColor( glm::vec4( 0.0f, 0.0f, 0.0f, 0.0f ) );
             TRenderer::clear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
             for ( auto& layer : getState().layerStack() )
