@@ -5,6 +5,7 @@
 #include "TResourceManager.hh"
 
 #include "Tomos/util/logger/TLogger.hh"
+#include "Tomos/util/renderer/TShader.hh"
 
 namespace Tomos
 {
@@ -43,9 +44,9 @@ namespace Tomos
         return nullptr;
     }
 
-    std::shared_ptr<TShader> TResourceManager::getShader( const std::string& p_shaderName )
+    std::shared_ptr<TShader> TResourceManager::getShader( TShaderPrograms::TSHaderProgram p_shaderType )
     {
-        auto it = g_resourceCache.m_shaderCache.find( p_shaderName );
+        auto it = g_resourceCache.m_shaderCache.find( p_shaderType );
         if ( it != g_resourceCache.m_shaderCache.end() )
         {
             return it->second;
@@ -70,19 +71,30 @@ namespace Tomos
         TLOG_DEBUG() << "Material added to cache: " << p_materialName;
     }
 
-    void TResourceManager::cacheShader( const std::string& p_shaderName, const std::shared_ptr<TShader>& p_shader )
-    {
-        if ( !p_shader ) return;
-
-        g_resourceCache.m_shaderCache[p_shaderName] = p_shader;
-        TLOG_DEBUG() << "Shader added to cache: " << p_shaderName;
-    }
-
     void TResourceManager::cacheTexture( const std::string& p_textureName, const std::shared_ptr<TTexture>& p_texture )
     {
         if ( !p_texture ) return;
 
         g_resourceCache.m_textureCache[p_textureName] = p_texture;
         TLOG_DEBUG() << "Texture added to cache: " << p_textureName;
+    }
+
+    void TResourceManager::loadShader( TShaderPrograms::TSHaderProgram p_shaderType )
+    {
+        TLOG_ASSERT_MSG( TShaderPrograms::shaderPaths.contains( p_shaderType ), "Missing shader type in shader program map" );
+
+        if ( g_resourceCache.m_shaderCache.contains( p_shaderType ) )
+        {
+            TLOG_WARN() << "Shader already loaded: " << static_cast<int>( p_shaderType );
+            return;
+        }
+
+        auto paths  = TShaderPrograms::shaderPaths[p_shaderType];
+        auto shader = std::make_shared<TShader>( TResourceManager::getShaderPath( paths.first ), TResourceManager::getShaderPath( paths.second ) );
+
+        TLOG_ASSERT_MSG( shader, "Failed to create shader for type: " + std::to_string( static_cast<int>( p_shaderType ) ) );
+
+        g_resourceCache.m_shaderCache[p_shaderType] = shader;
+        TLOG_INFO() << "Shader loaded and cached: " << static_cast<int>( p_shaderType );
     }
 }  // namespace Tomos

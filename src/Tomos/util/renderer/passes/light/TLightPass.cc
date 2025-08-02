@@ -17,6 +17,13 @@ namespace Tomos
     {
         m_layer       = p_layer;
         m_gBufferPass = p_gBufferPass;
+
+        // Make sure the shader is loaded
+        auto shader = TResourceManager::getShader( TShaderPrograms::Light );
+        if ( !shader )
+        {
+            TResourceManager::loadShader( TShaderPrograms::Light );
+        }
     }
 
     void TLightPass::execute()
@@ -25,13 +32,7 @@ namespace Tomos
         TRenderer::setClearedColor( { 0, 0, 0, 0 } );
         TRenderer::clear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
-        auto shader = TResourceManager::getShader( "light_pass" );
-        if ( !shader )
-        {
-            shader = std::make_shared<TShader>( TResourceManager::getShaderPath( "screen_quad_vertex.glsl" ),
-                                                TResourceManager::getShaderPath( "light_fragment.glsl" ) );
-            TResourceManager::cacheShader( "light_pass", shader );
-        }
+        auto shader = TResourceManager::getShader( TShaderPrograms::Light );
         shader->bind();
 
         m_gBufferPass->getFrameBuffer()->getColorTexture( 0 )->bind( 0 );  // uGBase

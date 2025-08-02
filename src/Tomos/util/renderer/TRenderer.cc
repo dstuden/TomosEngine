@@ -155,7 +155,7 @@ namespace Tomos
     }
 
     void TRenderer::clearFrameBuffer() { glBindFramebuffer( GL_FRAMEBUFFER, 0 ); }
-    
+
     void TRenderer::renderLayerFrameBufferToQuad( const std::shared_ptr<LayerFrameBuffer>& p_framebuffer, const std::shared_ptr<TVertexArray>& p_quad,
                                             const std::shared_ptr<TShader>& p_postProcessShader )
     {
@@ -170,12 +170,11 @@ namespace Tomos
         if ( !shaderToUse )
         {
             // Create default post-process shader if not exists
-            g_defaultPostProcessShader = TResourceManager::getShader( "default_post_process" );
+            g_defaultPostProcessShader = TResourceManager::getShader( TShaderPrograms::Screen );
             if ( !g_defaultPostProcessShader )
             {
-                g_defaultPostProcessShader = std::make_shared<TShader>( TResourceManager::getShaderPath( "screen_quad_vertex.glsl" ),
-                                                                       TResourceManager::getShaderPath( "screen_quad_fragment.glsl" ) );
-                TResourceManager::cacheShader( "default_post_process", g_defaultPostProcessShader );
+                TResourceManager::loadShader( TShaderPrograms::Screen );
+                g_defaultPostProcessShader = TResourceManager::getShader( TShaderPrograms::Screen );
             }
             shaderToUse = g_defaultPostProcessShader;
         }

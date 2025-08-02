@@ -13,6 +13,13 @@ namespace Tomos
 {
     TGBufferPass::TGBufferPass( unsigned int p_width, unsigned int p_height, const std::string& p_layerId ) : TRenderPass( "GBufferPass", p_layerId )
     {
+        // Make sure the shader is loaded;
+        auto shader = TResourceManager::getShader( TShaderPrograms::GBuff );
+        if ( !shader )
+        {
+            TResourceManager::loadShader( TShaderPrograms::GBuff );
+        }
+
         std::vector<TTextureFormat> colorFormats = {
                 TTextureFormat::SRGBA8,  // baseColor
                 TTextureFormat::RGBA16F,  // normal
