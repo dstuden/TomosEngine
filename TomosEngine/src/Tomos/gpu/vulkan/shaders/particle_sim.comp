@@ -1,0 +1,185 @@
+#version 450
+
+// GPU particle simulation.
+// Phase (push constant):
+//   0 — update alive particles (integrate, recycle dead → free list, rebuild draw list)
+//   1 — emit new particles from CPU-provided spawn counts
+//   2 — write indirect draw instanceCount from aliveCount
+
+layout( local_size_x = 64 ) in;
+
+layout( push_constant ) uniform Push
+{
+    uint phase;
+} pc;
+
+layout( set = 0, binding = 0 ) uniform SimUBO
+{
+    float dt;
+    uint  emitterCount;
+    uint  maxParticles;
+    uint  frameIndex;
+} sim;
+
+#include "common/particle.glsl"
+
+layout( set = 0, binding = 1 ) buffer ParticleSSBO
+{
+    Particle particles[];
+};
+
+layout( set = 0, binding = 2 ) buffer FreeListSSBO
+{
+    uint freeList[];
+};
+
+// free/alive + pad so VkDrawIndirectCommand starts at offset 16 (TParticleCounters).
+layout( set = 0, binding = 3 ) buffer CountersSSBO
+{
+    uint freeCount;
+    uint aliveCount;
+    uint _pad0;
+    uint _pad1;
+    uint vertexCount;
+    uint instanceCount;
+    uint firstVertex;
+    uint firstInstance;
+} counters;
+
+layout( set = 0, binding = 4 ) buffer DrawIndexSSBO
+{
+    uint drawIndices[];
+};
+
+#include "common/emitter.glsl"
+
+layout( set = 0, binding = 5 ) readonly buffer EmitterSSBO
+{
+    Emitter emitters[];
+};
+
+const float TAU              = 6.28318530718;
+const float k_spinRadPerSec  = 1.5;
+
+// xxhash32-ish mix constants.
+uint hash( uint x )
+{
+    x ^= x >> 16;
+    x *= 0x7feb352du;
+    x ^= x >> 15;
+    x *= 0x846ca68bu;
+    x ^= x >> 16;
+    return x;
+}
+
+float rand01( inout uint state )
+{
+    state = hash( state );
+    return float( state ) * ( 1.0 / 4294967296.0 );
+}
+
+float randRange( inout uint state, float lo, float hi )
+{
+    return mix( lo, hi, rand01( state ) );
+}
+
+// Atomic decrement freeCount; restore and return ~0 if the list was empty.
+uint popFree()
+{
+    const uint prev = atomicAdd( counters.freeCount, 0xffffffffu );
+    if ( prev == 0u )
+    {
+        atomicAdd( counters.freeCount, 1u );
+        return 0xffffffffu;
+    }
+    return freeList[ prev - 1u ];
+}
+
+void pushFree( uint particleIndex )
+{
+    const uint slot = atomicAdd( counters.freeCount, 1u );
+    freeList[ slot ] = particleIndex;
+}
+
+void updatePhase()
+{
+    const uint idx = gl_GlobalInvocationID.x;
+    if ( idx >= sim.maxParticles ) return;
+
+    Particle p = particles[ idx ];
+    if ( p.life <= 0.0 ) return;
+
+    p.velocity.y += p.gravity * sim.dt;
+    p.position += p.velocity * sim.dt;
+    p.life -= sim.dt;
+    p.rotation += k_spinRadPerSec * sim.dt;
+
+    if ( p.life <= 0.0 )
+    {
+        p.life = 0.0;
+        particles[ idx ] = p;
+        pushFree( idx );
+        return;
+    }
+
+    particles[ idx ] = p;
+    const uint drawSlot = atomicAdd( counters.aliveCount, 1u );
+    drawIndices[ drawSlot ] = idx;
+}
+
+void emitPhase()
+{
+    const uint eidx = gl_GlobalInvocationID.x;
+    if ( eidx >= sim.emitterCount ) return;
+
+    const Emitter e = emitters[ eidx ];
+    uint          rng = hash( e.seed ^ ( eidx * 747796405u ) ^ ( sim.frameIndex * 2891336453u ) );
+
+    for ( uint i = 0u; i < e.spawnCount; ++i )
+    {
+        const uint pidx = popFree();
+        if ( pidx == 0xffffffffu ) break;
+
+        Particle p;
+        p.position   = e.position;
+        p.maxLife    = randRange( rng, e.lifetimeMin, e.lifetimeMax );
+        p.life       = p.maxLife;
+        p.velocity   = vec3( randRange( rng, e.velocityMin.x, e.velocityMax.x ),
+                             randRange( rng, e.velocityMin.y, e.velocityMax.y ),
+                             randRange( rng, e.velocityMin.z, e.velocityMax.z ) );
+        p.sizeStart  = e.sizeStart;
+        p.sizeEnd    = e.sizeEnd;
+        p.colorStart = e.colorStart;
+        p.colorEnd   = e.colorEnd;
+        p.rotation   = randRange( rng, 0.0, TAU );
+        p.gravity    = e.gravity;
+        p.texIndex   = e.texIndex;
+        p._pad0      = 0u;
+        p.uvMin      = e.uvMin;
+        p.uvMax      = e.uvMax;
+
+        particles[ pidx ] = p;
+
+        const uint drawSlot = atomicAdd( counters.aliveCount, 1u );
+        drawIndices[ drawSlot ] = pidx;
+    }
+}
+
+void finalizePhase()
+{
+    if ( gl_GlobalInvocationID.x != 0u ) return;
+    counters.vertexCount   = 6u;
+    counters.instanceCount = counters.aliveCount;
+    counters.firstVertex   = 0u;
+    counters.firstInstance = 0u;
+}
+
+void main()
+{
+    if ( pc.phase == 0u )
+        updatePhase();
+    else if ( pc.phase == 1u )
+        emitPhase();
+    else if ( pc.phase == 2u )
+        finalizePhase();
+}

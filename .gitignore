@@ -1,0 +1,15 @@
+# .gitignore for Tomos
+
+# build files
+build/
+build-release/
+cmake-build-*/
+CMakeUserPresets.json
+
+# editor files
+.idea/
+.vscode/
+Sandbox/assets/*.png~
+
+# CEF binary distributions (large)
+third_party/

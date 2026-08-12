@@ -1,0 +1,55 @@
+#pragma once
+
+#include <glm/glm.hpp>
+#include <vulkan/vulkan.h>
+
+#include "Tomos/gpu/vulkan/TVkImage.hh"
+
+namespace Tomos
+{
+    class TVkGpu;
+
+    // HDR double-buffer: read ctx.hdr, write ctx.hdrOther, then swapHdr().
+    struct TPostContext
+    {
+        TVkGpu*    m_gpu = nullptr;
+        VkExtent2D m_extent{};
+
+        TVkImage* m_hdr      = nullptr;
+        TVkImage* m_hdrOther = nullptr;
+        TVkImage* m_depth    = nullptr;
+
+        float     m_near = 0.1f;
+        float     m_far  = 1000.0f;
+        glm::mat4 m_projInv{ 1.0f };
+        glm::mat4 m_viewInv{ 1.0f };
+
+        VkImage     m_outputImage  = VK_NULL_HANDLE;
+        VkImageView m_outputView   = VK_NULL_HANDLE;
+        VkFormat    m_outputFormat = VK_FORMAT_UNDEFINED;
+
+        // Only touch descriptor sets for this frame index.
+        uint32_t m_frameIndex = 0;
+
+        void swapHdr() { std::swap( m_hdr, m_hdrOther ); }
+    };
+
+    class TPostEffect
+    {
+    public:
+        virtual ~TPostEffect() = default;
+
+        [[nodiscard]] virtual const char* name() const = 0;
+
+        virtual void onResize( const TPostContext& p_ctx ) = 0;
+
+        // Device must be idle. Default: no-op.
+        virtual void reloadShaders( const TPostContext& p_ctx ) { (void) p_ctx; }
+
+        virtual void record( VkCommandBuffer p_cmd, TPostContext& p_ctx ) = 0;
+
+        virtual void destroy() {}
+
+        bool m_enabled = true;
+    };
+}  // namespace Tomos

@@ -1,0 +1,109 @@
+#version 450
+
+// Clustered light culling.
+// One thread per cluster: build the cluster's view-space AABB on the fly,
+// test every light against it, and append surviving light indices to the
+// global light-index list.  Directional lights always pass.
+
+layout( local_size_x = 64 ) in;
+
+layout( set = 0, binding = 0 ) uniform SceneUBO
+{
+#include "common/scene_ubo.glsl"
+} scene;
+
+#include "common/light.glsl"
+
+layout( set = 0, binding = 1 ) readonly buffer LightSSBO
+{
+    Light lights[];
+};
+
+layout( set = 0, binding = 2 ) writeonly buffer LightGrid
+{
+    LightCell cells[];
+};
+
+layout( set = 0, binding = 3 ) writeonly buffer LightIndices
+{
+    uint indices[];
+};
+
+layout( set = 0, binding = 4 ) buffer IndexCounter
+{
+    uint globalCounter;
+};
+
+const float k_inf = 1e30;
+#define MAX_LIGHTS_PER_CLUSTER 64
+
+// Unproject an NDC xy corner onto the plane at view-space depth p_viewZ (< 0).
+vec3 cornerAtDepth( vec2 p_ndc, float p_viewZ )
+{
+    // Any point along the eye ray: unproject at far plane (depth = 1).
+    vec4 h = scene.projInv * vec4( p_ndc, 1.0, 1.0 );
+    vec3 v = h.xyz / h.w;
+    return v * ( p_viewZ / v.z );
+}
+
+void main()
+{
+    const uvec3 grid  = scene.clusterGrid.xyz;
+    const uint  total = grid.x * grid.y * grid.z;
+    const uint  idx   = gl_GlobalInvocationID.x;
+    if ( idx >= total ) return;
+
+    const uint cx = idx % grid.x;
+    const uint cy = ( idx / grid.x ) % grid.y;
+    const uint cz = idx / ( grid.x * grid.y );
+
+    const float near = scene.cameraPosNear.w;
+    const float far  = scene.screenFar.z;
+
+    // Logarithmic depth slicing (view-space depth is negative along -Z).
+    const float zNear = -near * pow( far / near, float( cz ) / float( grid.z ) );
+    const float zFar  = -near * pow( far / near, float( cz + 1u ) / float( grid.z ) );
+
+    const vec2 ndcMin = vec2( cx, cy ) / vec2( grid.xy ) * 2.0 - 1.0;
+    const vec2 ndcMax = vec2( cx + 1u, cy + 1u ) / vec2( grid.xy ) * 2.0 - 1.0;
+
+    vec3 aabbMin = vec3( k_inf );
+    vec3 aabbMax = vec3( -k_inf );
+    for ( uint corner = 0u; corner < 4u; ++corner )
+    {
+        const vec2 ndc = vec2( ( corner & 1u ) != 0u ? ndcMax.x : ndcMin.x,
+                               ( corner & 2u ) != 0u ? ndcMax.y : ndcMin.y );
+        const vec3 pNear = cornerAtDepth( ndc, zNear );
+        const vec3 pFar  = cornerAtDepth( ndc, zFar );
+        aabbMin = min( aabbMin, min( pNear, pFar ) );
+        aabbMax = max( aabbMax, max( pNear, pFar ) );
+    }
+
+    const uint maxPerCluster = scene.clusterGrid.w;
+    const uint lightCount    = uint( scene.screenFar.w );
+
+    uint local[ MAX_LIGHTS_PER_CLUSTER ];  // must match k_maxLightsPerCluster
+    uint count = 0u;
+
+    for ( uint i = 0u; i < lightCount && count < maxPerCluster; ++i )
+    {
+        const Light light = lights[ i ];
+
+        if ( light.type == 1u )  // directional — affects everything
+        {
+            local[ count++ ] = i;
+            continue;
+        }
+
+        // Point / spot: conservative sphere (radius = maxRange) vs AABB.
+        const vec3  posView = ( scene.view * vec4( light.position, 1.0 ) ).xyz;
+        const vec3  closest = clamp( posView, aabbMin, aabbMax );
+        const vec3  d       = posView - closest;
+        const float r       = light.maxRange;
+        if ( dot( d, d ) <= r * r ) local[ count++ ] = i;
+    }
+
+    const uint offset = atomicAdd( globalCounter, count );
+    cells[ idx ]      = LightCell( offset, count );
+    for ( uint i = 0u; i < count; ++i ) indices[ offset + i ] = local[ i ];
+}
