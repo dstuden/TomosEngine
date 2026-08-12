@@ -17,8 +17,7 @@ namespace Tomos
         Box    = 1,  // OBB (node world rotation)
     };
 
-    // Trigger / sensor overlap lifecycle (at least one collider in the pair has
-    // m_isTrigger). Fired from TPhysicsSystem each fixed step.
+    // Trigger pair lifecycle (TPhysicsSystem fixed step).
     enum class TOverlapPhase : int
     {
         Enter = 0,

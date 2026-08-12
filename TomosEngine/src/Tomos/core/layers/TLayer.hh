@@ -6,7 +6,6 @@
 
 namespace Tomos
 {
-    // Stack layer — updated bottom-to-top, events top-to-bottom.
     class TLayer
     {
     public:

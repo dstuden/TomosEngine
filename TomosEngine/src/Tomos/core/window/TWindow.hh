@@ -40,8 +40,7 @@ namespace Tomos
 
         void onUpdate();
 
-        // Rolls FPS / avg FPS / frame time into the native window title
-        // (separate from any debug UI overlay).
+        // FPS/frame time → window title.
         void updatePerfStats( float p_dt );
 
         TWindowData& getData() { return m_data; }

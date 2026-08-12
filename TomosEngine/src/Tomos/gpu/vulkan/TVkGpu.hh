@@ -16,7 +16,6 @@ namespace Tomos
 {
     class TVkClusteredRenderer;
 
-    // Triple-buffered frame concurrency.
     inline constexpr uint32_t k_framesInFlight = 3;
 
     struct TVkLayouts
@@ -38,7 +37,6 @@ namespace Tomos
         TVkBuffer m_sceneUBO;
     };
 
-    // Owns device/swapchain/frame plumbing; rendering delegated to TVkClusteredRenderer.
     class TVkGpu
     {
     public:

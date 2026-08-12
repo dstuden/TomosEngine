@@ -6,7 +6,7 @@
 
 namespace Tomos
 {
-    // RGBA8 pixels loaded from disk (stb). Empty m_data means load failed.
+    // Empty m_data = load failed.
     struct TRgbaPixels
     {
         std::vector<uint8_t> m_data;
@@ -17,6 +17,5 @@ namespace Tomos
         [[nodiscard]] const void* pixels() const { return m_data.data(); }
     };
 
-    // Load an image file as tightly packed RGBA8. Returns empty on failure.
     [[nodiscard]] TRgbaPixels loadRgbaFile( const std::string& p_path );
 }  // namespace Tomos

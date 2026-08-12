@@ -210,7 +210,6 @@ namespace Tomos
                 result.m_asset->m_sourcePath = path;
                 result.m_asset->m_id         = TAssetSystem::makeStableId( path );
                 p_assets.registerAsset( std::move( result.m_asset ) );
-                ( void ) result.m_root;
             }
         }
 

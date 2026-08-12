@@ -8,8 +8,6 @@
 
 namespace Tomos::VkUtil
 {
-    // Picks the first memory type that satisfies both a required type-bit filter
-    // and the required property flags (e.g. HOST_VISIBLE | HOST_COHERENT).
     inline uint32_t findMemoryType( VkPhysicalDevice p_physDevice, uint32_t p_typeBits, VkMemoryPropertyFlags p_props )
     {
         VkPhysicalDeviceMemoryProperties memProps{};
@@ -55,7 +53,6 @@ namespace Tomos::VkUtil
         vkFreeCommandBuffers( p_device, p_pool, 1, &cmd );
     }
 
-    // Records a Vulkan 1.3 image memory barrier (synchronization2).
     inline void imageBarrier( VkCommandBuffer p_cmd, VkImage p_image, VkImageLayout p_oldLayout, VkImageLayout p_newLayout, VkPipelineStageFlags2 p_srcStage,
                               VkAccessFlags2 p_srcAccess, VkPipelineStageFlags2 p_dstStage, VkAccessFlags2 p_dstAccess,
                               VkImageAspectFlags p_aspect = VK_IMAGE_ASPECT_COLOR_BIT, uint32_t p_layers = 1, uint32_t p_mipLevels = 1 )

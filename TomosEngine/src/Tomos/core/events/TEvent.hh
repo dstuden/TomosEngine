@@ -47,8 +47,6 @@ namespace Tomos
 
         [[nodiscard]] inline bool isHandled() const { return m_handled; }
 
-        // Mark the event as consumed so lower layers do not receive it
-        // (used by UI overlays when the UI captures mouse / keyboard).
         inline void setHandled( bool p_handled = true ) { m_handled = p_handled; }
 
     protected:

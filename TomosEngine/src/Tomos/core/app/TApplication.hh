@@ -17,7 +17,6 @@ namespace Tomos
     class TWindowCloseEvent;
     class TWindowResizeEvent;
 
-    // Application entry point — push layers, call run(). Global services via get().
     class TApplication
     {
     public:

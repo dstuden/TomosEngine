@@ -8,7 +8,6 @@
 
 namespace Tomos
 {
-    // Docked ImGui editor: Scene viewport, hierarchy, inspector, renderer/physics/console.
     class TSceneEditorLayer : public TUiLayer
     {
     public:

@@ -13,7 +13,6 @@ namespace Tomos
         Spot,
     };
 
-    // Position/direction from node world transform at render time.
     class TLightComponent : public TComponent
     {
     public:

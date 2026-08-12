@@ -9,7 +9,7 @@
 
 namespace Tomos::PostUtil
 {
-    // Fullscreen triangle pipeline: no vertex buffers, dynamic viewport/scissor.
+    // No vertex buffers.
     inline VkPipeline createFullscreenPipeline( VkDevice p_device, VkPipelineLayout p_layout, const char* p_fragSpv, VkFormat p_colorFormat )
     {
         const VkShaderModule vertMod = VkUtil::loadSpv( p_device, VkUtil::resolveShaderPath( "fullscreen.vert.spv" ).c_str() );

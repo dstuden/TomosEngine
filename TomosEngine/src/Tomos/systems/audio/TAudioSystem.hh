@@ -11,7 +11,7 @@ namespace Tomos
 {
     class TSceneNode;
 
-    // miniaudio backend. Call updateListener() after lateUpdate with active camera.
+    // Call updateListener() after lateUpdate (active camera).
     class TAudioSystem : public TTypedSystem<TAudioComponent>
     {
     public:

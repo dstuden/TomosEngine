@@ -7,7 +7,6 @@
 
 namespace Tomos
 {
-    // Project world-space debug primitives into an ImGui Scene panel rect.
     class TDebugDraw
     {
     public:

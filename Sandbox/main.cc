@@ -140,15 +140,6 @@ private:
     }
 };
 
-// FlyCameraScript
-//
-// Controls (action map — keyboard + gamepad):
-//   MoveForward / MoveRight / MoveUp — WASD, Space/LCtrl, left stick
-//   Sprint       — LShift / left stick click
-//   Look         — mouse (when captured) + right stick
-//   ToggleCapture— Tab
-//   Beep         — F / X (gamepad)
-//   Quit         — Escape / Start
 class FlyCameraScript : public TScript
 {
 public:
@@ -179,7 +170,6 @@ private:
     {
         m_actions.clear();
 
-        // Movement (Gameplay) — keyboard + left stick
         m_actions.bindKeyAxis( "MoveForward", GLFW_KEY_S, GLFW_KEY_W );
         m_actions.bindGamepadAxis( "MoveForward", GLFW_GAMEPAD_AXIS_LEFT_Y, -1.0f );
 
@@ -193,14 +183,12 @@ private:
         m_actions.bindKey( "Sprint", GLFW_KEY_LEFT_SHIFT );
         m_actions.bindGamepadButton( "Sprint", GLFW_GAMEPAD_BUTTON_LEFT_THUMB );
 
-        // Look stick (mouse delta is read separately while captured)
         m_actions.bindGamepadAxis( "LookX", GLFW_GAMEPAD_AXIS_RIGHT_X );
         m_actions.bindGamepadAxis( "LookY", GLFW_GAMEPAD_AXIS_RIGHT_Y, -1.0f );
 
         m_actions.bindKey( "Beep", GLFW_KEY_F );
         m_actions.bindGamepadButton( "Beep", GLFW_GAMEPAD_BUTTON_X );
 
-        // Always available (captured or UI)
         m_actions.bindKey( "ToggleCapture", GLFW_KEY_TAB, TInputContext::Any );
         m_actions.bindKey( "Quit", GLFW_KEY_ESCAPE, TInputContext::Any );
         m_actions.bindGamepadButton( "Quit", GLFW_GAMEPAD_BUTTON_START, 0, TInputContext::Any );
@@ -264,7 +252,6 @@ private:
     }
 };
 
-// SandboxLayer — default demo scene (resources live on TScene).
 class SandboxLayer : public TSceneLayer
 {
 public:
@@ -453,11 +440,9 @@ private:
 
             TGpuAsset* animAsset = animResult.m_asset.get();
             app.assetSystem().registerAsset( std::move( animResult.m_asset ) );
-            animAsset = app.assetSystem().maybeGetAsset( "CesiumMan" );
 
             auto wrapper = std::make_shared<TSceneNode>( "CesiumManRoot" );
             wrapper->m_transform.setTranslation( { 2.0f, 0.0f, 0.0f } );
-            wrapper->m_transform.setScale( { 1.0f, 1.0f, 1.0f } );
 
             auto animator = std::make_shared<TAnimatorComponent>();
             if ( animAsset != nullptr && !animAsset->m_clips.empty() )

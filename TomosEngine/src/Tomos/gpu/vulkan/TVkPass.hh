@@ -25,8 +25,7 @@ namespace Tomos
         DepthSlices  = 3,  // color by logarithmic Z slice only
     };
 
-    // set 0, binding 0 — read by vertex, fragment and the cluster-cull compute
-    // stage.  One upload per frame from TFrameState.
+    // set0 binding0; match shader std140.
     struct alignas( 16 ) TSceneUBO
     {
         glm::mat4  m_viewProj;
@@ -41,7 +40,6 @@ namespace Tomos
         float      m_padTime[ 3 ]{ 0.0f, 0.0f, 0.0f };
     };
 
-    // Per-instance data uploaded to the instance SSBO each frame.
     struct alignas( 16 ) TInstanceData
     {
         glm::mat4 m_transform;
@@ -52,7 +50,6 @@ namespace Tomos
         uint32_t  m_pad1{ 0 };
     };
 
-    // Light data uploaded to the light SSBO each frame (std430 layout).
     struct alignas( 16 ) TLightData
     {
         glm::vec3 m_position;
@@ -70,19 +67,17 @@ namespace Tomos
         glm::mat4 m_vp;  // light view-projection for spot/dir shadow lookup (unused for point)
     };
 
-    // Per-cluster entry in the light grid SSBO.
     struct TLightCell
     {
-        uint32_t m_offset;  // start index into the light-index list
-        uint32_t m_count;  // number of lights affecting this cluster
+        uint32_t m_offset;
+        uint32_t m_count;
     };
 
-    // A batched draw call: one or more instances sharing the same mesh + material.
     struct TDrawCall
     {
         const TVkMesh*     m_mesh;
         const TVkMaterial* m_material;
-        uint32_t           m_instanceOffset;  // index into the instance SSBO
+        uint32_t           m_instanceOffset;
         uint32_t           m_instanceCount;
         bool               m_castShadow;
         // False when the camera frustum culled this draw — skipped by the
@@ -91,20 +86,18 @@ namespace Tomos
         bool m_visible = true;
     };
 
-    // One world-space sprite, uploaded to the sprite SSBO each frame (std430).
     struct alignas( 16 ) TSpriteData
     {
-        glm::vec3 m_position;  // world-space center
-        float     m_rotation;  // radians, around the facing axis
-        glm::vec2 m_size;  // world units (width, height)
-        glm::vec2 m_uvMin;  // atlas rect
+        glm::vec3 m_position;
+        float     m_rotation;
+        glm::vec2 m_size;
+        glm::vec2 m_uvMin;
         glm::vec2 m_uvMax;
         uint32_t  m_mode;  // TBillboardMode
         uint32_t  m_pad0{ 0 };
-        glm::vec4 m_color;  // tint * alpha
+        glm::vec4 m_color;
     };
 
-    // Contiguous run of sprites in TFrameState::m_sprites sharing one texture.
     struct TSpriteBatch
     {
         const TVkImage* m_texture;
@@ -133,7 +126,6 @@ namespace Tomos
     static_assert( sizeof( TParticleData ) == 112, "TParticleData must match particle_*.glsl std430" );
     static_assert( offsetof( TParticleData, m_texIndex ) == 88, "TParticleData::m_texIndex offset" );
 
-    // One CPU→GPU emitter descriptor for this frame (std430).
     // Spawn count is decided on the CPU (rate * dt + burst); the GPU allocates slots.
     struct alignas( 16 ) TEmitterData
     {
@@ -171,7 +163,6 @@ namespace Tomos
         uint32_t m_firstInstance{ 0 };
     };
 
-    // Per-frame uniforms for particle_sim.comp.
     struct alignas( 16 ) TParticleSimUBO
     {
         float    m_dt{ 0.0f };
@@ -180,7 +171,6 @@ namespace Tomos
         uint32_t m_frameIndex{ 0 };
     };
 
-    // Scene data gathered each frame (CPU side), then uploaded before draw.
     struct TFrameState
     {
         // Identity until the first TCameraSystem::populate — consumers
@@ -202,8 +192,8 @@ namespace Tomos
         std::vector<TInstanceData> m_instances;
         std::vector<glm::mat4>     m_bones;  // flattened bone palettes for skinned draws
         std::vector<TLightData>    m_lights;
-        std::vector<TSpriteData>   m_sprites;  // grouped by texture
-        std::vector<TSpriteBatch>  m_spriteBatches;  // one entry per texture run
+        std::vector<TSpriteData>   m_sprites;
+        std::vector<TSpriteBatch>  m_spriteBatches;
         std::vector<TEmitterData>  m_emitters;
         // Stable particle texture slots (index 0 = nullptr → default white).
         // Copied from TParticleSystem each frame for the additive draw binds.

@@ -114,7 +114,6 @@ namespace Tomos
                 result.m_asset->m_id         = TAssetSystem::makeStableId( p_path );
                 asset                       = result.m_asset.get();
                 app.assetSystem().registerAsset( std::move( result.m_asset ) );
-                ( void ) result.m_root;
             }
 
             if ( asset->m_meshes.empty() )
@@ -174,11 +173,6 @@ namespace Tomos
         {
             if ( p_ctx.m_bag == nullptr ) return false;
             TAudioClip* clip = p_ctx.m_bag->getOrCreateClip( p_path );
-            if ( clip == nullptr )
-            {
-                p_ctx.m_status = "Audio load failed: " + p_path;
-                return false;
-            }
             if ( auto* existing = p_node.findComponent<TAudioComponent>() )
                 existing->m_clip = clip;
             else
@@ -241,7 +235,7 @@ namespace Tomos
         return false;
     }
 
-    void TAssetBrowserPanel::draw( TSceneEditorContext& p_ctx )
+    void TAssetBrowserPanel::draw( TSceneEditorContext& /*p_ctx*/ )
     {
         ImGui::Begin( "Assets" );
 
@@ -314,7 +308,6 @@ namespace Tomos
         }
 
         ImGui::TextDisabled( "Drag onto Hierarchy / Inspector nodes" );
-        ( void ) p_ctx;
         ImGui::End();
     }
 }  // namespace Tomos

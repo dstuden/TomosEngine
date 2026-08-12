@@ -8,7 +8,7 @@
 
 namespace Tomos
 {
-    // Layers below m_layerInsertIdx; overlays above. Events reverse (top-first).
+    // Update bottom→top; events top→bottom. Layers below m_layerInsertIdx; overlays above.
     class TLayerStack
     {
     public:

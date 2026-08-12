@@ -8,7 +8,6 @@ struct ImTextureData;
 
 namespace Tomos
 {
-    // Dear ImGui + Vulkan. Build UI in TUiLayer::onUi() only.
     class TImGuiBackend : public TUiBackend
     {
     public:

@@ -7,7 +7,7 @@
 
 namespace Tomos
 {
-    // UI overlay — build widgets in onUi() only (after scene update).
+    // Widgets only in onUi() (after scene update).
     class TUiLayer : public TLayer
     {
     public:

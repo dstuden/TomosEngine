@@ -96,15 +96,9 @@ namespace Tomos
         std::map<std::string, TConfigField> m_fields;
     };
 
-    /**
-     * These are the base configuration options for Tomos Engine.
-     * You can extend this class to add more configuration options specific to your application, and the TConfigManager will handle loading and saving them
-     * automatically.
-     */
     class TEngineConfig : public TBaseConfig
     {
     public:
-        // Define properties: (Parent, Name, Default, Category, Description)
         TProperty<unsigned int> windowWidth{ this, "windowWidth", 1280, "Video", "Width of window" };
         TProperty<unsigned int> windowHeight{ this, "windowHeight", 720, "Video", "Height of window" };
         TProperty<std::string>  windowTitle{ this, "windowTitle", "Tomos Engine", "General", "Window Title" };

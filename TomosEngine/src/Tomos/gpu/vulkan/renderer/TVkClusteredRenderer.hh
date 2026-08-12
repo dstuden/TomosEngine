@@ -15,7 +15,6 @@ namespace Tomos
 {
     class TVkGpu;
 
-    // Clustered forward + post stack.
     class TVkClusteredRenderer
     {
     public:

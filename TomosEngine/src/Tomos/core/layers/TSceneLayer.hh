@@ -5,7 +5,7 @@
 
 namespace Tomos
 {
-    // Drives the active scene — default ECS systems on attach, populate in onRender.
+    // Registers default systems; populate in onRender.
     class TSceneLayer : public TLayer
     {
     public:

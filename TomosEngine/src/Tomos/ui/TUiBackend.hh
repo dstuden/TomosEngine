@@ -8,7 +8,7 @@ namespace Tomos
 {
     class TVkGpu;
 
-    // UI backend — newFrame in onUpdate, render/abandonFrame in onRender.
+    // newFrame=onUpdate; render/abandonFrame=onRender.
     class TUiBackend
     {
     public:
@@ -20,7 +20,6 @@ namespace Tomos
 
         virtual void newFrame() = 0;
 
-        // Optional GPU work before the UI dynamic-rendering pass.
         virtual void prepareRender( VkCommandBuffer /*p_cmd*/ ) {}
 
         // p_cmd is inside dynamic rendering targeting the swapchain.
