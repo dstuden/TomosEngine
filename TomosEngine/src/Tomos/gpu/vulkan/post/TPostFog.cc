@@ -46,7 +46,7 @@ namespace Tomos
             vkCreatePipelineLayout( m_device, &pl, nullptr, &m_pipeLay );
 
             m_pipe = PostUtil::createFullscreenPipeline( m_device, m_pipeLay, "fog.frag.spv", VK_FORMAT_R16G16B16A16_SFLOAT );
-            for ( uint32_t i = 0; i < k_frames; ++i ) m_sets[ i ] = PostUtil::allocSet( m_device, p_ctx.m_gpu->descPool(), m_layout );
+            for ( uint32_t i = 0; i < g_kFrames; ++i ) m_sets[ i ] = PostUtil::allocSet( m_device, p_ctx.m_gpu->descPool(), m_layout );
         }
     }
 
@@ -59,7 +59,7 @@ namespace Tomos
 
     void TPostFog::record( VkCommandBuffer p_cmd, TPostContext& p_ctx )
     {
-        const uint32_t fi = p_ctx.m_frameIndex % k_frames;
+        const uint32_t fi = p_ctx.m_frameIndex % g_kFrames;
 
         VkUtil::imageBarrier( p_cmd, p_ctx.m_hdrOther->handle(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                               VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_ACCESS_2_NONE, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,

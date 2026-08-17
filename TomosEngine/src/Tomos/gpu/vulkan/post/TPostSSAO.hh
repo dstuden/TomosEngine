@@ -27,19 +27,19 @@ namespace Tomos
         float m_intensity = 1.0f;
 
     private:
-        static constexpr uint32_t k_frames = 3;
+        static constexpr uint32_t g_kFrames = 3;
 
         VkDevice m_device = VK_NULL_HANDLE;
 
         TVkImage m_ao;
 
-        VkDescriptorSetLayout                 m_samp1Layout = VK_NULL_HANDLE;
-        VkDescriptorSetLayout                 m_samp2Layout = VK_NULL_HANDLE;
-        VkPipelineLayout                      m_aoLay       = VK_NULL_HANDLE;
-        VkPipelineLayout                      m_compLay     = VK_NULL_HANDLE;
-        VkPipeline                            m_aoPipe      = VK_NULL_HANDLE;
-        VkPipeline                            m_compPipe    = VK_NULL_HANDLE;
-        std::array<VkDescriptorSet, k_frames> m_aoSets{};
-        std::array<VkDescriptorSet, k_frames> m_compSets{};
+        VkDescriptorSetLayout                  m_samp1Layout = VK_NULL_HANDLE;
+        VkDescriptorSetLayout                  m_samp2Layout = VK_NULL_HANDLE;
+        VkPipelineLayout                       m_aoLay       = VK_NULL_HANDLE;
+        VkPipelineLayout                       m_compLay     = VK_NULL_HANDLE;
+        VkPipeline                             m_aoPipe      = VK_NULL_HANDLE;
+        VkPipeline                             m_compPipe    = VK_NULL_HANDLE;
+        std::array<VkDescriptorSet, g_kFrames> m_aoSets{};
+        std::array<VkDescriptorSet, g_kFrames> m_compSets{};
     };
 }  // namespace Tomos

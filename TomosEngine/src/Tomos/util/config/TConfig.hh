@@ -8,6 +8,7 @@
 #include <ranges>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "Tomos/util/logger/TLogger.hh"
@@ -19,11 +20,11 @@ namespace Tomos
 
     struct TConfigField
     {
-        std::string                                  name;
-        std::string                                  category;
-        std::string                                  description;
-        std::function<void( const nlohmann::json& )> loadFunc;
-        std::function<void( nlohmann::json& )>       saveFunc;
+        std::string                                  m_name;
+        std::string                                  m_category;
+        std::string                                  m_description;
+        std::function<void( const nlohmann::json& )> m_loadFunc;
+        std::function<void( nlohmann::json& )>       m_saveFunc;
     };
 
     const inline std::string g_defaultCategory = "General";
@@ -32,23 +33,23 @@ namespace Tomos
     class TProperty
     {
     public:
-        T value;
+        T m_value;
 
         TProperty( TEngineConfig* p_parent, const std::string& p_name, T p_defaultValue, const std::string& p_category = g_defaultCategory,
-                   const std::string& p_description = "" ) : value( p_defaultValue )
+                   const std::string& p_description = "" ) : m_value( std::move( p_defaultValue ) )
         {
             registerWith( p_parent, p_name, p_category, p_description );
         }
 
-        operator const T&() const { return value; }
+        operator const T&() const { return m_value; }
 
         T& operator=( const T& p_newValue )
         {
-            value = p_newValue;
-            return value;
+            m_value = p_newValue;
+            return m_value;
         }
 
-        T* operator->() { return &value; }
+        T* operator->() { return &m_value; }
 
     private:
         void registerWith( TEngineConfig* p_parent, const std::string& p_name, const std::string& p_cat, const std::string& p_desc );
@@ -68,7 +69,7 @@ namespace Tomos
             std::map<std::string, std::vector<TConfigField*>> categorized;
             for ( auto& field : m_fields | std::views::values )
             {
-                categorized[ field.category ].push_back( &field );
+                categorized[ field.m_category ].push_back( &field );
             }
             return categorized;
         }
@@ -78,16 +79,16 @@ namespace Tomos
         {
             for ( auto& field : m_fields | std::views::values )
             {
-                field.loadFunc( p_data );
+                field.m_loadFunc( p_data );
             }
         }
 
-        nlohmann::json serialize() const
+        [[nodiscard]] nlohmann::json serialize() const
         {
             nlohmann::json out = nlohmann::json::object();
             for ( const auto& field : m_fields | std::views::values )
             {
-                field.saveFunc( out );
+                field.m_saveFunc( out );
             }
             return out;
         }
@@ -99,22 +100,22 @@ namespace Tomos
     class TEngineConfig : public TBaseConfig
     {
     public:
-        TProperty<unsigned int> windowWidth{ this, "windowWidth", 1280, "Video", "Width of window" };
-        TProperty<unsigned int> windowHeight{ this, "windowHeight", 720, "Video", "Height of window" };
-        TProperty<std::string>  windowTitle{ this, "windowTitle", "Tomos Engine", "General", "Window Title" };
-        TProperty<bool>         vsync{ this, "vsync", true, "Video", "Enable VSync" };
-        TProperty<bool>         fullscreen{ this, "fullscreen", false, "Video", "Start in fullscreen mode" };
+        TProperty<unsigned int> m_windowWidth{ this, "windowWidth", 1280, "Video", "Width of window" };
+        TProperty<unsigned int> m_windowHeight{ this, "windowHeight", 720, "Video", "Height of window" };
+        TProperty<std::string>  m_windowTitle{ this, "windowTitle", "Tomos Engine", "General", "Window Title" };
+        TProperty<bool>         m_vsync{ this, "vsync", true, "Video", "Enable VSync" };
+        TProperty<bool>         m_fullscreen{ this, "fullscreen", false, "Video", "Start in fullscreen mode" };
     };
 
     template<typename T>
     void TProperty<T>::registerWith( TEngineConfig* p_parent, const std::string& p_name, const std::string& p_cat, const std::string& p_desc )
     {
         p_parent->addField( p_name, { p_name, p_cat, p_desc,
-                                      [ this, p_name ]( const nlohmann::json& j )
+                                      [ this, p_name ]( const nlohmann::json& p_j )
                                       {
-                                          if ( j.contains( p_name ) ) value = j.at( p_name ).get<T>();
+                                          if ( p_j.contains( p_name ) ) m_value = p_j.at( p_name ).get<T>();
                                       },
-                                      [ this, p_name ]( nlohmann::json& j ) { j[ p_name ] = value; } } );
+                                      [ this, p_name ]( nlohmann::json& p_j ) { p_j[ p_name ] = m_value; } } );
     }
 
     class TConfigManager

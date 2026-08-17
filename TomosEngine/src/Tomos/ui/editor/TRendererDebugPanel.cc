@@ -22,13 +22,13 @@ namespace Tomos
 
         ImGui::Begin( "Renderer" );
 
-        static const char* k_debugViews[] = { "Off", "Cluster grid", "Light heatmap", "Depth slices" };
-        int                mode           = static_cast<int>( state.m_debugMode );
-        if ( ImGui::Combo( "Debug view", &mode, k_debugViews, 4 ) ) state.m_debugMode = static_cast<TDebugView>( mode );
+        static const char* kDebugViews[] = { "Off", "Cluster grid", "Light heatmap", "Depth slices" };
+        int                mode          = static_cast<int>( state.m_debugMode );
+        if ( ImGui::Combo( "Debug view", &mode, kDebugViews, 4 ) ) state.m_debugMode = static_cast<TDebugView>( mode );
 
-        static float s_smoothDt = p_dt;
-        s_smoothDt              = s_smoothDt * 0.9f + p_dt * 0.1f;
-        ImGui::Text( "Frame: %.2f ms (%.0f fps)", s_smoothDt * 1000.0f, s_smoothDt > 0.0f ? 1.0f / s_smoothDt : 0.0f );
+        static float sSmoothDt = p_dt;
+        sSmoothDt              = sSmoothDt * 0.9f + p_dt * 0.1f;
+        ImGui::Text( "Frame: %.2f ms (%.0f fps)", sSmoothDt * 1000.0f, sSmoothDt > 0.0f ? 1.0f / sSmoothDt : 0.0f );
 
         const VkExtent2D re = gpu->renderExtent();
         const VkExtent2D se = gpu->extent();
@@ -40,11 +40,11 @@ namespace Tomos
             if ( ImGui::Checkbox( "Fullscreen", &fs ) )
             {
                 app.window().setFullscreen( fs );
-                app.config().fullscreen = fs;
+                app.config().m_fullscreen = fs;
                 if ( !fs )
                 {
-                    app.config().windowWidth  = static_cast<unsigned int>( app.window().getData().m_width );
-                    app.config().windowHeight = static_cast<unsigned int>( app.window().getData().m_height );
+                    app.config().m_windowWidth  = static_cast<unsigned int>( app.window().getData().m_width );
+                    app.config().m_windowHeight = static_cast<unsigned int>( app.window().getData().m_height );
                 }
                 app.configManager().save();
             }
@@ -65,13 +65,13 @@ namespace Tomos
         ImGui::Text( "Meshes:     %u total, %u frustum-culled", state.m_meshesTotal, state.m_meshesCulled );
         ImGui::Text( "Lights:     %zu", state.m_lights.size() );
         ImGui::Text( "Sprites:    %zu (%zu batches)", state.m_sprites.size(), state.m_spriteBatches.size() );
-        ImGui::Text( "Emitters:   %zu (GPU pool %u)", state.m_emitters.size(), k_maxParticles );
+        ImGui::Text( "Emitters:   %zu (GPU pool %u)", state.m_emitters.size(), g_kMaxParticles );
         ImGui::Text( "Bones:      %zu uploaded", state.m_bones.size() );
 
         int shadowCasters = 0;
-        for ( const auto& L : state.m_lights )
-            if ( L.m_shadowMap >= 0 ) ++shadowCasters;
-        ImGui::Text( "Shadow maps: %d / %u", shadowCasters, k_maxShadowMaps );
+        for ( const auto& l : state.m_lights )
+            if ( l.m_shadowMap >= 0 ) ++shadowCasters;
+        ImGui::Text( "Shadow maps: %d / %u", shadowCasters, g_kMaxShadowMaps );
 
         if ( ImGui::CollapsingHeader( "Lights" ) )
         {
@@ -85,19 +85,19 @@ namespace Tomos
                 ImGui::TableHeadersRow();
                 for ( size_t i = 0; i < state.m_lights.size(); ++i )
                 {
-                    const auto& L = state.m_lights[ i ];
+                    const auto& l = state.m_lights[ i ];
                     ImGui::TableNextRow();
                     ImGui::TableNextColumn();
                     ImGui::Text( "%zu", i );
                     ImGui::TableNextColumn();
-                    const int t = static_cast<int>( L.m_type );
+                    const int t = static_cast<int>( l.m_type );
                     ImGui::TextUnformatted( t == 0 ? "Point" : ( t == 1 ? "Dir" : "Spot" ) );
                     ImGui::TableNextColumn();
-                    ImGui::Text( "%.2f", L.m_intensity );
+                    ImGui::Text( "%.2f", l.m_intensity );
                     ImGui::TableNextColumn();
-                    ImGui::Text( "%.1f", L.m_maxRange );
+                    ImGui::Text( "%.1f", l.m_maxRange );
                     ImGui::TableNextColumn();
-                    ImGui::Text( "%d", L.m_shadowMap );
+                    ImGui::Text( "%d", l.m_shadowMap );
                 }
                 ImGui::EndTable();
             }

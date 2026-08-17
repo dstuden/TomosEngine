@@ -39,7 +39,7 @@ namespace Tomos
     class TLogger
     {
     public:
-        static constexpr size_t k_ringCapacity = 512;
+        static constexpr size_t g_kRingCapacity = 512;
 
         static TLogger& getInstance();
 
@@ -85,9 +85,9 @@ namespace Tomos
 
         std::deque<TLogEntry> m_ring;
 
-        std::string getTimestamp();
-        std::string getPrefix();
-        void        setLogLevel( TLogLevel p_level );
+        static std::string getTimestamp();
+        std::string        getPrefix();
+        void               setLogLevel( TLogLevel p_level );
     };
 
     class TLogLine

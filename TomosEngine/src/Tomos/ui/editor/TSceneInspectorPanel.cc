@@ -28,9 +28,9 @@ namespace Tomos
 {
     namespace
     {
-        void editTransform( TSceneNode& node )
+        void editTransform( TSceneNode& p_node )
         {
-            TTransform& t = node.m_transform;
+            TTransform& t = p_node.m_transform;
 
             float pos[ 3 ] = { t.translation().x, t.translation().y, t.translation().z };
             if ( ImGui::DragFloat3( "Position", pos, 0.05f ) )
@@ -39,7 +39,7 @@ namespace Tomos
                 t.setTranslation( p );
                 // Dynamic bodies own sim pose — snap + kill velocity so the
                 // scrubbed position sticks under gravity between frames.
-                if ( auto* rb = node.findComponent<TRigidBodyComponent>() )
+                if ( auto* rb = p_node.findComponent<TRigidBodyComponent>() )
                 {
                     if ( rb->isDynamic() )
                     {
@@ -51,7 +51,7 @@ namespace Tomos
             // Keep re-asserting while the drag is held (physics runs before UI).
             else if ( ImGui::IsItemActive() )
             {
-                if ( auto* rb = node.findComponent<TRigidBodyComponent>() )
+                if ( auto* rb = p_node.findComponent<TRigidBodyComponent>() )
                 {
                     if ( rb->isDynamic() )
                     {
@@ -75,45 +75,45 @@ namespace Tomos
             }
         }
 
-        void editCamera( TCameraComponent& cam )
+        void editCamera( TCameraComponent& p_cam )
         {
-            ImGui::Checkbox( "Active", &cam.m_active );
-            int proj = cam.m_projection == TProjection::Orthographic ? 1 : 0;
+            ImGui::Checkbox( "Active", &p_cam.m_active );
+            int proj = p_cam.m_projection == TProjection::Orthographic ? 1 : 0;
             if ( ImGui::Combo( "Projection", &proj, "Perspective\0Orthographic\0" ) )
             {
-                cam.m_projection = proj == 1 ? TProjection::Orthographic : TProjection::Perspective;
-                cam.setDirty();
+                p_cam.m_projection = proj == 1 ? TProjection::Orthographic : TProjection::Perspective;
+                p_cam.setDirty();
             }
-            float fovDeg = glm::degrees( cam.m_fov );
+            float fovDeg = glm::degrees( p_cam.m_fov );
             if ( ImGui::SliderFloat( "FOV (deg)", &fovDeg, 10.0f, 120.0f ) )
             {
-                cam.m_fov = glm::radians( fovDeg );
-                cam.setDirty();
+                p_cam.m_fov = glm::radians( fovDeg );
+                p_cam.setDirty();
             }
-            if ( ImGui::DragFloat( "Near", &cam.m_near, 0.01f, 0.001f, 100.0f ) ) cam.setDirty();
-            if ( ImGui::DragFloat( "Far", &cam.m_far, 1.0f, 1.0f, 100000.0f ) ) cam.setDirty();
-            if ( ImGui::DragFloat( "Ortho half-height", &cam.m_orthoHalfHeight, 0.1f ) ) cam.setDirty();
+            if ( ImGui::DragFloat( "Near", &p_cam.m_near, 0.01f, 0.001f, 100.0f ) ) p_cam.setDirty();
+            if ( ImGui::DragFloat( "Far", &p_cam.m_far, 1.0f, 1.0f, 100000.0f ) ) p_cam.setDirty();
+            if ( ImGui::DragFloat( "Ortho half-height", &p_cam.m_orthoHalfHeight, 0.1f ) ) p_cam.setDirty();
         }
 
-        void editLight( TLightComponent& lit )
+        void editLight( TLightComponent& p_lit )
         {
-            int type = static_cast<int>( lit.m_type );
-            if ( ImGui::Combo( "Type", &type, "Point\0Directional\0Spot\0" ) ) lit.m_type = static_cast<TLightType>( type );
-            ImGui::ColorEdit3( "Color", &lit.m_color.x );
-            ImGui::DragFloat( "Intensity", &lit.m_intensity, 0.1f, 0.0f, 1000.0f );
-            ImGui::DragFloat( "Max range", &lit.m_maxRange, 0.1f, 0.1f, 1000.0f );
-            float innerDeg = glm::degrees( lit.m_innerCone );
-            float outerDeg = glm::degrees( lit.m_outerCone );
-            if ( ImGui::SliderFloat( "Inner cone (deg)", &innerDeg, 0.0f, 89.0f ) ) lit.m_innerCone = glm::radians( innerDeg );
-            if ( ImGui::SliderFloat( "Outer cone (deg)", &outerDeg, 1.0f, 90.0f ) ) lit.m_outerCone = glm::radians( outerDeg );
-            ImGui::Checkbox( "Cast shadow", &lit.m_castShadow );
+            int type = static_cast<int>( p_lit.m_type );
+            if ( ImGui::Combo( "Type", &type, "Point\0Directional\0Spot\0" ) ) p_lit.m_type = static_cast<TLightType>( type );
+            ImGui::ColorEdit3( "Color", &p_lit.m_color.x );
+            ImGui::DragFloat( "Intensity", &p_lit.m_intensity, 0.1f, 0.0f, 1000.0f );
+            ImGui::DragFloat( "Max range", &p_lit.m_maxRange, 0.1f, 0.1f, 1000.0f );
+            float innerDeg = glm::degrees( p_lit.m_innerCone );
+            float outerDeg = glm::degrees( p_lit.m_outerCone );
+            if ( ImGui::SliderFloat( "Inner cone (deg)", &innerDeg, 0.0f, 89.0f ) ) p_lit.m_innerCone = glm::radians( innerDeg );
+            if ( ImGui::SliderFloat( "Outer cone (deg)", &outerDeg, 1.0f, 90.0f ) ) p_lit.m_outerCone = glm::radians( outerDeg );
+            ImGui::Checkbox( "Cast shadow", &p_lit.m_castShadow );
         }
 
-        void editMesh( TMeshComponent& mesh, bool skinned )
+        void editMesh( TMeshComponent& p_mesh, bool p_skinned )
         {
-            ImGui::Text( "Mesh ptr: %s", mesh.m_mesh ? "bound" : "null" );
-            ImGui::Text( "Material: %s", mesh.m_material ? "bound" : "null" );
-            ImGui::Checkbox( "Cast shadow", &mesh.m_castShadow );
+            ImGui::Text( "Mesh ptr: %s", p_mesh.m_mesh ? "bound" : "null" );
+            ImGui::Text( "Material: %s", p_mesh.m_material ? "bound" : "null" );
+            ImGui::Checkbox( "Cast shadow", &p_mesh.m_castShadow );
 
             auto& assets = TApplication::get().assetSystem();
             auto  names  = assets.assetNames();
@@ -124,7 +124,7 @@ namespace Tomos
             }
 
             TMeshAssetRef ref{};
-            const bool    resolved = assets.resolveMesh( mesh.m_mesh, mesh.m_material, ref );
+            const bool    resolved = assets.resolveMesh( p_mesh.m_mesh, p_mesh.m_material, ref );
             int           assetIdx = 0;
             for ( size_t i = 0; i < names.size(); ++i )
             {
@@ -156,50 +156,49 @@ namespace Tomos
                 }
                 if ( changed )
                 {
-                    mesh.m_mesh     = meshCount > 0 ? asset->mesh( static_cast<uint32_t>( meshIdx ) ) : nullptr;
-                    mesh.m_material = matCount > 0 ? asset->material( static_cast<uint32_t>( matIdx ) ) : nullptr;
+                    p_mesh.m_mesh     = meshCount > 0 ? asset->mesh( static_cast<uint32_t>( meshIdx ) ) : nullptr;
+                    p_mesh.m_material = matCount > 0 ? asset->material( static_cast<uint32_t>( matIdx ) ) : nullptr;
                 }
             }
 
-            if ( skinned )
+            if ( p_skinned )
             {
-                auto* sk = dynamic_cast<TSkinnedMeshComponent*>( &mesh );
+                auto* sk = dynamic_cast<TSkinnedMeshComponent*>( &p_mesh );
                 if ( sk != nullptr ) ImGui::Text( "Joints: %zu", sk->m_joints.size() );
             }
         }
 
-        void editAnimator( TAnimatorComponent& anim )
+        void editAnimator( TAnimatorComponent& p_anim )
         {
-            ImGui::Checkbox( "Playing", &anim.m_playing );
-            ImGui::Checkbox( "Loop", &anim.m_looping );
-            ImGui::SliderFloat( "Speed", &anim.m_speed, 0.0f, 3.0f );
-            ImGui::SliderFloat( "Default fade", &anim.m_defaultFadeDuration, 0.0f, 2.0f );
-            const float duration = anim.m_clip != nullptr ? anim.m_clip->m_duration : 0.0f;
-            float       t        = anim.m_time;
-            if ( ImGui::SliderFloat( "Time", &t, 0.0f, duration > 0.0f ? duration : 1.0f ) ) anim.seek( t );
+            ImGui::Checkbox( "Playing", &p_anim.m_playing );
+            ImGui::Checkbox( "Loop", &p_anim.m_looping );
+            ImGui::SliderFloat( "Speed", &p_anim.m_speed, 0.0f, 3.0f );
+            ImGui::SliderFloat( "Default fade", &p_anim.m_defaultFadeDuration, 0.0f, 2.0f );
+            const float duration = p_anim.m_clip != nullptr ? p_anim.m_clip->m_duration : 0.0f;
+            float       t        = p_anim.m_time;
+            if ( ImGui::SliderFloat( "Time", &t, 0.0f, duration > 0.0f ? duration : 1.0f ) ) p_anim.seek( t );
 
-            if ( anim.isCrossfading() )
-                ImGui::Text( "Crossfade: %.0f%%", anim.m_blendWeight * 100.0f );
-            if ( anim.m_stateMachine.m_enabled )
-                ImGui::Text( "State: %s", anim.m_stateMachine.m_current.c_str() );
+            if ( p_anim.isCrossfading() ) ImGui::Text( "Crossfade: %.0f%%", p_anim.m_blendWeight * 100.0f );
+            if ( p_anim.m_stateMachine.m_enabled ) ImGui::Text( "State: %s", p_anim.m_stateMachine.m_current.c_str() );
 
             auto& assets = TApplication::get().assetSystem();
             auto  names  = assets.assetNames();
             if ( names.empty() ) return;
 
             std::string assetName, clipName;
-            ( void ) assets.resolveClip( anim.m_clip, assetName, clipName );
+            ( void ) assets.resolveClip( p_anim.m_clip, assetName, clipName );
 
             int assetIdx = 0;
             for ( size_t i = 0; i < names.size(); ++i )
                 if ( names[ i ] == assetName ) assetIdx = static_cast<int>( i );
 
             std::vector<const char*> namePtrs;
+            namePtrs.reserve( names.size() );
             for ( const auto& n : names ) namePtrs.push_back( n.c_str() );
             if ( ImGui::Combo( "Anim asset", &assetIdx, namePtrs.data(), static_cast<int>( namePtrs.size() ) ) )
             {
                 TGpuAsset* asset = assets.maybeGetAsset( names[ static_cast<size_t>( assetIdx ) ] );
-                if ( asset != nullptr && !asset->m_clips.empty() ) anim.play( asset->m_clips.front().get() );
+                if ( asset != nullptr && !asset->m_clips.empty() ) p_anim.play( asset->m_clips.front().get() );
             }
 
             TGpuAsset* asset = assets.maybeGetAsset( names[ static_cast<size_t>( assetIdx ) ] );
@@ -210,156 +209,158 @@ namespace Tomos
                 for ( size_t i = 0; i < asset->m_clips.size(); ++i )
                 {
                     clipPtrs.push_back( asset->m_clips[ i ]->m_name.c_str() );
-                    if ( anim.m_clip == asset->m_clips[ i ].get() ) clipIdx = static_cast<int>( i );
+                    if ( p_anim.m_clip == asset->m_clips[ i ].get() ) clipIdx = static_cast<int>( i );
                 }
                 if ( ImGui::Combo( "Clip", &clipIdx, clipPtrs.data(), static_cast<int>( clipPtrs.size() ) ) )
-                    anim.crossfadeTo( asset->m_clips[ static_cast<size_t>( clipIdx ) ].get() );
+                    p_anim.crossfadeTo( asset->m_clips[ static_cast<size_t>( clipIdx ) ].get() );
             }
         }
 
-        void editSprite( TSpriteComponent& spr, TSceneEditorContext& ctx )
+        void editSprite( TSpriteComponent& p_spr, TSceneEditorContext& p_ctx )
         {
-            ImGui::DragFloat2( "Size", &spr.m_size.x, 0.01f );
-            ImGui::ColorEdit4( "Color", &spr.m_color.x );
-            int mode = static_cast<int>( spr.m_mode );
-            if ( ImGui::Combo( "Billboard", &mode, "Spherical\0Cylindrical\0Fixed\0" ) ) spr.m_mode = static_cast<TBillboardMode>( mode );
-            float rotDeg = glm::degrees( spr.m_rotation );
-            if ( ImGui::DragFloat( "Rotation (deg)", &rotDeg, 0.5f ) ) spr.m_rotation = glm::radians( rotDeg );
-            ImGui::DragFloat2( "UV min", &spr.m_uvMin.x, 0.01f );
-            ImGui::DragFloat2( "UV max", &spr.m_uvMax.x, 0.01f );
-            ImGui::Checkbox( "Visible", &spr.m_visible );
+            ImGui::DragFloat2( "Size", &p_spr.m_size.x, 0.01f );
+            ImGui::ColorEdit4( "Color", &p_spr.m_color.x );
+            int mode = static_cast<int>( p_spr.m_mode );
+            if ( ImGui::Combo( "Billboard", &mode, "Spherical\0Cylindrical\0Fixed\0" ) ) p_spr.m_mode = static_cast<TBillboardMode>( mode );
+            float rotDeg = glm::degrees( p_spr.m_rotation );
+            if ( ImGui::DragFloat( "Rotation (deg)", &rotDeg, 0.5f ) ) p_spr.m_rotation = glm::radians( rotDeg );
+            ImGui::DragFloat2( "UV min", &p_spr.m_uvMin.x, 0.01f );
+            ImGui::DragFloat2( "UV max", &p_spr.m_uvMax.x, 0.01f );
+            ImGui::Checkbox( "Visible", &p_spr.m_visible );
 
             std::string texPath;
-            if ( ctx.m_bag != nullptr )
+            if ( p_ctx.m_bag != nullptr )
             {
-                if ( const std::string* p = ctx.m_bag->findImagePath( spr.m_texture ) ) texPath = *p;
+                if ( const std::string* p = p_ctx.m_bag->findImagePath( p_spr.m_texture ) ) texPath = *p;
             }
             char pathBuf[ 512 ];
             std::snprintf( pathBuf, sizeof( pathBuf ), "%s", texPath.c_str() );
             if ( ImGui::InputText( "Texture path", pathBuf, sizeof( pathBuf ), ImGuiInputTextFlags_EnterReturnsTrue ) )
             {
-                if ( ctx.m_bag != nullptr && TApplication::get().gpu() != nullptr ) spr.m_texture = ctx.m_bag->loadImage( *TApplication::get().gpu(), pathBuf );
+                if ( p_ctx.m_bag != nullptr && TApplication::get().gpu() != nullptr )
+                    p_spr.m_texture = p_ctx.m_bag->loadImage( *TApplication::get().gpu(), pathBuf );
             }
-            ImGui::Text( "Texture: %s", spr.m_texture ? "bound" : "nullptr" );
+            ImGui::Text( "Texture: %s", p_spr.m_texture ? "bound" : "nullptr" );
         }
 
-        void editParticle( TParticleEmitterComponent& p, TSceneEditorContext& ctx )
+        void editParticle( TParticleEmitterComponent& p_p, TSceneEditorContext& p_ctx )
         {
-            ImGui::Checkbox( "Emitting", &p.m_emitting );
-            ImGui::SliderFloat( "Rate", &p.m_rate, 0.0f, 400.0f );
-            ImGui::SliderFloat( "Gravity", &p.m_gravity, -20.0f, 5.0f );
-            ImGui::SliderFloat( "Life min", &p.m_lifetimeMin, 0.05f, 3.0f );
-            ImGui::SliderFloat( "Life max", &p.m_lifetimeMax, 0.05f, 4.0f );
-            ImGui::DragFloat3( "Vel min", &p.m_velocityMin.x, 0.05f );
-            ImGui::DragFloat3( "Vel max", &p.m_velocityMax.x, 0.05f );
-            ImGui::DragFloat2( "Size start", &p.m_sizeStart.x, 0.01f );
-            ImGui::DragFloat2( "Size end", &p.m_sizeEnd.x, 0.01f );
-            ImGui::ColorEdit4( "Color start", &p.m_colorStart.x );
-            ImGui::ColorEdit4( "Color end", &p.m_colorEnd.x );
-            ImGui::DragFloat2( "UV min", &p.m_uvMin.x, 0.01f );
-            ImGui::DragFloat2( "UV max", &p.m_uvMax.x, 0.01f );
-            int seed = static_cast<int>( p.m_seed );
-            if ( ImGui::DragInt( "Seed", &seed, 1, 1, 1000000 ) ) p.m_seed = static_cast<uint32_t>( std::max( 1, seed ) );
-            if ( ImGui::Button( "Burst 200" ) ) p.burst( 200 );
+            ImGui::Checkbox( "Emitting", &p_p.m_emitting );
+            ImGui::SliderFloat( "Rate", &p_p.m_rate, 0.0f, 400.0f );
+            ImGui::SliderFloat( "Gravity", &p_p.m_gravity, -20.0f, 5.0f );
+            ImGui::SliderFloat( "Life min", &p_p.m_lifetimeMin, 0.05f, 3.0f );
+            ImGui::SliderFloat( "Life max", &p_p.m_lifetimeMax, 0.05f, 4.0f );
+            ImGui::DragFloat3( "Vel min", &p_p.m_velocityMin.x, 0.05f );
+            ImGui::DragFloat3( "Vel max", &p_p.m_velocityMax.x, 0.05f );
+            ImGui::DragFloat2( "Size start", &p_p.m_sizeStart.x, 0.01f );
+            ImGui::DragFloat2( "Size end", &p_p.m_sizeEnd.x, 0.01f );
+            ImGui::ColorEdit4( "Color start", &p_p.m_colorStart.x );
+            ImGui::ColorEdit4( "Color end", &p_p.m_colorEnd.x );
+            ImGui::DragFloat2( "UV min", &p_p.m_uvMin.x, 0.01f );
+            ImGui::DragFloat2( "UV max", &p_p.m_uvMax.x, 0.01f );
+            int seed = static_cast<int>( p_p.m_seed );
+            if ( ImGui::DragInt( "Seed", &seed, 1, 1, 1000000 ) ) p_p.m_seed = static_cast<uint32_t>( std::max( 1, seed ) );
+            if ( ImGui::Button( "Burst 200" ) ) p_p.burst( 200 );
 
             std::string texPath;
-            if ( ctx.m_bag != nullptr )
+            if ( p_ctx.m_bag != nullptr )
             {
-                if ( const std::string* path = ctx.m_bag->findImagePath( p.m_texture ) ) texPath = *path;
+                if ( const std::string* path = p_ctx.m_bag->findImagePath( p_p.m_texture ) ) texPath = *path;
             }
             char pathBuf[ 512 ];
             std::snprintf( pathBuf, sizeof( pathBuf ), "%s", texPath.c_str() );
             if ( ImGui::InputText( "Texture path", pathBuf, sizeof( pathBuf ), ImGuiInputTextFlags_EnterReturnsTrue ) )
             {
-                if ( ctx.m_bag != nullptr && TApplication::get().gpu() != nullptr ) p.m_texture = ctx.m_bag->loadImage( *TApplication::get().gpu(), pathBuf );
+                if ( p_ctx.m_bag != nullptr && TApplication::get().gpu() != nullptr )
+                    p_p.m_texture = p_ctx.m_bag->loadImage( *TApplication::get().gpu(), pathBuf );
             }
-            ImGui::Text( "Texture: %s", p.m_texture ? "bound" : "nullptr" );
+            ImGui::Text( "Texture: %s", p_p.m_texture ? "bound" : "nullptr" );
         }
 
-        void editAudio( TAudioComponent& a, TSceneEditorContext& ctx )
+        void editAudio( TAudioComponent& p_a, TSceneEditorContext& p_ctx )
         {
-            ImGui::Checkbox( "Spatial", &a.m_spatial );
-            ImGui::Checkbox( "Looping", &a.m_looping );
-            ImGui::Checkbox( "Play on start", &a.m_playOnStart );
-            ImGui::SliderFloat( "Volume", &a.m_volume, 0.0f, 1.0f );
-            ImGui::SliderFloat( "Pitch", &a.m_pitch, 0.25f, 2.0f );
-            ImGui::SliderFloat( "Min distance", &a.m_minDistance, 0.1f, 10.0f );
-            ImGui::SliderFloat( "Max distance", &a.m_maxDistance, 1.0f, 80.0f );
+            ImGui::Checkbox( "Spatial", &p_a.m_spatial );
+            ImGui::Checkbox( "Looping", &p_a.m_looping );
+            ImGui::Checkbox( "Play on start", &p_a.m_playOnStart );
+            ImGui::SliderFloat( "Volume", &p_a.m_volume, 0.0f, 1.0f );
+            ImGui::SliderFloat( "Pitch", &p_a.m_pitch, 0.25f, 2.0f );
+            ImGui::SliderFloat( "Min distance", &p_a.m_minDistance, 0.1f, 10.0f );
+            ImGui::SliderFloat( "Max distance", &p_a.m_maxDistance, 1.0f, 80.0f );
 
             std::string clipPath;
-            if ( ctx.m_bag != nullptr )
+            if ( p_ctx.m_bag != nullptr )
             {
-                if ( const std::string* p = ctx.m_bag->findClipPath( a.m_clip ) ) clipPath = *p;
+                if ( const std::string* p = p_ctx.m_bag->findClipPath( p_a.m_clip ) ) clipPath = *p;
             }
             char pathBuf[ 512 ];
             std::snprintf( pathBuf, sizeof( pathBuf ), "%s", clipPath.c_str() );
             if ( ImGui::InputText( "Clip path", pathBuf, sizeof( pathBuf ), ImGuiInputTextFlags_EnterReturnsTrue ) )
             {
-                if ( ctx.m_bag != nullptr ) a.m_clip = ctx.m_bag->getOrCreateClip( pathBuf );
+                if ( p_ctx.m_bag != nullptr ) p_a.m_clip = p_ctx.m_bag->getOrCreateClip( pathBuf );
             }
-            ImGui::Text( "Clip: %s", a.m_clip ? a.m_clip->m_name.c_str() : "(none)" );
-            ImGui::Text( "Playing: %s", a.m_playing ? "yes" : "no" );
-            if ( ImGui::Button( "Play" ) ) a.play( true );
+            ImGui::Text( "Clip: %s", p_a.m_clip ? p_a.m_clip->m_name.c_str() : "(none)" );
+            ImGui::Text( "Playing: %s", p_a.m_playing ? "yes" : "no" );
+            if ( ImGui::Button( "Play" ) ) p_a.play( true );
             ImGui::SameLine();
-            if ( ImGui::Button( "Stop" ) ) a.stop();
+            if ( ImGui::Button( "Stop" ) ) p_a.stop();
         }
 
-        void editRigidBody( TRigidBodyComponent& b )
+        void editRigidBody( TRigidBodyComponent& p_b )
         {
-            float mass = b.m_mass;
-            if ( ImGui::DragFloat( "Mass", &mass, 0.05f, 0.0f, 1000.0f ) ) b.setMass( mass );
-            ImGui::Checkbox( "Use gravity", &b.m_useGravity );
-            ImGui::Checkbox( "Kinematic", &b.m_kinematic );
-            ImGui::DragFloat( "Gravity scale", &b.m_gravityScale, 0.05f, 0.0f, 10.0f );
-            ImGui::DragFloat( "Linear damping", &b.m_linearDamping, 0.01f, 0.0f, 1.0f );
-            ImGui::SliderFloat( "Restitution", &b.m_restitution, 0.0f, 1.0f );
-            ImGui::DragFloat3( "Velocity", &b.m_linearVelocity.x, 0.05f );
-            if ( ImGui::Button( "Zero velocity" ) ) b.m_linearVelocity = glm::vec3( 0.0f );
+            float mass = p_b.m_mass;
+            if ( ImGui::DragFloat( "Mass", &mass, 0.05f, 0.0f, 1000.0f ) ) p_b.setMass( mass );
+            ImGui::Checkbox( "Use gravity", &p_b.m_useGravity );
+            ImGui::Checkbox( "Kinematic", &p_b.m_kinematic );
+            ImGui::DragFloat( "Gravity scale", &p_b.m_gravityScale, 0.05f, 0.0f, 10.0f );
+            ImGui::DragFloat( "Linear damping", &p_b.m_linearDamping, 0.01f, 0.0f, 1.0f );
+            ImGui::SliderFloat( "Restitution", &p_b.m_restitution, 0.0f, 1.0f );
+            ImGui::DragFloat3( "Velocity", &p_b.m_linearVelocity.x, 0.05f );
+            if ( ImGui::Button( "Zero velocity" ) ) p_b.m_linearVelocity = glm::vec3( 0.0f );
         }
 
-        void editCollider( TColliderComponent& col )
+        void editCollider( TColliderComponent& p_col )
         {
-            int shape = static_cast<int>( col.m_shape );
-            if ( ImGui::Combo( "Shape", &shape, "Sphere\0Box\0" ) ) col.m_shape = static_cast<TColliderShape>( shape );
-            ImGui::Checkbox( "Enabled", &col.m_enabled );
-            ImGui::Checkbox( "Trigger", &col.m_isTrigger );
-            if ( col.m_shape == TColliderShape::Sphere )
+            int shape = static_cast<int>( p_col.m_shape );
+            if ( ImGui::Combo( "Shape", &shape, "Sphere\0Box\0" ) ) p_col.m_shape = static_cast<TColliderShape>( shape );
+            ImGui::Checkbox( "Enabled", &p_col.m_enabled );
+            ImGui::Checkbox( "Trigger", &p_col.m_isTrigger );
+            if ( p_col.m_shape == TColliderShape::Sphere )
             {
-                ImGui::DragFloat( "Radius (local)", &col.m_radius, 0.01f, 0.0f, 100.0f );
+                ImGui::DragFloat( "Radius (local)", &p_col.m_radius, 0.01f, 0.0f, 100.0f );
                 ImGui::TextDisabled( "× node scale; 0.5 hugs unit sphere" );
             }
             else
             {
-                ImGui::DragFloat3( "Half extents (local)", &col.m_halfExtents.x, 0.01f, 0.0f, 100.0f );
+                ImGui::DragFloat3( "Half extents (local)", &p_col.m_halfExtents.x, 0.01f, 0.0f, 100.0f );
                 ImGui::TextDisabled( "× node scale; 0.5 hugs unit box. 0 = no volume" );
             }
 
             ImGui::Separator();
             ImGui::TextUnformatted( "Collision filter" );
             ImGui::TextDisabled( "Pair if (A.layer & B.mask) && (B.layer & A.mask)" );
-            auto editBits = []( const char* label, uint32_t& bits )
+            auto editBits = []( const char* p_label, uint32_t& p_bits )
             {
-                ImGui::TextUnformatted( label );
-                ImGui::PushID( label );
+                ImGui::TextUnformatted( p_label );
+                ImGui::PushID( p_label );
                 for ( int i = 0; i < 8; ++i )
                 {
                     if ( i > 0 ) ImGui::SameLine();
-                    bool on = ( bits & ( 1u << i ) ) != 0;
+                    bool on = ( p_bits & ( 1u << i ) ) != 0;
                     char buf[ 4 ];
                     std::snprintf( buf, sizeof( buf ), "%d", i );
                     if ( ImGui::Checkbox( buf, &on ) )
                     {
                         if ( on )
-                            bits |= ( 1u << i );
+                            p_bits |= ( 1u << i );
                         else
-                            bits &= ~( 1u << i );
+                            p_bits &= ~( 1u << i );
                     }
                 }
-                ImGui::InputScalar( "hex", ImGuiDataType_U32, &bits, nullptr, nullptr, "%08X", ImGuiInputTextFlags_CharsHexadecimal );
+                ImGui::InputScalar( "hex", ImGuiDataType_U32, &p_bits, nullptr, nullptr, "%08X", ImGuiInputTextFlags_CharsHexadecimal );
                 ImGui::PopID();
             };
-            editBits( "Layer", col.m_layer );
-            editBits( "Mask", col.m_mask );
+            editBits( "Layer", p_col.m_layer );
+            editBits( "Mask", p_col.m_mask );
         }
     }  // namespace
 
@@ -481,13 +482,13 @@ namespace Tomos
         ImGui::TextDisabled( "Drop mesh / audio / texture here" );
         if ( ImGui::BeginDragDropTarget() )
         {
-            if ( const ImGuiPayload* payload = ImGui::AcceptDragDropPayload( TAssetBrowserPanel::k_payloadMesh ) )
+            if ( const ImGuiPayload* payload = ImGui::AcceptDragDropPayload( TAssetBrowserPanel::g_kPayloadMesh ) )
                 TAssetBrowserPanel::applyDrop( p_ctx, *node, *payload );
-            if ( const ImGuiPayload* payload = ImGui::AcceptDragDropPayload( TAssetBrowserPanel::k_payloadGpuAsset ) )
+            if ( const ImGuiPayload* payload = ImGui::AcceptDragDropPayload( TAssetBrowserPanel::g_kPayloadGpuAsset ) )
                 TAssetBrowserPanel::applyDrop( p_ctx, *node, *payload );
-            if ( const ImGuiPayload* payload = ImGui::AcceptDragDropPayload( TAssetBrowserPanel::k_payloadAudio ) )
+            if ( const ImGuiPayload* payload = ImGui::AcceptDragDropPayload( TAssetBrowserPanel::g_kPayloadAudio ) )
                 TAssetBrowserPanel::applyDrop( p_ctx, *node, *payload );
-            if ( const ImGuiPayload* payload = ImGui::AcceptDragDropPayload( TAssetBrowserPanel::k_payloadTexture ) )
+            if ( const ImGuiPayload* payload = ImGui::AcceptDragDropPayload( TAssetBrowserPanel::g_kPayloadTexture ) )
                 TAssetBrowserPanel::applyDrop( p_ctx, *node, *payload );
             ImGui::EndDragDropTarget();
         }

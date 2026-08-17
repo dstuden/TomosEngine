@@ -5,6 +5,7 @@
 #include <functional>
 #include <iostream>
 #include <string>
+#include <utility>
 
 #include "Tomos/core/events/TEvent.hh"
 
@@ -18,9 +19,9 @@ namespace Tomos
         bool         m_vsync{ false };
         float        m_aspectRatio{ 16.0f / 9.0f };
 
-        explicit TWindowProps( const std::string& p_title = "TomosEngine", unsigned int p_width = 1280, unsigned int p_height = 720, bool p_vsync = false,
+        explicit TWindowProps( std::string p_title = "TomosEngine", unsigned int p_width = 1280, unsigned int p_height = 720, bool p_vsync = false,
                                float p_aspectRatio = 16.0f / 9.0f ) :
-            m_title( p_title ), m_width( p_width ), m_height( p_height ), m_vsync( p_vsync ), m_aspectRatio( p_aspectRatio )
+            m_title( std::move( p_title ) ), m_width( p_width ), m_height( p_height ), m_vsync( p_vsync ), m_aspectRatio( p_aspectRatio )
         {
         }
     };
@@ -38,7 +39,7 @@ namespace Tomos
 
         void shutdown();
 
-        void onUpdate();
+        static void onUpdate();
 
         // FPS/frame time → window title.
         void updatePerfStats( float p_dt );
@@ -60,7 +61,7 @@ namespace Tomos
         void setCursorMode( TCursorMode p_mode ) { glfwSetInputMode( m_window, GLFW_CURSOR, static_cast<int>( p_mode ) ); }
 
         // Applied next frame (keeps ImGui DisplaySize and swapchain in sync).
-        void setFullscreen( bool p_fullscreen );
+        void               setFullscreen( bool p_fullscreen );
         bool               flushPendingFullscreen();
         [[nodiscard]] bool isFullscreen() const;
 

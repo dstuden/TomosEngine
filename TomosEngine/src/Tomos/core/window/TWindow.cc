@@ -16,12 +16,12 @@ namespace Tomos
     {
         std::string findLogoPath()
         {
-            static const char* k_candidates[] = {
+            static const char* kCandidates[] = {
 #ifdef TOMOS_RESOURCES_DIR
                     TOMOS_RESOURCES_DIR "/Logo.png",
 #endif
             };
-            for ( const char* path : k_candidates )
+            for ( const char* path : kCandidates )
             {
                 if ( path != nullptr && std::filesystem::exists( path ) ) return path;
             }

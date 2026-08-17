@@ -20,12 +20,12 @@ namespace Tomos
         void destroy() override;
 
     private:
-        static constexpr uint32_t k_frames = 3;
+        static constexpr uint32_t g_kFrames = 3;
 
-        VkDevice                              m_device  = VK_NULL_HANDLE;
-        VkDescriptorSetLayout                 m_layout  = VK_NULL_HANDLE;
-        VkPipelineLayout                      m_pipeLay = VK_NULL_HANDLE;
-        VkPipeline                            m_pipe    = VK_NULL_HANDLE;
-        std::array<VkDescriptorSet, k_frames> m_sets{};
+        VkDevice                               m_device  = VK_NULL_HANDLE;
+        VkDescriptorSetLayout                  m_layout  = VK_NULL_HANDLE;
+        VkPipelineLayout                       m_pipeLay = VK_NULL_HANDLE;
+        VkPipeline                             m_pipe    = VK_NULL_HANDLE;
+        std::array<VkDescriptorSet, g_kFrames> m_sets{};
     };
 }  // namespace Tomos

@@ -17,7 +17,7 @@ namespace Tomos
 {
     namespace
     {
-        constexpr float k_epsilon = 1e-6f;
+        constexpr float g_kEpsilon = 1e-6f;
 
         glm::vec3 obbWorldHalfExtents( const glm::quat& p_rot, const glm::vec3& p_localHalf )
         {
@@ -62,7 +62,7 @@ namespace Tomos
 
             glm::vec3 localNormal{ 0.0f };
 
-            if ( distSq < k_epsilon )
+            if ( distSq < g_kEpsilon )
             {
                 const glm::vec3 toMin = local + p_half;
                 const glm::vec3 toMax = p_half - local;
@@ -107,9 +107,9 @@ namespace Tomos
             const float rSum   = p_ra + p_rb;
             if ( distSq >= rSum * rSum ) return false;
 
-            float dist = std::sqrt( std::max( distSq, k_epsilon ) );
+            float dist = std::sqrt( std::max( distSq, g_kEpsilon ) );
             p_normal   = delta / dist;
-            if ( distSq < k_epsilon ) p_normal = glm::vec3( 0, 1, 0 );
+            if ( distSq < g_kEpsilon ) p_normal = glm::vec3( 0, 1, 0 );
             p_penetration = rSum - dist;
             return p_penetration > 0.0f;
         }
@@ -135,23 +135,26 @@ namespace Tomos
                 {
                     const glm::vec3 cross = glm::cross( ra[ i ], rb[ j ] );
                     const float     lenSq = glm::dot( cross, cross );
-                    if ( lenSq > k_epsilon ) axis[ nAxes++ ] = cross / std::sqrt( lenSq );
+                    if ( lenSq > g_kEpsilon ) axis[ nAxes++ ] = cross / std::sqrt( lenSq );
                 }
             }
 
             const glm::vec3 t = p_cA - p_cB;
 
-            float     minPen   = std::numeric_limits<float>::infinity();
+            float     minPen = std::numeric_limits<float>::infinity();
             glm::vec3 bestAxis{ 0.0f, 1.0f, 0.0f };
 
-            auto projectRadius = []( const glm::mat3& r, const glm::vec3& half, const glm::vec3& ax )
-            { return half.x * std::abs( glm::dot( r[ 0 ], ax ) ) + half.y * std::abs( glm::dot( r[ 1 ], ax ) ) + half.z * std::abs( glm::dot( r[ 2 ], ax ) ); };
+            auto projectRadius = []( const glm::mat3& p_r, const glm::vec3& p_half, const glm::vec3& p_ax )
+            {
+                return p_half.x * std::abs( glm::dot( p_r[ 0 ], p_ax ) ) + p_half.y * std::abs( glm::dot( p_r[ 1 ], p_ax ) ) +
+                       p_half.z * std::abs( glm::dot( p_r[ 2 ], p_ax ) );
+            };
 
             for ( int i = 0; i < nAxes; ++i )
             {
-                glm::vec3       a   = axis[ i ];
-                const float     len = glm::length( a );
-                if ( len < k_epsilon ) continue;
+                glm::vec3   a   = axis[ i ];
+                const float len = glm::length( a );
+                if ( len < g_kEpsilon ) continue;
                 a /= len;
 
                 const float dist = std::abs( glm::dot( t, a ) );
@@ -178,7 +181,7 @@ namespace Tomos
         return dynamic_cast<const TRigidBodyComponent*>( &p_component ) != nullptr || dynamic_cast<const TColliderComponent*>( &p_component ) != nullptr;
     }
 
-    float TPhysicsSystem::fixedDt() const { return m_time != nullptr ? m_time->fixedDt() : TTime::k_defaultFixedDt; }
+    float TPhysicsSystem::fixedDt() const { return m_time != nullptr ? m_time->fixedDt() : TTime::g_kDefaultFixedDt; }
 
     void TPhysicsSystem::componentCreated( TSceneNode& p_node, TComponent& p_component )
     {
@@ -257,13 +260,13 @@ namespace Tomos
             }
         }
 
-        const float frameTime = std::min( p_dt, k_maxFrame );
+        const float frameTime = std::min( p_dt, g_kMaxFrame );
         m_accumulator += frameTime;
 
-        const float stepDt = fixedDt();
+        const float stepDt      = fixedDt();
         m_lastStepCount         = 0;
         m_lastTriggerEventCount = 0;
-        while ( m_accumulator >= stepDt && m_lastStepCount < k_maxSteps )
+        while ( m_accumulator >= stepDt && m_lastStepCount < g_kMaxSteps )
         {
             // Gaffer: previousState = currentState, then integrate current.
             for ( auto& [ body, entry ] : m_bodies )
@@ -312,13 +315,13 @@ namespace Tomos
         }
     }
 
-    TColliderComponent* TPhysicsSystem::colliderOn( TSceneNode* p_node ) const
+    TColliderComponent* TPhysicsSystem::colliderOn( TSceneNode* p_node )
     {
         if ( p_node == nullptr ) return nullptr;
         return p_node->findComponent<TColliderComponent>();
     }
 
-    TRigidBodyComponent* TPhysicsSystem::bodyOn( TSceneNode* p_node ) const
+    TRigidBodyComponent* TPhysicsSystem::bodyOn( TSceneNode* p_node )
     {
         if ( p_node == nullptr ) return nullptr;
         return p_node->findComponent<TRigidBodyComponent>();
@@ -332,7 +335,7 @@ namespace Tomos
         return !body->isDynamic();
     }
 
-    bool TPhysicsSystem::isDynamicBody( const TBodyEntry& p_entry ) const { return p_entry.m_body != nullptr && p_entry.m_body->isDynamic(); }
+    bool TPhysicsSystem::isDynamicBody( const TBodyEntry& p_entry ) { return p_entry.m_body != nullptr && p_entry.m_body->isDynamic(); }
 
     TPhysicsSystem::TOverlapKey TPhysicsSystem::makeOverlapKey( TColliderComponent* p_a, TColliderComponent* p_b )
     {
@@ -346,16 +349,16 @@ namespace Tomos
         TWorldPose      pose{};
         pose.m_center = glm::vec3( world[ 3 ] );
 
-        glm::vec3   x  = glm::vec3( world[ 0 ] );
-        glm::vec3   y  = glm::vec3( world[ 1 ] );
-        glm::vec3   z  = glm::vec3( world[ 2 ] );
+        auto        x  = glm::vec3( world[ 0 ] );
+        auto        y  = glm::vec3( world[ 1 ] );
+        auto        z  = glm::vec3( world[ 2 ] );
         const float lx = glm::length( x );
         const float ly = glm::length( y );
         const float lz = glm::length( z );
         pose.m_scale   = { lx, ly, lz };
-        if ( lx > k_epsilon ) x /= lx;
-        if ( ly > k_epsilon ) y /= ly;
-        if ( lz > k_epsilon ) z /= lz;
+        if ( lx > g_kEpsilon ) x /= lx;
+        if ( ly > g_kEpsilon ) y /= ly;
+        if ( lz > g_kEpsilon ) z /= lz;
         pose.m_rotation = glm::normalize( glm::quat_cast( glm::mat3( x, y, z ) ) );
         return pose;
     }
@@ -439,7 +442,7 @@ namespace Tomos
     {
         const float vn = glm::dot( p_body.m_linearVelocity, p_normal );
         if ( vn >= 0.0f ) return;
-        const float bounce = ( -vn >= k_restNormalSpeed ) ? p_restitution : 0.0f;
+        const float bounce = ( -vn >= g_kRestNormalSpeed ) ? p_restitution : 0.0f;
         p_body.m_linearVelocity -= ( 1.0f + bounce ) * vn * p_normal;
     }
 
@@ -447,8 +450,8 @@ namespace Tomos
                                                  const TWorldPose& p_staticPose, const TColliderComponent& p_staticCol )
     {
         TContact contact{};
-        if ( !computeContact( p_dyn.m_position, p_dynRot, p_dynScale, p_dynCol, p_staticPose.m_center, p_staticPose.m_rotation, p_staticPose.m_scale, p_staticCol,
-                              contact ) )
+        if ( !computeContact( p_dyn.m_position, p_dynRot, p_dynScale, p_dynCol, p_staticPose.m_center, p_staticPose.m_rotation, p_staticPose.m_scale,
+                              p_staticCol, contact ) )
             return;
 
         p_dyn.m_position += contact.m_normal * contact.m_penetration;
@@ -461,10 +464,10 @@ namespace Tomos
         TContact contact{};
         if ( !computeContact( p_a.m_position, p_rotA, p_scaleA, p_colA, p_b.m_position, p_rotB, p_scaleB, p_colB, contact ) ) return;
 
-        TRigidBodyComponent& bodyA = *p_a.m_body;
-        TRigidBodyComponent& bodyB = *p_b.m_body;
+        TRigidBodyComponent& bodyA  = *p_a.m_body;
+        TRigidBodyComponent& bodyB  = *p_b.m_body;
         const float          invSum = bodyA.m_invMass + bodyB.m_invMass;
-        if ( invSum <= k_epsilon ) return;
+        if ( invSum <= g_kEpsilon ) return;
 
         const float shareA = bodyA.m_invMass / invSum;
         const float shareB = bodyB.m_invMass / invSum;
@@ -476,9 +479,9 @@ namespace Tomos
         if ( vn >= 0.0f ) return;
 
         float e = std::min( bodyA.m_restitution, bodyB.m_restitution );
-        if ( -vn < k_restNormalSpeed ) e = 0.0f;
+        if ( -vn < g_kRestNormalSpeed ) e = 0.0f;
 
-        const float j  = -( 1.0f + e ) * vn / invSum;
+        const float     j       = -( 1.0f + e ) * vn / invSum;
         const glm::vec3 impulse = j * contact.m_normal;
         bodyA.m_linearVelocity += impulse * bodyA.m_invMass;
         bodyB.m_linearVelocity -= impulse * bodyB.m_invMass;
@@ -559,13 +562,14 @@ namespace Tomos
         }
 
         const float cellSize = std::max( m_broadphaseCellSize, 0.1f );
-        auto        cellCoord = [ cellSize ]( float v ) { return static_cast<int>( std::floor( static_cast<double>( v ) / static_cast<double>( cellSize ) ) ); };
-        auto        cellKey   = []( int x, int y, int z ) -> uint64_t
+        auto cellCoord = [ cellSize ]( float p_v ) { return static_cast<int>( std::floor( static_cast<double>( p_v ) / static_cast<double>( cellSize ) ) ); };
+        auto cellKey   = []( int p_x, int p_y, int p_z ) -> uint64_t
         {
-            const auto ux = static_cast<uint32_t>( x );
-            const auto uy = static_cast<uint32_t>( y );
-            const auto uz = static_cast<uint32_t>( z );
-            return ( static_cast<uint64_t>( ux ) * 73856093ull ) ^ ( static_cast<uint64_t>( uy ) * 19349663ull ) ^ ( static_cast<uint64_t>( uz ) * 83492791ull );
+            const auto ux = static_cast<uint32_t>( p_x );
+            const auto uy = static_cast<uint32_t>( p_y );
+            const auto uz = static_cast<uint32_t>( p_z );
+            return ( static_cast<uint64_t>( ux ) * 73856093ull ) ^ ( static_cast<uint64_t>( uy ) * 19349663ull ) ^
+                   ( static_cast<uint64_t>( uz ) * 83492791ull );
         };
 
         std::unordered_map<uint64_t, std::vector<int>> cells;
@@ -574,12 +578,12 @@ namespace Tomos
         for ( int i = 0; i < static_cast<int>( colliders.size() ); ++i )
         {
             const TBroadAabb& box = colliders[ static_cast<size_t>( i ) ].m_box;
-            const int    x0  = cellCoord( box.m_min.x );
-            const int    y0  = cellCoord( box.m_min.y );
-            const int    z0  = cellCoord( box.m_min.z );
-            const int    x1  = cellCoord( box.m_max.x );
-            const int    y1  = cellCoord( box.m_max.y );
-            const int    z1  = cellCoord( box.m_max.z );
+            const int         x0  = cellCoord( box.m_min.x );
+            const int         y0  = cellCoord( box.m_min.y );
+            const int         z0  = cellCoord( box.m_min.z );
+            const int         x1  = cellCoord( box.m_max.x );
+            const int         y1  = cellCoord( box.m_max.y );
+            const int         z1  = cellCoord( box.m_max.z );
             for ( int x = x0; x <= x1; ++x )
                 for ( int y = y0; y <= y1; ++y )
                     for ( int z = z0; z <= z1; ++z ) cells[ cellKey( x, y, z ) ].push_back( i );
@@ -587,10 +591,10 @@ namespace Tomos
 
         std::unordered_set<uint64_t> pairKeys;
         pairKeys.reserve( colliders.size() * 4 );
-        auto packPair = []( int a, int b ) -> uint64_t
+        auto packPair = []( int p_a, int p_b ) -> uint64_t
         {
-            if ( a > b ) std::swap( a, b );
-            return ( static_cast<uint64_t>( static_cast<uint32_t>( a ) ) << 32 ) | static_cast<uint32_t>( b );
+            if ( p_a > p_b ) std::swap( p_a, p_b );
+            return ( static_cast<uint64_t>( static_cast<uint32_t>( p_a ) ) << 32 ) | static_cast<uint32_t>( p_b );
         };
 
         for ( const auto& [ key, indices ] : cells )
@@ -626,8 +630,8 @@ namespace Tomos
             if ( !colA.interactsWith( colB ) ) continue;
 
             TContact contact{};
-            if ( !computeContact( a.m_pose.m_center, a.m_pose.m_rotation, a.m_pose.m_scale, colA, b.m_pose.m_center, b.m_pose.m_rotation, b.m_pose.m_scale, colB,
-                                  contact ) )
+            if ( !computeContact( a.m_pose.m_center, a.m_pose.m_rotation, a.m_pose.m_scale, colA, b.m_pose.m_center, b.m_pose.m_rotation, b.m_pose.m_scale,
+                                  colB, contact ) )
                 continue;
 
             const bool triggerPair = colA.m_isTrigger || colB.m_isTrigger;
@@ -639,7 +643,8 @@ namespace Tomos
 
             if ( a.m_dynamic && b.m_dynamic )
             {
-                resolveDynamicVsDynamic( *a.m_bodyEntry, colA, a.m_pose.m_scale, a.m_pose.m_rotation, *b.m_bodyEntry, colB, b.m_pose.m_scale, b.m_pose.m_rotation );
+                resolveDynamicVsDynamic( *a.m_bodyEntry, colA, a.m_pose.m_scale, a.m_pose.m_rotation, *b.m_bodyEntry, colB, b.m_pose.m_scale,
+                                         b.m_pose.m_rotation );
                 a.m_pose.m_center = a.m_bodyEntry->m_position;
                 b.m_pose.m_center = b.m_bodyEntry->m_position;
                 {

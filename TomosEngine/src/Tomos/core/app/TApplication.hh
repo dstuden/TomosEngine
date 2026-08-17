@@ -6,6 +6,7 @@
 #include "Tomos/core/layers/TLayerStack.hh"
 #include "Tomos/core/scene/TSceneManager.hh"
 #include "Tomos/core/window/TWindow.hh"
+#include "Tomos/systems/asset/TAssetLoadQueue.hh"
 #include "Tomos/systems/asset/TAssetSystem.hh"
 #include "Tomos/util/config/TConfig.hh"
 #include "Tomos/util/shader/TShaderHotReload.hh"
@@ -41,6 +42,7 @@ namespace Tomos
         [[nodiscard]] TWindow&          window() { return *m_window; }
         [[nodiscard]] TLayerStack&      layerStack() { return m_layerStack; }
         [[nodiscard]] TAssetSystem&     assetSystem() { return m_assetSystem; }
+        [[nodiscard]] TAssetLoadQueue&  assetLoadQueue() { return m_assetLoadQueue; }
         [[nodiscard]] TSceneManager&    sceneManager() { return m_sceneManager; }
         [[nodiscard]] TConfigManager&   configManager() { return m_configManager; }
         [[nodiscard]] TEngineConfig&    config() { return m_configManager.get<TEngineConfig>(); }
@@ -50,7 +52,7 @@ namespace Tomos
 
         [[nodiscard]] TVkGpu* gpu() const { return m_gpu.get(); }
 
-        [[nodiscard]] static TApplication& get() { return *s_instance; }
+        [[nodiscard]] static TApplication& get() { return *g_sInstance; }
 
     private:
         void onEvent( TEvent& p_event );
@@ -62,11 +64,12 @@ namespace Tomos
         std::unique_ptr<TWindow> m_window;
         std::unique_ptr<TVkGpu>  m_gpu;
         TAssetSystem             m_assetSystem;
+        TAssetLoadQueue          m_assetLoadQueue{ m_assetSystem };
         TLayerStack              m_layerStack;
         TTime                    m_time;
         TShaderHotReload         m_shaderHotReload;
         bool                     m_running = true;
 
-        static TApplication* s_instance;
+        static TApplication* g_sInstance;
     };
 }  // namespace Tomos

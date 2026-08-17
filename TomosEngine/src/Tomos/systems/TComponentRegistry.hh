@@ -63,8 +63,7 @@ namespace Tomos
 
         [[nodiscard]] std::shared_ptr<TComponent> createDefault( const std::string& p_type ) const;
 
-        static void wireSkinnedJoints( std::vector<TPendingSkinnedJoints>&                                      p_pending,
-                                       const std::unordered_map<uint64_t, std::shared_ptr<TSceneNode>>& p_byId );
+        static void wireSkinnedJoints( std::vector<TPendingSkinnedJoints>& p_pending, const std::unordered_map<uint64_t, std::shared_ptr<TSceneNode>>& p_byId );
 
     private:
         TComponentRegistry() = default;

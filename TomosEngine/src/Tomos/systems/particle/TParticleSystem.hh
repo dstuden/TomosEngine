@@ -30,9 +30,9 @@ namespace Tomos
         [[nodiscard]] uint32_t textureIndex( const TVkImage* p_texture );
 
         std::unordered_map<TParticleEmitterComponent*, TSceneNode*> m_emitters;
-        std::vector<const TVkImage*>                  m_textures;
-        std::unordered_map<const TVkImage*, uint32_t> m_texToIndex;
-        std::vector<uint32_t>                         m_freeSlots;
-        bool                                          m_overflowWarned = false;
+        std::vector<const TVkImage*>                                m_textures;
+        std::unordered_map<const TVkImage*, uint32_t>               m_texToIndex;
+        std::vector<uint32_t>                                       m_freeSlots;
+        bool                                                        m_overflowWarned = false;
     };
 }  // namespace Tomos

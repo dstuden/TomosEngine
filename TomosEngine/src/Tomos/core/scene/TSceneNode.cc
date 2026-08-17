@@ -53,7 +53,7 @@ namespace Tomos
 
     void TSceneNode::removeChild( const TSceneNode* p_child )
     {
-        auto it = std::find_if( m_children.begin(), m_children.end(), [ p_child ]( const auto& c ) { return c.get() == p_child; } );
+        auto it = std::find_if( m_children.begin(), m_children.end(), [ p_child ]( const auto& p_c ) { return p_c.get() == p_child; } );
         if ( it != m_children.end() )
         {
             ( *it )->detachComponents();

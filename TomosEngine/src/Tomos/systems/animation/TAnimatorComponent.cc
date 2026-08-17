@@ -13,8 +13,8 @@ namespace Tomos
         m_clip = p_assets.tryResolve( m_clipRef );
         if ( m_clip == nullptr )
         {
+            // Keep m_playing — asset may still be loading asynchronously.
             m_boundGeneration = 0;
-            m_playing         = false;
             return false;
         }
 

@@ -169,10 +169,10 @@ namespace Tomos
     void TVkClusteredRenderer::createShadowResources()
     {
         m_shadowMaps = TVkImage( m_gpu.device(), m_gpu.physDevice(),
-                                 { k_shadowMapSize, k_shadowMapSize, k_maxShadowMaps, 1, TImgFormat::D32Float, TImgUsage::DepthAttachment | TImgUsage::Sampled,
-                                   TTexFilter::Linear, TTexAddr::Clamp, /*sampled=*/true, /*shadow=*/true } );
+                                 { g_kShadowMapSize, g_kShadowMapSize, g_kMaxShadowMaps, 1, TImgFormat::D32Float,
+                                   TImgUsage::DepthAttachment | TImgUsage::Sampled, TTexFilter::Linear, TTexAddr::Clamp, /*sampled=*/true, /*shadow=*/true } );
 
-        for ( uint32_t i = 0; i < k_maxShadowMaps; ++i )
+        for ( uint32_t i = 0; i < g_kMaxShadowMaps; ++i )
         {
             VkImageViewCreateInfo viewInfo{};
             viewInfo.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -252,20 +252,20 @@ namespace Tomos
         const VkDevice         device     = m_gpu.device();
         const VkPhysicalDevice physDevice = m_gpu.physDevice();
 
-        m_particleBuf      = TVkBuffer( device, physDevice, k_maxParticles * sizeof( TParticleData ), TBufUsage::Storage );
-        m_freeListBuf      = TVkBuffer( device, physDevice, k_maxParticles * sizeof( uint32_t ), TBufUsage::Storage );
-        m_drawIndexBuf     = TVkBuffer( device, physDevice, k_maxParticles * sizeof( uint32_t ), TBufUsage::Storage );
+        m_particleBuf      = TVkBuffer( device, physDevice, g_kMaxParticles * sizeof( TParticleData ), TBufUsage::Storage );
+        m_freeListBuf      = TVkBuffer( device, physDevice, g_kMaxParticles * sizeof( uint32_t ), TBufUsage::Storage );
+        m_drawIndexBuf     = TVkBuffer( device, physDevice, g_kMaxParticles * sizeof( uint32_t ), TBufUsage::Storage );
         m_particleCounters = TVkBuffer( device, physDevice, sizeof( TParticleCounters ), TBufUsage::Storage | TBufUsage::Indirect | TBufUsage::CopyDst );
 
-        std::vector<uint32_t> freeList( k_maxParticles );
-        for ( uint32_t i = 0; i < k_maxParticles; ++i ) freeList[ i ] = i;
+        std::vector<uint32_t> freeList( g_kMaxParticles );
+        for ( uint32_t i = 0; i < g_kMaxParticles; ++i ) freeList[ i ] = i;
         m_freeListBuf.upload( freeList.data(), 0, freeList.size() * sizeof( uint32_t ) );
 
-        std::vector<TParticleData> zeros( k_maxParticles );
+        std::vector<TParticleData> zeros( g_kMaxParticles );
         m_particleBuf.upload( zeros.data(), 0, zeros.size() * sizeof( TParticleData ) );
 
         TParticleCounters counters{};
-        counters.m_freeCount     = k_maxParticles;
+        counters.m_freeCount     = g_kMaxParticles;
         counters.m_aliveCount    = 0;
         counters.m_vertexCount   = 6;
         counters.m_instanceCount = 0;
@@ -279,16 +279,16 @@ namespace Tomos
         const VkDevice         device     = m_gpu.device();
         const VkPhysicalDevice physDevice = m_gpu.physDevice();
 
-        m_frames.resize( k_framesInFlight );
-        for ( uint32_t i = 0; i < k_framesInFlight; ++i )
+        m_frames.resize( g_kFramesInFlight );
+        for ( uint32_t i = 0; i < g_kFramesInFlight; ++i )
         {
             TFrameResources& frame    = m_frames[ i ];
             TVkFrameData&    gpuFrame = m_gpu.frameData( i );
 
-            frame.m_lightGrid      = TVkBuffer( device, physDevice, k_clusterCount * sizeof( TLightCell ), TBufUsage::Storage );
-            frame.m_lightIndices   = TVkBuffer( device, physDevice, k_clusterCount * k_maxLightsPerCluster * sizeof( uint32_t ), TBufUsage::Storage );
+            frame.m_lightGrid      = TVkBuffer( device, physDevice, g_kClusterCount * sizeof( TLightCell ), TBufUsage::Storage );
+            frame.m_lightIndices   = TVkBuffer( device, physDevice, g_kClusterCount * g_kMaxLightsPerCluster * sizeof( uint32_t ), TBufUsage::Storage );
             frame.m_counter        = TVkBuffer( device, physDevice, sizeof( uint32_t ), TBufUsage::Storage );
-            frame.m_emitterBuf     = TVkBuffer( device, physDevice, k_maxEmitters * sizeof( TEmitterData ), TBufUsage::Storage );
+            frame.m_emitterBuf     = TVkBuffer( device, physDevice, g_kMaxEmitters * sizeof( TEmitterData ), TBufUsage::Storage );
             frame.m_particleSimUBO = TVkBuffer( device, physDevice, sizeof( TParticleSimUBO ), TBufUsage::Uniform );
 
             const VkDescriptorSetLayout layouts[] = { m_sceneLayout, m_cullLayout, m_spriteSetLayout, m_particleSimLayout, m_particleDrawLayout };

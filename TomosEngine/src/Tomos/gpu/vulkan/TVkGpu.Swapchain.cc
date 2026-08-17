@@ -58,7 +58,7 @@ namespace Tomos
             m_extent.height = std::clamp( static_cast<uint32_t>( fbH ), caps.minImageExtent.height, caps.maxImageExtent.height );
         }
 
-        uint32_t imageCount = std::max( caps.minImageCount + 1, k_framesInFlight );
+        uint32_t imageCount = std::max( caps.minImageCount + 1, g_kFramesInFlight );
         if ( caps.maxImageCount > 0 ) imageCount = std::min( imageCount, caps.maxImageCount );
 
         const uint32_t queueFamilies[] = { m_graphicsFamily, m_presentFamily };

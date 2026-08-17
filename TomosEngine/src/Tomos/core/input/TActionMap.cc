@@ -2,7 +2,6 @@
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
-
 #include <algorithm>
 #include <cmath>
 
@@ -30,12 +29,8 @@ namespace Tomos
 
     void TActionMap::bindGamepadAxis( const std::string& p_action, int p_axis, float p_scale, float p_deadzone, int p_jid, TInputContext p_context )
     {
-        m_actions[ p_action ].push_back( TBinding{ .m_kind     = TKind::GamepadAxis,
-                                                   .m_code     = p_axis,
-                                                   .m_scale    = p_scale,
-                                                   .m_deadzone = p_deadzone,
-                                                   .m_jid      = p_jid,
-                                                   .m_context  = p_context } );
+        m_actions[ p_action ].push_back( TBinding{
+                .m_kind = TKind::GamepadAxis, .m_code = p_axis, .m_scale = p_scale, .m_deadzone = p_deadzone, .m_jid = p_jid, .m_context = p_context } );
     }
 
     void TActionMap::bindKeyAxis( const std::string& p_action, int p_negativeKey, int p_positiveKey, TInputContext p_context )
@@ -44,10 +39,7 @@ namespace Tomos
         bindKey( p_action, p_positiveKey, p_context, 1.0f );
     }
 
-    bool TActionMap::bindingActive( const TBinding& p_binding ) const
-    {
-        return p_binding.m_context == TInputContext::Any || p_binding.m_context == m_active;
-    }
+    bool TActionMap::bindingActive( const TBinding& p_binding ) const { return p_binding.m_context == TInputContext::Any || p_binding.m_context == m_active; }
 
     bool TActionMap::bindingDigitalDown( const TBinding& p_binding, GLFWwindow* p_window, const BlockFn& p_block ) const
     {

@@ -2,7 +2,6 @@
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
-
 #include <cmath>
 
 #include "Tomos/core/app/TApplication.hh"
@@ -17,17 +16,17 @@ namespace Tomos
 
         struct TMouseFrame
         {
-            double m_x         = 0.0;
-            double m_y         = 0.0;
-            double m_dx        = 0.0;
-            double m_dy        = 0.0;
-            bool   m_haveLast  = false;
+            double m_x        = 0.0;
+            double m_y        = 0.0;
+            double m_dx       = 0.0;
+            double m_dy       = 0.0;
+            bool   m_haveLast = false;
         };
 
         TMouseFrame& mouseFrame()
         {
-            static TMouseFrame s_frame;
-            return s_frame;
+            static TMouseFrame sFrame;
+            return sFrame;
         }
 
         struct TGamepadCache
@@ -38,9 +37,9 @@ namespace Tomos
 
         TGamepadCache& gamepadCache( int p_jid )
         {
-            static TGamepadCache s_pads[ GLFW_JOYSTICK_LAST + 1 ];
+            static TGamepadCache sPads[ GLFW_JOYSTICK_LAST + 1 ];
             if ( p_jid < GLFW_JOYSTICK_1 || p_jid > GLFW_JOYSTICK_LAST ) p_jid = GLFW_JOYSTICK_1;
-            return s_pads[ p_jid ];
+            return sPads[ p_jid ];
         }
 
         void refreshGamepads()
@@ -82,8 +81,8 @@ namespace Tomos
         }
         else
         {
-            frame.m_dx = 0.0;
-            frame.m_dy = 0.0;
+            frame.m_dx       = 0.0;
+            frame.m_dy       = 0.0;
             frame.m_haveLast = true;
         }
         frame.m_x = x;

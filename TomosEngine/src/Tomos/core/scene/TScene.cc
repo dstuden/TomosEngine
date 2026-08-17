@@ -28,8 +28,8 @@ namespace Tomos
     {
         // Identity transform acts as the root parent — global matrix starts as I,
         // so the scene root's global matrix equals its local matrix.
-        static const TTransform s_identity;
-        bool                    rootDirty = m_transform.updateGlobal( s_identity, false );
+        static const TTransform sIdentity;
+        bool                    rootDirty = m_transform.updateGlobal( sIdentity, false );
 
         std::vector<TTransformTask> stack;
         for ( auto& child : getChildren() ) stack.push_back( { child.get(), &m_transform, rootDirty } );

@@ -39,7 +39,7 @@ namespace Tomos
 
     void TMeshSystem::componentCreated( TSceneNode& p_node, TComponent& p_component )
     {
-        auto& mc        = static_cast<TMeshComponent&>( p_component );
+        auto& mc        = dynamic_cast<TMeshComponent&>( p_component );
         m_meshes[ &mc ] = &p_node;
 
         if ( auto* sk = dynamic_cast<TSkinnedMeshComponent*>( &mc ) ) m_skinned.push_back( sk );
@@ -47,7 +47,7 @@ namespace Tomos
 
     void TMeshSystem::componentDestroyed( TSceneNode& /*p_node*/, TComponent& p_component )
     {
-        auto& mc = static_cast<TMeshComponent&>( p_component );
+        auto& mc = dynamic_cast<TMeshComponent&>( p_component );
         m_meshes.erase( &mc );
 
         if ( auto* sk = dynamic_cast<TSkinnedMeshComponent*>( &mc ) ) m_skinned.erase( std::remove( m_skinned.begin(), m_skinned.end(), sk ), m_skinned.end() );
@@ -87,7 +87,7 @@ namespace Tomos
 
         for ( const auto& [ mc, node ] : m_meshes )
         {
-            if ( pending.size() >= k_maxInstances )
+            if ( pending.size() >= g_kMaxInstances )
             {
                 truncatedInstances = true;
                 break;
@@ -123,10 +123,10 @@ namespace Tomos
 
             if ( auto* sk = dynamic_cast<TSkinnedMeshComponent*>( mc ) )
             {
-                const uint32_t count = static_cast<uint32_t>( sk->m_boneMatrices.size() );
+                const auto count = static_cast<uint32_t>( sk->m_boneMatrices.size() );
                 if ( count > 0 )
                 {
-                    if ( p_state.m_bones.size() + count <= k_maxBonesPerFrame )
+                    if ( p_state.m_bones.size() + count <= g_kMaxBonesPerFrame )
                     {
                         item.m_instance.m_boneOffset = static_cast<uint32_t>( p_state.m_bones.size() );
                         item.m_instance.m_boneCount  = count;
@@ -164,13 +164,13 @@ namespace Tomos
 
         for ( const TPendingDraw& item : pending )
         {
-            if ( p_state.m_instances.size() >= k_maxInstances )
+            if ( p_state.m_instances.size() >= g_kMaxInstances )
             {
                 truncatedInstances = true;
                 break;
             }
 
-            const uint32_t instIndex = static_cast<uint32_t>( p_state.m_instances.size() );
+            const auto instIndex = static_cast<uint32_t>( p_state.m_instances.size() );
             p_state.m_instances.push_back( item.m_instance );
 
             // Blend: never merge — transparent pass sorts per draw.
@@ -209,7 +209,7 @@ namespace Tomos
 
         if ( haveRun ) flush( runOffset, runCount, runProto );
 
-        if ( truncatedInstances ) TLOG_WARN() << "[TMeshSystem] Instance cap reached (" << k_maxInstances << ") — dropping remaining meshes";
-        if ( truncatedBones ) TLOG_WARN() << "[TMeshSystem] Bone palette full (" << k_maxBonesPerFrame << ") — skinned meshes drawn without bones";
+        if ( truncatedInstances ) TLOG_WARN() << "[TMeshSystem] Instance cap reached (" << g_kMaxInstances << ") — dropping remaining meshes";
+        if ( truncatedBones ) TLOG_WARN() << "[TMeshSystem] Bone palette full (" << g_kMaxBonesPerFrame << ") — skinned meshes drawn without bones";
     }
 }  // namespace Tomos

@@ -60,7 +60,7 @@ namespace Tomos
         void select( uint64_t p_id ) { m_selectedId = p_id; }
         void clearSelection() { m_selectedId = 0; }
 
-        void syncSimulationFlag()
+        void syncSimulationFlag() const
         {
             if ( m_scene != nullptr ) m_scene->setSimulationPlaying( m_playing );
         }

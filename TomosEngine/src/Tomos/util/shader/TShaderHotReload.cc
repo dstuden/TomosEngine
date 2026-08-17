@@ -1,8 +1,8 @@
 #include "Tomos/util/shader/TShaderHotReload.hh"
 
 #include <array>
-#include <cstdlib>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 
 #include "Tomos/core/input/TInput.hh"
@@ -16,13 +16,12 @@ namespace Tomos
 {
     namespace
     {
-        constexpr auto k_pollInterval = std::chrono::milliseconds( 500 );
+        constexpr auto g_kPollInterval = std::chrono::milliseconds( 500 );
 
-        const std::array<const char*, 19> k_glslFiles = {
-                "forward.vert",         "forward.frag",      "shadow.vert",      "skinned.vert", "skinned_shadow.vert",
-                "cluster_cull.comp",    "sprite.vert",       "sprite.frag",      "particle_sim.comp", "particle.vert",
-                "particle.frag",        "fullscreen.vert",   "tonemap.frag",     "fog.frag",      "bloom_extract.frag",
-                "bloom_blur.frag",      "bloom_composite.frag", "ssao.frag",      "ssao_compose.frag",
+        const std::array<const char*, 19> g_kGlslFiles = {
+                "forward.vert",       "forward.frag",      "shadow.vert",          "skinned.vert",  "skinned_shadow.vert", "cluster_cull.comp", "sprite.vert",
+                "sprite.frag",        "particle_sim.comp", "particle.vert",        "particle.frag", "fullscreen.vert",     "tonemap.frag",      "fog.frag",
+                "bloom_extract.frag", "bloom_blur.frag",   "bloom_composite.frag", "ssao.frag",     "ssao_compose.frag",
         };
 
         std::filesystem::file_time_type fileMtime( const std::filesystem::path& p_path )
@@ -73,8 +72,7 @@ namespace Tomos
         refreshWatchList();
         m_inited   = true;
         m_lastPoll = std::chrono::steady_clock::now();
-        TLOG_INFO() << "[TShaderHotReload] Watching " << m_sources.size() << " GLSL files under " << shaderSrcDir()
-                    << " (F5 or save to reload)";
+        TLOG_INFO() << "[TShaderHotReload] Watching " << m_sources.size() << " GLSL files under " << shaderSrcDir() << " (F5 or save to reload)";
 #endif
     }
 
@@ -97,18 +95,18 @@ namespace Tomos
             }
         }
 
-        for ( const char* name : k_glslFiles )
+        for ( const char* name : g_kGlslFiles )
         {
             const auto path = srcDir / name;
             if ( !std::filesystem::exists( path, ec ) ) continue;
             m_sources.push_back( { path, fileMtime( path ), false } );
 
-            const auto spv = spvDir / ( std::string( name ) + ".spv" );
+            const auto spv      = spvDir / ( std::string( name ) + ".spv" );
             m_spvMtimes[ name ] = fileMtime( spv );
         }
     }
 
-    bool TShaderHotReload::compileOne( const std::filesystem::path& p_glsl, const std::filesystem::path& p_spvOut ) const
+    bool TShaderHotReload::compileOne( const std::filesystem::path& p_glsl, const std::filesystem::path& p_spvOut )
     {
         std::error_code ec;
         std::filesystem::create_directories( p_spvOut.parent_path(), ec );
@@ -163,12 +161,12 @@ namespace Tomos
             entry.m_mtime    = now;
             if ( !dirty ) continue;
 
-            anyDirty                     = true;
-            const auto spvName           = entry.m_path.filename().string() + ".spv";
-            const auto spvPath           = spvDir / spvName;
+            anyDirty           = true;
+            const auto spvName = entry.m_path.filename().string() + ".spv";
+            const auto spvPath = spvDir / spvName;
             if ( compileOne( entry.m_path, spvPath ) )
             {
-                anyOk                         = true;
+                anyOk                                           = true;
                 m_spvMtimes[ entry.m_path.filename().string() ] = fileMtime( spvPath );
             }
             else
@@ -178,7 +176,7 @@ namespace Tomos
         }
 
         // Also pick up externally rebuilt SPVs (e.g. cmake --build TomosShaders).
-        for ( const char* name : k_glslFiles )
+        for ( const char* name : g_kGlslFiles )
         {
             const auto spv  = spvDir / ( std::string( name ) + ".spv" );
             const auto now  = fileMtime( spv );
@@ -204,7 +202,7 @@ namespace Tomos
     bool TShaderHotReload::tick( GLFWwindow* p_window )
     {
 #ifndef TOMOS_DEBUG
-        (void) p_window;
+        ( void ) p_window;
         return false;
 #else
         if ( !m_inited ) init();
@@ -213,7 +211,7 @@ namespace Tomos
         m_force          = false;
 
         const auto now = std::chrono::steady_clock::now();
-        if ( !force && ( now - m_lastPoll ) < k_pollInterval ) return false;
+        if ( !force && ( now - m_lastPoll ) < g_kPollInterval ) return false;
         m_lastPoll = now;
 
         if ( m_sources.empty() ) refreshWatchList();

@@ -42,31 +42,31 @@ namespace Tomos
 
         // Classic black / magenta checkerboard for textures that failed to load.
         {
-            constexpr uint32_t k_size = 64;
-            constexpr uint32_t k_tile = 8;
+            constexpr uint32_t kSize = 64;
+            constexpr uint32_t kTile = 8;
             TVkImageDesc       desc{};
-            desc.m_width     = k_size;
-            desc.m_height    = k_size;
+            desc.m_width     = kSize;
+            desc.m_height    = kSize;
             desc.m_format    = TImgFormat::RGBA8Unorm;
             desc.m_usage     = TImgUsage::CopyDst | TImgUsage::Sampled;
             desc.m_sampled   = true;
             desc.m_addr      = TTexAddr::Repeat;
             m_missingTexture = TVkImage( m_device, m_physDevice, desc );
 
-            std::vector<uint8_t> pixels( k_size * k_size * 4 );
-            for ( uint32_t y = 0; y < k_size; ++y )
+            std::vector<uint8_t> pixels( kSize * kSize * 4 );
+            for ( uint32_t y = 0; y < kSize; ++y )
             {
-                for ( uint32_t x = 0; x < k_size; ++x )
+                for ( uint32_t x = 0; x < kSize; ++x )
                 {
-                    const bool     magenta = ( ( x / k_tile ) + ( y / k_tile ) ) % 2 == 0;
-                    const uint32_t i       = ( y * k_size + x ) * 4;
+                    const bool     magenta = ( ( x / kTile ) + ( y / kTile ) ) % 2 == 0;
+                    const uint32_t i       = ( y * kSize + x ) * 4;
                     pixels[ i + 0 ]        = magenta ? 255 : 0;
                     pixels[ i + 1 ]        = 0;
                     pixels[ i + 2 ]        = magenta ? 255 : 0;
                     pixels[ i + 3 ]        = 255;
                 }
             }
-            uploadImage( m_missingTexture, pixels.data(), k_size, k_size );
+            uploadImage( m_missingTexture, pixels.data(), kSize, kSize );
         }
 
         m_renderer = std::make_unique<TVkClusteredRenderer>( *this );
@@ -100,6 +100,8 @@ namespace Tomos
 
         destroySwapchain();
 
+        if ( m_batchOpen ) endUploadBatch();
+        if ( m_uploadFence != VK_NULL_HANDLE ) vkDestroyFence( m_device, m_uploadFence, nullptr );
         vkDestroyCommandPool( m_device, m_uploadPool, nullptr );
         vkDestroyDevice( m_device, nullptr );
         vkDestroySurfaceKHR( m_instance, m_surface, nullptr );
@@ -198,7 +200,7 @@ namespace Tomos
         // in-flight marker for the just-submitted work (next startFrame flushes).
         if ( result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR ) m_swapchainDirty = true;
 
-        m_frameIndex = ( m_frameIndex + 1 ) % k_framesInFlight;
+        m_frameIndex = ( m_frameIndex + 1 ) % g_kFramesInFlight;
         m_frameOpen  = false;
     }
 
@@ -362,12 +364,16 @@ namespace Tomos
         poolInfo.queueFamilyIndex = m_graphicsFamily;
         poolInfo.flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
         vkCreateCommandPool( m_device, &poolInfo, nullptr, &m_uploadPool );
+
+        VkFenceCreateInfo fenceInfo{ VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
+        if ( vkCreateFence( m_device, &fenceInfo, nullptr, &m_uploadFence ) != VK_SUCCESS )
+            throw std::runtime_error( "[TVkGpu] Failed to create upload fence" );
     }
 
 
     void TVkGpu::createFrameData()
     {
-        for ( uint32_t i = 0; i < k_framesInFlight; ++i )
+        for ( uint32_t i = 0; i < g_kFramesInFlight; ++i )
         {
             TVkFrameData& frame = m_frames[ i ];
 
@@ -390,10 +396,10 @@ namespace Tomos
             fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
             vkCreateFence( m_device, &fenceInfo, nullptr, &frame.m_fence );
 
-            frame.m_instanceBuf = TVkBuffer( m_device, m_physDevice, k_maxInstances * sizeof( TInstanceData ), TBufUsage::Storage );
-            frame.m_lightBuf    = TVkBuffer( m_device, m_physDevice, k_maxLights * sizeof( TLightData ), TBufUsage::Storage );
-            frame.m_spriteBuf   = TVkBuffer( m_device, m_physDevice, k_maxSprites * sizeof( TSpriteData ), TBufUsage::Storage );
-            frame.m_boneBuf     = TVkBuffer( m_device, m_physDevice, k_maxBonesPerFrame * sizeof( glm::mat4 ), TBufUsage::Storage );
+            frame.m_instanceBuf = TVkBuffer( m_device, m_physDevice, g_kMaxInstances * sizeof( TInstanceData ), TBufUsage::Storage );
+            frame.m_lightBuf    = TVkBuffer( m_device, m_physDevice, g_kMaxLights * sizeof( TLightData ), TBufUsage::Storage );
+            frame.m_spriteBuf   = TVkBuffer( m_device, m_physDevice, g_kMaxSprites * sizeof( TSpriteData ), TBufUsage::Storage );
+            frame.m_boneBuf     = TVkBuffer( m_device, m_physDevice, g_kMaxBonesPerFrame * sizeof( glm::mat4 ), TBufUsage::Storage );
             frame.m_sceneUBO    = TVkBuffer( m_device, m_physDevice, sizeof( TSceneUBO ), TBufUsage::Uniform );
         }
     }

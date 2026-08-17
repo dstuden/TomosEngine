@@ -12,16 +12,16 @@ namespace Tomos
 {
     struct TVkMaterialDesc
     {
-        glm::vec4         m_baseColorFactor = glm::vec4( 1.0f );
-        glm::vec3         m_emissionFactor  = glm::vec3( 0.0f );
-        float             m_metallicFactor  = 0.0f;
-        float             m_roughnessFactor = 1.0f;
-        float             m_normalScale     = 1.0f;
-        float             m_alphaCutoff     = 0.5f;
-        TMatAlpha         m_alphaMode       = TMatAlpha::Opaque;
-        TMeshTechniqueId  m_technique       = TMeshTechniqueId::Forward;
-        bool              m_doubleSided     = false;
-        bool              m_hasNormalMap    = false;
+        glm::vec4        m_baseColorFactor = glm::vec4( 1.0f );
+        glm::vec3        m_emissionFactor  = glm::vec3( 0.0f );
+        float            m_metallicFactor  = 0.0f;
+        float            m_roughnessFactor = 1.0f;
+        float            m_normalScale     = 1.0f;
+        float            m_alphaCutoff     = 0.5f;
+        TMatAlpha        m_alphaMode       = TMatAlpha::Opaque;
+        TMeshTechniqueId m_technique       = TMeshTechniqueId::Forward;
+        bool             m_doubleSided     = false;
+        bool             m_hasNormalMap    = false;
 
         // Textures borrowed — material does not own them.
         const TVkImage* m_baseTexture     = nullptr;
@@ -79,11 +79,11 @@ namespace Tomos
         [[nodiscard]] float            normalScale() const { return m_ubo.m_normalScale; }
         [[nodiscard]] float            alphaCutoff() const { return m_ubo.m_alphaCutoff; }
 
-        [[nodiscard]] VkDescriptorSet   descriptorSet() const { return m_descriptorSet; }
-        [[nodiscard]] bool              hasNormalMap() const { return m_hasNormalMap; }
-        [[nodiscard]] bool              doubleSided() const { return m_doubleSided; }
-        [[nodiscard]] TMatAlpha         alphaMode() const { return m_alphaMode; }
-        [[nodiscard]] TMeshTechniqueId  technique() const { return m_technique; }
+        [[nodiscard]] VkDescriptorSet  descriptorSet() const { return m_descriptorSet; }
+        [[nodiscard]] bool             hasNormalMap() const { return m_hasNormalMap; }
+        [[nodiscard]] bool             doubleSided() const { return m_doubleSided; }
+        [[nodiscard]] TMatAlpha        alphaMode() const { return m_alphaMode; }
+        [[nodiscard]] TMeshTechniqueId technique() const { return m_technique; }
 
     private:
         // Matches Material in shaders (std140).
@@ -101,9 +101,9 @@ namespace Tomos
             uint32_t  m_pad1 = 0;
         };
 
-        VkDevice        m_device        = VK_NULL_HANDLE;
-        VkDescriptorSet m_descriptorSet = VK_NULL_HANDLE;
-        TVkBuffer       m_uniformBuffer;
+        VkDevice         m_device        = VK_NULL_HANDLE;
+        VkDescriptorSet  m_descriptorSet = VK_NULL_HANDLE;
+        TVkBuffer        m_uniformBuffer;
         TMaterialUBO     m_ubo{};
         bool             m_hasNormalMap = false;
         bool             m_doubleSided  = false;

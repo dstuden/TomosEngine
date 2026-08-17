@@ -42,8 +42,8 @@ namespace Tomos
 
     struct alignas( 16 ) TInstanceData
     {
-        glm::mat4 m_transform;
-        glm::mat4 m_invTransform;
+        glm::mat4 m_transform{};
+        glm::mat4 m_invTransform{};
         uint32_t  m_boneOffset{ 0 };  // into TFrameState::m_bones (skinned only)
         uint32_t  m_boneCount{ 0 };  // 0 = static mesh
         uint32_t  m_pad0{ 0 };
@@ -75,11 +75,11 @@ namespace Tomos
 
     struct TDrawCall
     {
-        const TVkMesh*     m_mesh;
-        const TVkMaterial* m_material;
-        uint32_t           m_instanceOffset;
-        uint32_t           m_instanceCount;
-        bool               m_castShadow;
+        const TVkMesh*     m_mesh{};
+        const TVkMaterial* m_material{};
+        uint32_t           m_instanceOffset{};
+        uint32_t           m_instanceCount{};
+        bool               m_castShadow{};
         // False when the camera frustum culled this draw — skipped by the
         // forward pass but still rendered into shadow maps (off-screen
         // geometry must keep casting shadows into the visible scene).
@@ -108,16 +108,16 @@ namespace Tomos
     // GPU particle (persistent pool; written by particle_sim.comp, read by particle.vert).
     struct alignas( 16 ) TParticleData
     {
-        glm::vec3 m_position;
-        float     m_life;  // remaining seconds; <= 0 = dead / on free list
-        glm::vec3 m_velocity;
-        float     m_maxLife;
-        glm::vec2 m_sizeStart;
-        glm::vec2 m_sizeEnd;
-        glm::vec4 m_colorStart;
-        glm::vec4 m_colorEnd;
-        float     m_rotation;
-        float     m_gravity;
+        glm::vec3 m_position{};
+        float     m_life{};  // remaining seconds; <= 0 = dead / on free list
+        glm::vec3 m_velocity{};
+        float     m_maxLife{};
+        glm::vec2 m_sizeStart{};
+        glm::vec2 m_sizeEnd{};
+        glm::vec4 m_colorStart{};
+        glm::vec4 m_colorEnd{};
+        float     m_rotation{};
+        float     m_gravity{};
         uint32_t  m_texIndex{ 0 };  // into TFrameState::m_particleTextures (stable)
         uint32_t  m_pad0{ 0 };
         glm::vec2 m_uvMin{ 0.0f, 0.0f };
@@ -167,7 +167,7 @@ namespace Tomos
     {
         float    m_dt{ 0.0f };
         uint32_t m_emitterCount{ 0 };
-        uint32_t m_maxParticles{ k_maxParticles };
+        uint32_t m_maxParticles{ g_kMaxParticles };
         uint32_t m_frameIndex{ 0 };
     };
 

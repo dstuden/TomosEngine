@@ -22,6 +22,7 @@
 #include "Tomos/systems/animation/TAnimatorComponent.hh"
 #include "Tomos/systems/asset/TAssetSystem.hh"
 #include "Tomos/systems/audio/TAudioComponent.hh"
+#include "Tomos/systems/audio/TAudioSystem.hh"
 #include "Tomos/systems/camera/TCameraComponent.hh"
 #include "Tomos/systems/light/TLightComponent.hh"
 #include "Tomos/systems/mesh/TMeshComponent.hh"
@@ -37,9 +38,9 @@
 #ifdef TOMOS_EDITOR
 #include "Tomos/ui/editor/TSceneEditorLayer.hh"
 #endif
-#include "Tomos/systems/asset/TGltfLoader.hh"
-#include "Tomos/util/logger/TLogger.hh"
+#include "Tomos/systems/asset/TAssetLoadQueue.hh"
 #include "Tomos/systems/mesh/TMeshPrimitives.hh"
+#include "Tomos/util/logger/TLogger.hh"
 
 using namespace Tomos;
 
@@ -255,7 +256,7 @@ private:
 class SandboxLayer : public TSceneLayer
 {
 public:
-    static constexpr const char* k_scenePath = "assets/scenes/sandbox.json";
+    static constexpr const char* g_kScenePath = "assets/scenes/sandbox.json";
 
     explicit SandboxLayer( std::string p_modelPath ) : TSceneLayer( "Sandbox" ), m_modelPath( std::move( p_modelPath ) ) {}
 
@@ -275,8 +276,7 @@ public:
         {
             if ( auto* anim = man->findComponent<TAnimatorComponent>() )
             {
-                if ( TGpuAsset* asset = TApplication::get().assetSystem().maybeGetAsset( "CesiumMan" ) )
-                    setupIdleWalkBlend( *anim, *asset );
+                if ( TGpuAsset* asset = TApplication::get().assetSystem().maybeGetAsset( "CesiumMan" ) ) setupIdleWalkBlend( *anim, *asset );
             }
             if ( man->findComponent<TScriptComponent>() == nullptr ) man->addComponent( TScriptComponent::make<AnimBlendDemoScript>() );
         }
@@ -312,12 +312,12 @@ private:
             asset->m_meshes.push_back( TMeshPrimitives::makeBox( *gpu ) );
             asset->m_meshes.push_back( TMeshPrimitives::makeUVSphere( *gpu ) );
 
-            auto fillMaterial = [ & ]( TVkMaterialDesc& desc )
+            auto fillMaterial = [ & ]( TVkMaterialDesc& p_desc )
             {
-                desc.m_baseTexture     = &gpu->defaultTexture();
-                desc.m_metRghTexture   = &gpu->defaultTexture();
-                desc.m_emissionTexture = &gpu->defaultTexture();
-                desc.m_normalTexture   = &gpu->defaultTexture();
+                p_desc.m_baseTexture     = &gpu->defaultTexture();
+                p_desc.m_metRghTexture   = &gpu->defaultTexture();
+                p_desc.m_emissionTexture = &gpu->defaultTexture();
+                p_desc.m_normalTexture   = &gpu->defaultTexture();
             };
 
             {
@@ -358,8 +358,8 @@ private:
             auto col           = std::make_shared<TColliderComponent>();
             col->m_shape       = TColliderShape::Box;
             col->m_halfExtents = { 0.5f, 0.5f, 0.5f };
-            col->m_layer       = TPhysicsLayer::Static;
-            col->m_mask        = TPhysicsLayer::Dynamic;
+            col->m_layer       = TPhysicsLayer::g_static;
+            col->m_mask        = TPhysicsLayer::g_dynamic;
             floor->addComponent( col );
             floor->addComponent( std::make_shared<TMeshComponent>( boxMesh, floorMat, true ) );
 
@@ -383,8 +383,8 @@ private:
             auto col      = std::make_shared<TColliderComponent>();
             col->m_shape  = TColliderShape::Sphere;
             col->m_radius = 0.5f;
-            col->m_layer  = TPhysicsLayer::Dynamic;
-            col->m_mask   = TPhysicsLayer::Static | TPhysicsLayer::Dynamic | TPhysicsLayer::Trigger;
+            col->m_layer  = TPhysicsLayer::g_dynamic;
+            col->m_mask   = TPhysicsLayer::g_static | TPhysicsLayer::g_dynamic | TPhysicsLayer::g_trigger;
             ball->addComponent( col );
             ball->addComponent( std::make_shared<TMeshComponent>( sphereMesh, ballMat, true ) );
 
@@ -403,13 +403,13 @@ private:
             col->m_shape       = TColliderShape::Box;
             col->m_halfExtents = { 0.5f, 0.5f, 0.5f };
             col->m_isTrigger   = true;
-            col->m_layer       = TPhysicsLayer::Trigger;
-            col->m_mask        = TPhysicsLayer::Dynamic;
-            col->m_onOverlap   = []( TSceneNode& /*self*/, TSceneNode& other, TOverlapPhase phase )
+            col->m_layer       = TPhysicsLayer::g_trigger;
+            col->m_mask        = TPhysicsLayer::g_dynamic;
+            col->m_onOverlap   = []( TSceneNode& /*self*/, TSceneNode& p_other, TOverlapPhase p_phase )
             {
-                if ( phase == TOverlapPhase::Stay ) return;
-                const char* label = ( phase == TOverlapPhase::Enter ) ? "enter" : "exit";
-                TLOG_INFO() << "[Sandbox] Trigger zone " << label << ": " << other.m_name;
+                if ( p_phase == TOverlapPhase::Stay ) return;
+                const char* label = ( p_phase == TOverlapPhase::Enter ) ? "enter" : "exit";
+                TLOG_INFO() << "[Sandbox] Trigger zone " << label << ": " << p_other.m_name;
             };
             zone->addComponent( col );
             zone->addComponent( std::make_shared<TMeshComponent>( boxMesh, floorMat, true ) );
@@ -422,43 +422,57 @@ private:
 
     void spawnDefaultScene()
     {
-        auto& app = TApplication::get();
-        auto* gpu = app.gpu();
+        auto& app   = TApplication::get();
+        auto& loads = app.assetLoadQueue();
 
         TLOG_INFO() << "[Sandbox] Loading model: " << m_modelPath;
-        auto result = TGltfLoader::load( m_modelPath, *gpu );
-        TLOG_INFO() << "[Sandbox] Loaded '" << result.m_asset->m_name << "' (" << result.m_asset->m_meshes.size() << " meshes, "
-                    << result.m_asset->m_materials.size() << " materials)";
-
-        app.assetSystem().registerAsset( std::move( result.m_asset ) );
-        scene().addChild( std::move( result.m_root ) );
+        const TAssetLoadHandle modelHandle = loads.requestLoad( m_modelPath );
+        loads.waitUntilReady( modelHandle, &scene() );
+        TGpuAsset* modelAsset = loads.asset( modelHandle );
+        auto       modelRoot  = loads.takeRoot( modelHandle );
+        if ( modelAsset == nullptr || modelRoot == nullptr )
+        {
+            TLOG_ERROR() << "[Sandbox] Failed to load model: " << m_modelPath << " (" << loads.error( modelHandle ) << ")";
+            return;
+        }
+        TLOG_INFO() << "[Sandbox] Loaded '" << modelAsset->m_name << "' (" << modelAsset->m_meshes.size() << " meshes, " << modelAsset->m_materials.size()
+                    << " materials)";
+        scene().addChild( std::move( modelRoot ) );
 
         {
-            auto animResult = TGltfLoader::load( "assets/CesiumMan.glb", *gpu );
-            TLOG_INFO() << "[Sandbox] Loaded '" << animResult.m_asset->m_name << "' (" << animResult.m_asset->m_meshes.size() << " meshes, "
-                        << animResult.m_asset->m_clips.size() << " clips)";
-
-            TGpuAsset* animAsset = animResult.m_asset.get();
-            app.assetSystem().registerAsset( std::move( animResult.m_asset ) );
-
-            auto wrapper = std::make_shared<TSceneNode>( "CesiumManRoot" );
-            wrapper->m_transform.setTranslation( { 2.0f, 0.0f, 0.0f } );
-
-            auto animator = std::make_shared<TAnimatorComponent>();
-            if ( animAsset != nullptr && !animAsset->m_clips.empty() )
+            const TAssetLoadHandle animHandle = loads.requestLoad( "assets/CesiumMan.glb" );
+            loads.waitUntilReady( animHandle, &scene() );
+            TGpuAsset* animAsset = loads.asset( animHandle );
+            auto       animRoot  = loads.takeRoot( animHandle );
+            if ( animAsset == nullptr || animRoot == nullptr )
             {
-                setupIdleWalkBlend( *animator, *animAsset );
-                TLOG_INFO() << "[Sandbox] CesiumMan Idle↔Walk crossfade (auto-toggle / G key)";
+                TLOG_ERROR() << "[Sandbox] Failed to load CesiumMan (" << loads.error( animHandle ) << ")";
             }
-            wrapper->addComponent( animator );
-            wrapper->addComponent( TScriptComponent::make<AnimBlendDemoScript>() );
+            else
+            {
+                TLOG_INFO() << "[Sandbox] Loaded '" << animAsset->m_name << "' (" << animAsset->m_meshes.size() << " meshes, " << animAsset->m_clips.size()
+                            << " clips)";
 
-            wrapper->addChild( std::move( animResult.m_root ) );
-            scene().addChild( wrapper );
+                auto wrapper = std::make_shared<TSceneNode>( "CesiumManRoot" );
+                wrapper->m_transform.setTranslation( { 2.0f, 0.0f, 0.0f } );
+
+                auto animator = std::make_shared<TAnimatorComponent>();
+                if ( !animAsset->m_clips.empty() )
+                {
+                    setupIdleWalkBlend( *animator, *animAsset );
+                    TLOG_INFO() << "[Sandbox] CesiumMan Idle↔Walk crossfade (auto-toggle / G key)";
+                }
+                wrapper->addComponent( animator );
+                wrapper->addComponent( TScriptComponent::make<AnimBlendDemoScript>() );
+
+                wrapper->addChild( std::move( animRoot ) );
+                scene().addChild( wrapper );
+            }
         }
 
         {
             TAudioClip* beepClip = scene().resources().getOrCreateClip( "assets/beep.wav", "Beep" );
+            scene().ecs().getSystem<TAudioSystem>().preload( beepClip );
 
             auto node = std::make_shared<TSceneNode>( "BeepEmitter" );
             node->m_transform.setTranslation( { 2.0f, 1.5f, 0.0f } );
@@ -481,7 +495,7 @@ private:
         }
 
         {
-            TVkImage* sparkTex = scene().resources().loadImage( *gpu, "assets/particle_soft.png" );
+            TVkImage* sparkTex = scene().resources().loadImage( *app.gpu(), "assets/particle_soft.png" );
 
             auto node = std::make_shared<TSceneNode>( "SparkEmitter" );
             node->m_transform.setTranslation( { 2.0f, 0.6f, 0.4f } );
@@ -589,8 +603,7 @@ private:
             desc.m_metRghTexture   = &gpu->defaultTexture();
             desc.m_emissionTexture = &gpu->defaultTexture();
             desc.m_normalTexture   = &gpu->defaultTexture();
-            asset->m_materials.push_back(
-                    std::make_unique<TVkMaterial>( gpu->device(), gpu->physDevice(), gpu->descPool(), gpu->layouts().m_material, desc ) );
+            asset->m_materials.push_back( std::make_unique<TVkMaterial>( gpu->device(), gpu->physDevice(), gpu->descPool(), gpu->layouts().m_material, desc ) );
 
             app.assetSystem().registerAsset( std::move( asset ) );
             waterAsset = app.assetSystem().maybeGetAsset( "WaterDemo" );
@@ -634,7 +647,7 @@ public:
         pushLayer( std::move( layer ) );
 
 #ifdef TOMOS_EDITOR
-        auto editor = std::make_unique<TSceneEditorLayer>( layerPtr->scene(), SandboxLayer::k_scenePath );
+        auto editor                   = std::make_unique<TSceneEditorLayer>( layerPtr->scene(), SandboxLayer::g_kScenePath );
         editor->context().m_afterLoad = [ layerPtr ] { layerPtr->bindGameplayHooks(); };
         pushOverlay( std::move( editor ) );
 #endif

@@ -23,7 +23,7 @@ namespace Tomos
         [[nodiscard]] bool wantsMouse() const override;
         [[nodiscard]] bool wantsKeyboard() const override;
 
-        [[nodiscard]] static bool withinUiFrame() { return s_withinUiFrame; }
+        [[nodiscard]] static bool withinUiFrame() { return g_sWithinUiFrame; }
         static void               assertWithinUiFrame();
 
         [[nodiscard]] static bool ioWantsMouse();
@@ -38,7 +38,7 @@ namespace Tomos
     private:
         [[nodiscard]] static bool capturingUi();
 
-        static bool s_withinUiFrame;
+        static bool g_sWithinUiFrame;
 
         TVkGpu*     m_gpu         = nullptr;
         GLFWwindow* m_window      = nullptr;

@@ -12,9 +12,9 @@
 
 namespace Tomos
 {
-    bool TImGuiBackend::s_withinUiFrame = false;
+    bool TImGuiBackend::g_sWithinUiFrame = false;
 
-    void TImGuiBackend::assertWithinUiFrame() { assert( s_withinUiFrame && "ImGui only between TUiLayer newFrame() and render() — use onUi()" ); }
+    void TImGuiBackend::assertWithinUiFrame() { assert( g_sWithinUiFrame && "ImGui only between TUiLayer newFrame() and render() — use onUi()" ); }
 
     void TImGuiBackend::init( TVkGpu& p_gpu, GLFWwindow* p_window )
     {
@@ -47,7 +47,7 @@ namespace Tomos
         info.QueueFamily                 = p_gpu.graphicsFamily();
         info.Queue                       = p_gpu.graphicsQueue();
         info.DescriptorPool              = p_gpu.descPool();
-        info.MinImageCount               = std::min( k_framesInFlight, p_gpu.swapImageCount() );
+        info.MinImageCount               = std::min( g_kFramesInFlight, p_gpu.swapImageCount() );
         info.ImageCount                  = p_gpu.swapImageCount();
         info.MSAASamples                 = VK_SAMPLE_COUNT_1_BIT;
         info.UseDynamicRendering         = true;
@@ -67,10 +67,10 @@ namespace Tomos
         ImGui_ImplGlfw_Shutdown();
         ImGui::DestroyContext();
 
-        s_withinUiFrame = false;
-        m_window        = nullptr;
-        m_gpu           = nullptr;
-        m_initialized   = false;
+        g_sWithinUiFrame = false;
+        m_window         = nullptr;
+        m_gpu            = nullptr;
+        m_initialized    = false;
     }
 
     void TImGuiBackend::newFrame()
@@ -88,22 +88,22 @@ namespace Tomos
         ImGui_ImplVulkan_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
-        s_withinUiFrame = true;
+        g_sWithinUiFrame = true;
     }
 
     void TImGuiBackend::render( VkCommandBuffer p_cmd )
     {
         if ( !m_initialized ) return;
 
-        s_withinUiFrame = false;
+        g_sWithinUiFrame = false;
         ImGui::Render();
         ImGui_ImplVulkan_RenderDrawData( ImGui::GetDrawData(), p_cmd );
     }
 
     void TImGuiBackend::abandonFrame()
     {
-        if ( !m_initialized || !s_withinUiFrame ) return;
-        s_withinUiFrame = false;
+        if ( !m_initialized || !g_sWithinUiFrame ) return;
+        g_sWithinUiFrame = false;
         ImGui::EndFrame();
     }
 

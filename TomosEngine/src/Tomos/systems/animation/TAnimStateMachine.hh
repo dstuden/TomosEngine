@@ -28,10 +28,10 @@ namespace Tomos
     class TAnimStateMachine
     {
     public:
-        bool                      m_enabled = false;
-        std::vector<TAnimState>   m_states;
+        bool                         m_enabled = false;
+        std::vector<TAnimState>      m_states;
         std::vector<TAnimTransition> m_transitions;
-        std::string               m_current;
+        std::string                  m_current;
 
         void clear()
         {
@@ -85,9 +85,9 @@ namespace Tomos
         bool start( const std::string& p_initial )
         {
             if ( findState( p_initial ) == nullptr ) return false;
-            m_current         = p_initial;
+            m_current = p_initial;
             m_pendingRequest.clear();
-            m_enabled         = true;
+            m_enabled = true;
             return true;
         }
 

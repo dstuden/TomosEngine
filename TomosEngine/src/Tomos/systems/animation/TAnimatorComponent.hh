@@ -25,11 +25,11 @@ namespace Tomos
         bool                  m_playing         = true;
 
         // Weight 0 = fully from, 1 = fully current.
-        const TAnimationClip* m_fadeFromClip    = nullptr;
-        float                 m_fadeFromTime    = 0.0f;
-        float                 m_fadeFromSpeed   = 1.0f;
-        bool                  m_fadeFromLooping = true;
-        float                 m_blendWeight     = 1.0f;
+        const TAnimationClip* m_fadeFromClip      = nullptr;
+        float                 m_fadeFromTime      = 0.0f;
+        float                 m_fadeFromSpeed     = 1.0f;
+        bool                  m_fadeFromLooping   = true;
+        float                 m_blendWeight       = 1.0f;
         float                 m_crossfadeDuration = 0.0f;
         float                 m_crossfadeElapsed  = 0.0f;
 
@@ -77,11 +77,11 @@ namespace Tomos
             m_fadeFromSpeed   = m_speed;
             m_fadeFromLooping = m_looping;
 
-            m_clip               = p_clip;
-            m_playing            = true;
-            m_blendWeight        = 0.0f;
-            m_crossfadeDuration  = duration;
-            m_crossfadeElapsed   = 0.0f;
+            m_clip              = p_clip;
+            m_playing           = true;
+            m_blendWeight       = 0.0f;
+            m_crossfadeDuration = duration;
+            m_crossfadeElapsed  = 0.0f;
             if ( p_restart ) m_time = 0.0f;
         }
 
@@ -101,11 +101,11 @@ namespace Tomos
 
         void clearCrossfade()
         {
-            m_fadeFromClip       = nullptr;
-            m_fadeFromTime       = 0.0f;
-            m_blendWeight        = 1.0f;
-            m_crossfadeDuration  = 0.0f;
-            m_crossfadeElapsed   = 0.0f;
+            m_fadeFromClip      = nullptr;
+            m_fadeFromTime      = 0.0f;
+            m_blendWeight       = 1.0f;
+            m_crossfadeDuration = 0.0f;
+            m_crossfadeElapsed  = 0.0f;
         }
 
         void applyState( const TAnimState& p_state, float p_fadeDuration, bool p_restart = true )

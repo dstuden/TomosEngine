@@ -28,8 +28,8 @@ namespace Tomos
             registerType( p_name, [] { return std::make_unique<T>(); } );
         }
 
-        [[nodiscard]] bool                        has( const std::string& p_name ) const;
-        [[nodiscard]] std::unique_ptr<TScript>    create( const std::string& p_name ) const;
+        [[nodiscard]] bool                            has( const std::string& p_name ) const;
+        [[nodiscard]] std::unique_ptr<TScript>        create( const std::string& p_name ) const;
         [[nodiscard]] const std::vector<std::string>& names() const { return m_names; }
 
     private:

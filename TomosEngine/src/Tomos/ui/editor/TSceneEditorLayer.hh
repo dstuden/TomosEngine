@@ -11,7 +11,7 @@ namespace Tomos
     class TSceneEditorLayer : public TUiLayer
     {
     public:
-        TSceneEditorLayer( TScene& p_scene, std::string p_scenePath = "assets/scenes/sandbox.json" );
+        explicit TSceneEditorLayer( TScene& p_scene, std::string p_scenePath = "assets/scenes/sandbox.json" );
         ~TSceneEditorLayer() override;
 
         [[nodiscard]] TSceneEditorContext&       context() { return m_ctx; }

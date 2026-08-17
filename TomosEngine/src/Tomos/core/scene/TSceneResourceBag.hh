@@ -37,13 +37,13 @@ namespace Tomos
     private:
         void bumpGeneration() { ++m_generation; }
 
-        TResourceGeneration                                    m_generation = 1;
-        std::vector<std::unique_ptr<TAudioClip>>               m_clips;
-        std::unordered_map<std::string, TAudioClip*>           m_clipsByPath;
-        std::vector<std::unique_ptr<TVkImage>>                 m_images;
-        std::unordered_map<std::string, TVkImage*>             m_imagesByPath;
-        std::unordered_map<const TVkImage*, std::string>       m_imagePaths;
-        std::unordered_map<const TAudioClip*, std::string>     m_clipPaths;
-        std::unordered_set<std::string> m_failedImagePaths;
+        TResourceGeneration                                m_generation = 1;
+        std::vector<std::unique_ptr<TAudioClip>>           m_clips;
+        std::unordered_map<std::string, TAudioClip*>       m_clipsByPath;
+        std::vector<std::unique_ptr<TVkImage>>             m_images;
+        std::unordered_map<std::string, TVkImage*>         m_imagesByPath;
+        std::unordered_map<const TVkImage*, std::string>   m_imagePaths;
+        std::unordered_map<const TAudioClip*, std::string> m_clipPaths;
+        std::unordered_set<std::string>                    m_failedImagePaths;
     };
 }  // namespace Tomos

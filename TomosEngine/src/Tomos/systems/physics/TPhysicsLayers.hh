@@ -2,16 +2,14 @@
 
 #include <cstdint>
 
-namespace Tomos
+
+namespace Tomos::TPhysicsLayer
 {
-    namespace TPhysicsLayer
-    {
-        constexpr uint32_t Default    = 1u << 0;
-        constexpr uint32_t Static     = 1u << 1;
-        constexpr uint32_t Dynamic    = 1u << 2;
-        constexpr uint32_t Player     = 1u << 3;
-        constexpr uint32_t Trigger    = 1u << 4;
-        constexpr uint32_t Projectile = 1u << 5;
-        constexpr uint32_t All        = 0xFFFFFFFFu;
-    }  // namespace TPhysicsLayer
-}  // namespace Tomos
+    constexpr uint32_t g_default    = 1u << 0;
+    constexpr uint32_t g_static     = 1u << 1;
+    constexpr uint32_t g_dynamic    = 1u << 2;
+    constexpr uint32_t g_player     = 1u << 3;
+    constexpr uint32_t g_trigger    = 1u << 4;
+    constexpr uint32_t g_projectile = 1u << 5;
+    constexpr uint32_t g_all        = 0xFFFFFFFFu;
+}  // namespace Tomos::TPhysicsLayer

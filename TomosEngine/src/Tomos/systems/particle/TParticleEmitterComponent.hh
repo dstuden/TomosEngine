@@ -41,7 +41,7 @@ namespace Tomos
         uint32_t m_pendingBurst = 0;
         uint32_t m_seed         = 1;
 
-        static constexpr uint32_t k_maxSpawnPerFrame = 1024;
+        static constexpr uint32_t g_kMaxSpawnPerFrame = 1024;
 
         [[nodiscard]] uint32_t takeSpawnCount( float p_dt )
         {
@@ -56,7 +56,7 @@ namespace Tomos
                 count += fromRate;
             }
 
-            return std::min( count, k_maxSpawnPerFrame );
+            return std::min( count, g_kMaxSpawnPerFrame );
         }
     };
 }  // namespace Tomos

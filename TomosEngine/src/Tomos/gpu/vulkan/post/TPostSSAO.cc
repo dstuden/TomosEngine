@@ -61,7 +61,7 @@ namespace Tomos
             m_aoPipe   = PostUtil::createFullscreenPipeline( m_device, m_aoLay, "ssao.frag.spv", VK_FORMAT_R16G16B16A16_SFLOAT );
             m_compPipe = PostUtil::createFullscreenPipeline( m_device, m_compLay, "ssao_compose.frag.spv", VK_FORMAT_R16G16B16A16_SFLOAT );
 
-            for ( uint32_t i = 0; i < k_frames; ++i )
+            for ( uint32_t i = 0; i < g_kFrames; ++i )
             {
                 m_aoSets[ i ]   = PostUtil::allocSet( m_device, p_ctx.m_gpu->descPool(), m_samp1Layout );
                 m_compSets[ i ] = PostUtil::allocSet( m_device, p_ctx.m_gpu->descPool(), m_samp2Layout );
@@ -86,7 +86,7 @@ namespace Tomos
 
     void TPostSSAO::record( VkCommandBuffer p_cmd, TPostContext& p_ctx )
     {
-        const uint32_t fi = p_ctx.m_frameIndex % k_frames;
+        const uint32_t fi = p_ctx.m_frameIndex % g_kFrames;
 
         VkUtil::imageBarrier( p_cmd, m_ao.handle(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
                               VK_ACCESS_2_NONE, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT );

@@ -48,21 +48,21 @@ namespace Tomos
                 ImGui::TableSetupColumn( "Select" );
                 ImGui::TableHeadersRow();
                 phys->forEachBody(
-                        [ & ]( const TPhysicsSystem::TBodyDebug& b )
+                        [ & ]( const TPhysicsSystem::TBodyDebug& p_b )
                         {
-                            if ( b.m_node == nullptr || b.m_body == nullptr ) return;
+                            if ( p_b.m_node == nullptr || p_b.m_body == nullptr ) return;
                             ImGui::TableNextRow();
                             ImGui::TableNextColumn();
-                            ImGui::TextUnformatted( b.m_node->m_name.c_str() );
+                            ImGui::TextUnformatted( p_b.m_node->m_name.c_str() );
                             ImGui::TableNextColumn();
-                            ImGui::TextUnformatted( b.m_body->isDynamic() ? "dynamic" : ( b.m_body->m_kinematic ? "kinematic" : "static" ) );
+                            ImGui::TextUnformatted( p_b.m_body->isDynamic() ? "dynamic" : ( p_b.m_body->m_kinematic ? "kinematic" : "static" ) );
                             ImGui::TableNextColumn();
-                            ImGui::Text( "%.2f", b.m_body->m_mass );
+                            ImGui::Text( "%.2f", p_b.m_body->m_mass );
                             ImGui::TableNextColumn();
-                            ImGui::Text( "%.2f", glm::length( b.m_body->m_linearVelocity ) );
+                            ImGui::Text( "%.2f", glm::length( p_b.m_body->m_linearVelocity ) );
                             ImGui::TableNextColumn();
-                            ImGui::PushID( static_cast<int>( b.m_node->m_id ) );
-                            if ( ImGui::SmallButton( "Go" ) ) p_ctx.select( b.m_node->m_id );
+                            ImGui::PushID( static_cast<int>( p_b.m_node->m_id ) );
+                            if ( ImGui::SmallButton( "Go" ) ) p_ctx.select( p_b.m_node->m_id );
                             ImGui::PopID();
                         } );
                 ImGui::EndTable();
@@ -80,21 +80,21 @@ namespace Tomos
                 ImGui::TableSetupColumn( "Select" );
                 ImGui::TableHeadersRow();
                 phys->forEachCollider(
-                        [ & ]( const TPhysicsSystem::TColliderDebug& c )
+                        [ & ]( const TPhysicsSystem::TColliderDebug& p_c )
                         {
-                            if ( c.m_node == nullptr || c.m_collider == nullptr ) return;
+                            if ( p_c.m_node == nullptr || p_c.m_collider == nullptr ) return;
                             ImGui::TableNextRow();
                             ImGui::TableNextColumn();
-                            ImGui::TextUnformatted( c.m_node->m_name.c_str() );
+                            ImGui::TextUnformatted( p_c.m_node->m_name.c_str() );
                             ImGui::TableNextColumn();
-                            ImGui::TextUnformatted( c.m_collider->m_shape == TColliderShape::Sphere ? "Sphere" : "Box" );
+                            ImGui::TextUnformatted( p_c.m_collider->m_shape == TColliderShape::Sphere ? "Sphere" : "Box" );
                             ImGui::TableNextColumn();
-                            ImGui::Text( "%s%s", c.m_collider->m_enabled ? "" : "disabled ", c.m_collider->m_isTrigger ? "trigger" : "" );
+                            ImGui::Text( "%s%s", p_c.m_collider->m_enabled ? "" : "disabled ", p_c.m_collider->m_isTrigger ? "trigger" : "" );
                             ImGui::TableNextColumn();
-                            ImGui::Text( "%08X / %08X", c.m_collider->m_layer, c.m_collider->m_mask );
+                            ImGui::Text( "%08X / %08X", p_c.m_collider->m_layer, p_c.m_collider->m_mask );
                             ImGui::TableNextColumn();
-                            ImGui::PushID( static_cast<int>( c.m_node->m_id + 100000 ) );
-                            if ( ImGui::SmallButton( "Go" ) ) p_ctx.select( c.m_node->m_id );
+                            ImGui::PushID( static_cast<int>( p_c.m_node->m_id + 100000 ) );
+                            if ( ImGui::SmallButton( "Go" ) ) p_ctx.select( p_c.m_node->m_id );
                             ImGui::PopID();
                         } );
                 ImGui::EndTable();

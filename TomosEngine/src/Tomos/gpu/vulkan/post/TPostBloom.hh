@@ -26,7 +26,7 @@ namespace Tomos
     private:
         void ensurePipelines( const TPostContext& p_ctx );
 
-        static constexpr uint32_t k_frames = 3;
+        static constexpr uint32_t g_kFrames = 3;
 
         VkDevice m_device = VK_NULL_HANDLE;
 
@@ -43,10 +43,10 @@ namespace Tomos
         VkPipeline            m_compPipe    = VK_NULL_HANDLE;
 
         // Per frames-in-flight; blur uses two sets (H then V) within one frame.
-        std::array<VkDescriptorSet, k_frames> m_extractSets{};
-        std::array<VkDescriptorSet, k_frames> m_blurHSets{};
-        std::array<VkDescriptorSet, k_frames> m_blurVSets{};
-        std::array<VkDescriptorSet, k_frames> m_compSets{};
+        std::array<VkDescriptorSet, g_kFrames> m_extractSets{};
+        std::array<VkDescriptorSet, g_kFrames> m_blurHSets{};
+        std::array<VkDescriptorSet, g_kFrames> m_blurVSets{};
+        std::array<VkDescriptorSet, g_kFrames> m_compSets{};
 
         VkExtent2D m_half{};
     };

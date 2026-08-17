@@ -6,7 +6,7 @@ namespace Tomos
     class TTime
     {
     public:
-        static constexpr float k_defaultFixedDt = 1.0f / 60.0f;
+        static constexpr float g_kDefaultFixedDt = 1.0f / 60.0f;
 
         void tick();
 
@@ -29,7 +29,7 @@ namespace Tomos
         bool  m_hasLast     = false;
         float m_lastTime    = 0.0f;
         float m_dt          = 0.0f;
-        float m_fixedDt     = k_defaultFixedDt;
+        float m_fixedDt     = g_kDefaultFixedDt;
         float m_elapsed     = 0.0f;
         float m_realElapsed = 0.0f;
         float m_startTime   = 0.0f;

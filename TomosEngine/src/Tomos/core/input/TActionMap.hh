@@ -25,7 +25,7 @@ namespace Tomos
     public:
         using BlockFn = TInput::BlockFn;
 
-        void                    setActiveContext( TInputContext p_context );
+        void                        setActiveContext( TInputContext p_context );
         [[nodiscard]] TInputContext activeContext() const { return m_active; }
 
         void clear();
@@ -62,11 +62,11 @@ namespace Tomos
             TInputContext m_context{ TInputContext::Gameplay };
         };
 
-        [[nodiscard]] bool bindingActive( const TBinding& p_binding ) const;
-        [[nodiscard]] bool bindingDigitalDown( const TBinding& p_binding, GLFWwindow* p_window, const BlockFn& p_block ) const;
+        [[nodiscard]] bool  bindingActive( const TBinding& p_binding ) const;
+        [[nodiscard]] bool  bindingDigitalDown( const TBinding& p_binding, GLFWwindow* p_window, const BlockFn& p_block ) const;
         [[nodiscard]] float bindingContribution( const TBinding& p_binding, GLFWwindow* p_window, const BlockFn& p_block ) const;
 
-        TInputContext                                     m_active{ TInputContext::Gameplay };
+        TInputContext                                          m_active{ TInputContext::Gameplay };
         std::unordered_map<std::string, std::vector<TBinding>> m_actions;
     };
 }  // namespace Tomos

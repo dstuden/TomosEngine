@@ -15,13 +15,13 @@ namespace Tomos
 
     void TParticleSystem::componentCreated( TSceneNode& p_node, TComponent& p_component )
     {
-        auto& emitter          = static_cast<TParticleEmitterComponent&>( p_component );
+        auto& emitter          = dynamic_cast<TParticleEmitterComponent&>( p_component );
         m_emitters[ &emitter ] = &p_node;
     }
 
     void TParticleSystem::componentDestroyed( TSceneNode& /*p_node*/, TComponent& p_component )
     {
-        m_emitters.erase( &static_cast<TParticleEmitterComponent&>( p_component ) );
+        m_emitters.erase( &dynamic_cast<TParticleEmitterComponent&>( p_component ) );
     }
 
     void TParticleSystem::syncTextureSlots()
@@ -66,7 +66,7 @@ namespace Tomos
             m_freeSlots.pop_back();
             m_textures[ idx ] = p_texture;
         }
-        else if ( m_textures.size() < k_maxParticleTextures )
+        else if ( m_textures.size() < g_kMaxParticleTextures )
         {
             idx = static_cast<uint32_t>( m_textures.size() );
             m_textures.push_back( p_texture );
@@ -75,7 +75,7 @@ namespace Tomos
         {
             if ( !m_overflowWarned )
             {
-                TLOG_WARN() << "[TParticleSystem] Particle texture slots full (" << k_maxParticleTextures << ") — falling back to default sampler";
+                TLOG_WARN() << "[TParticleSystem] Particle texture slots full (" << g_kMaxParticleTextures << ") — falling back to default sampler";
                 m_overflowWarned = true;
             }
             return 0;
@@ -99,7 +99,7 @@ namespace Tomos
         bool truncatedEmitters = false;
         for ( const auto& [ emitter, node ] : m_emitters )
         {
-            if ( p_state.m_emitters.size() >= k_maxEmitters )
+            if ( p_state.m_emitters.size() >= g_kMaxEmitters )
             {
                 truncatedEmitters = true;
                 break;
@@ -128,7 +128,7 @@ namespace Tomos
             p_state.m_emitters.push_back( data );
         }
 
-        if ( truncatedEmitters ) TLOG_WARN() << "[TParticleSystem] Emitter cap reached (" << k_maxEmitters << ") — dropping remaining emitters";
+        if ( truncatedEmitters ) TLOG_WARN() << "[TParticleSystem] Emitter cap reached (" << g_kMaxEmitters << ") — dropping remaining emitters";
 
         p_state.m_particleTextures = m_textures;
     }

@@ -10,7 +10,7 @@
 
 namespace Tomos
 {
-    inline constexpr uint32_t k_maxBonesPerSkin = 128;
+    inline constexpr uint32_t g_kMaxBonesPerSkin = 128;
 
     enum class TAnimPath : uint8_t
     {

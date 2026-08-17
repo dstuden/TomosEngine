@@ -36,7 +36,7 @@ namespace Tomos
         TParticleSimUBO sim{};
         sim.m_dt           = p_state.m_particleDt;
         sim.m_emitterCount = static_cast<uint32_t>( p_state.m_emitters.size() );
-        sim.m_maxParticles = k_maxParticles;
+        sim.m_maxParticles = g_kMaxParticles;
         sim.m_frameIndex   = m_particleFrameCounter++;
         frame.m_particleSimUBO.upload( &sim, 0, sizeof( sim ) );
 
@@ -51,16 +51,16 @@ namespace Tomos
         VkUtil::imageBarrier( p_cmd, m_shadowMaps.handle(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
                               VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_ACCESS_2_NONE,
                               VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
-                              VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, k_maxShadowMaps );
+                              VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, g_kMaxShadowMaps );
 
         VkViewport viewport{};
-        viewport.width    = static_cast<float>( k_shadowMapSize );
-        viewport.height   = static_cast<float>( k_shadowMapSize );
+        viewport.width    = static_cast<float>( g_kShadowMapSize );
+        viewport.height   = static_cast<float>( g_kShadowMapSize );
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
 
         VkRect2D scissor{};
-        scissor.extent = { k_shadowMapSize, k_shadowMapSize };
+        scissor.extent = { g_kShadowMapSize, g_kShadowMapSize };
 
         auto drawCasters = [ & ]( const glm::mat4& p_lightVP )
         {
@@ -106,7 +106,7 @@ namespace Tomos
 
         auto renderLayer = [ & ]( int32_t p_layer, const glm::mat4& p_lightVP )
         {
-            if ( p_layer < 0 || p_layer >= static_cast<int32_t>( k_maxShadowMaps ) ) return;
+            if ( p_layer < 0 || p_layer >= static_cast<int32_t>( g_kMaxShadowMaps ) ) return;
 
             VkRenderingAttachmentInfo depthAtt{};
             depthAtt.sType                   = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -118,7 +118,7 @@ namespace Tomos
 
             VkRenderingInfo rendering{};
             rendering.sType             = VK_STRUCTURE_TYPE_RENDERING_INFO;
-            rendering.renderArea.extent = { k_shadowMapSize, k_shadowMapSize };
+            rendering.renderArea.extent = { g_kShadowMapSize, g_kShadowMapSize };
             rendering.layerCount        = 1;
             rendering.pDepthAttachment  = &depthAtt;
 
@@ -135,7 +135,7 @@ namespace Tomos
 
             if ( light.m_type == 0 )  // point — six cubemap faces into consecutive layers
             {
-                for ( uint32_t face = 0; face < k_pointShadowFaces; ++face )
+                for ( uint32_t face = 0; face < g_kPointShadowFaces; ++face )
                 {
                     const glm::mat4 faceVP = pointShadowFaceVP( light.m_position, light.m_maxRange, face );
                     renderLayer( light.m_shadowMap + static_cast<int32_t>( face ), faceVP );
@@ -150,14 +150,14 @@ namespace Tomos
         VkUtil::imageBarrier( p_cmd, m_shadowMaps.handle(), VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                               VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
                               VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
-                              VK_IMAGE_ASPECT_DEPTH_BIT, k_maxShadowMaps );
+                              VK_IMAGE_ASPECT_DEPTH_BIT, g_kMaxShadowMaps );
     }
 
     void TVkClusteredRenderer::recordClusterCull( VkCommandBuffer p_cmd, const TFrameResources& p_frame )
     {
         vkCmdBindPipeline( p_cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_cullPipeline );
         vkCmdBindDescriptorSets( p_cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_cullPipeLayout, 0, 1, &p_frame.m_cullSet, 0, nullptr );
-        vkCmdDispatch( p_cmd, ( k_clusterCount + 63 ) / 64, 1, 1 );
+        vkCmdDispatch( p_cmd, ( g_kClusterCount + 63 ) / 64, 1, 1 );
 
         VkUtil::memoryBarrier( p_cmd, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
                                VK_ACCESS_2_SHADER_STORAGE_READ_BIT );
@@ -225,7 +225,7 @@ namespace Tomos
             const bool skinned =
                     p_dc.m_mesh->isSkinned() && p_dc.m_mesh->m_joints && p_dc.m_mesh->m_weights && p_state.m_instances[ p_dc.m_instanceOffset ].m_boneCount > 0;
 
-            const size_t techIdx = static_cast<size_t>( p_dc.m_material->technique() );
+            const auto techIdx = static_cast<size_t>( p_dc.m_material->technique() );
             if ( techIdx >= m_meshTechniques.size() ) return;
             const VkPipeline pipe = m_meshTechniques[ techIdx ].pick( p_blend, skinned );
             if ( pipe == VK_NULL_HANDLE ) return;
@@ -280,13 +280,13 @@ namespace Tomos
             blendDraws.push_back( &dc );
         }
 
-        const glm::vec3 camPos = glm::vec3( p_state.m_viewInv[ 3 ] );
+        const glm::vec3 camPos       = glm::vec3( p_state.m_viewInv[ 3 ] );
         auto            blendSortKey = [ & ]( const TDrawCall* p_dc ) -> float
         {
             const TInstanceData& inst = p_state.m_instances[ p_dc->m_instanceOffset ];
             if ( p_dc->m_mesh != nullptr && p_dc->m_mesh->m_aabb.valid() )
             {
-                const TAABB     worldAabb = p_dc->m_mesh->m_aabb.transformed( inst.m_transform );
+                const TAABB     worldAabb    = p_dc->m_mesh->m_aabb.transformed( inst.m_transform );
                 const glm::vec3 corners[ 8 ] = {
                         { worldAabb.m_min.x, worldAabb.m_min.y, worldAabb.m_min.z }, { worldAabb.m_max.x, worldAabb.m_min.y, worldAabb.m_min.z },
                         { worldAabb.m_min.x, worldAabb.m_max.y, worldAabb.m_min.z }, { worldAabb.m_max.x, worldAabb.m_max.y, worldAabb.m_min.z },
@@ -394,15 +394,15 @@ namespace Tomos
         vkCmdBindPipeline( p_cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_particleSimPipeline );
         vkCmdBindDescriptorSets( p_cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_particleSimPipeLayout, 0, 1, &p_frame.m_particleSimSet, 0, nullptr );
 
-        auto dispatchPhase = [ & ]( uint32_t phase, uint32_t groupCount )
+        auto dispatchPhase = [ & ]( uint32_t p_phase, uint32_t p_groupCount )
         {
-            vkCmdPushConstants( p_cmd, m_particleSimPipeLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( uint32_t ), &phase );
-            vkCmdDispatch( p_cmd, groupCount, 1, 1 );
+            vkCmdPushConstants( p_cmd, m_particleSimPipeLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof( uint32_t ), &p_phase );
+            vkCmdDispatch( p_cmd, p_groupCount, 1, 1 );
             VkUtil::memoryBarrier( p_cmd, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                                    VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT );
         };
 
-        dispatchPhase( 0, ( k_maxParticles + 63 ) / 64 );
+        dispatchPhase( 0, ( g_kMaxParticles + 63 ) / 64 );
 
         if ( p_emitterCount > 0 ) dispatchPhase( 1, ( p_emitterCount + 63 ) / 64 );
 
@@ -463,7 +463,7 @@ namespace Tomos
         vkCmdBindPipeline( p_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_particlePipeline );
         vkCmdBindDescriptorSets( p_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_particleDrawPipeLayout, 0, 1, &p_frame.m_particleDrawSet, 0, nullptr );
 
-        constexpr VkDeviceSize k_indirectOffset = offsetof( TParticleCounters, m_vertexCount );
+        constexpr VkDeviceSize kIndirectOffset = offsetof( TParticleCounters, m_vertexCount );
 
         const size_t texCount = std::max<size_t>( 1, p_state.m_particleTextures.size() );
         for ( size_t i = 0; i < texCount; ++i )
@@ -472,10 +472,10 @@ namespace Tomos
             const VkDescriptorSet texSet = spriteTextureSet( tex );
             vkCmdBindDescriptorSets( p_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_particleDrawPipeLayout, 1, 1, &texSet, 0, nullptr );
 
-            const uint32_t texIndex = static_cast<uint32_t>( i );
+            const auto texIndex = static_cast<uint32_t>( i );
             vkCmdPushConstants( p_cmd, m_particleDrawPipeLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof( uint32_t ), &texIndex );
 
-            vkCmdDrawIndirect( p_cmd, m_particleCounters.handle(), k_indirectOffset, 1, sizeof( uint32_t ) * 4 );
+            vkCmdDrawIndirect( p_cmd, m_particleCounters.handle(), kIndirectOffset, 1, sizeof( uint32_t ) * 4 );
         }
 
         vkCmdEndRendering( p_cmd );

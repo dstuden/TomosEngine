@@ -64,8 +64,9 @@ namespace Tomos
         {
             static_assert( std::is_base_of_v<TComponent, T>, "T must derive from TComponent" );
             if ( m_ecs != nullptr ) m_ecs->destroyComponent( *this, *p_component );
-            m_components.erase( std::remove_if( m_components.begin(), m_components.end(), [ p_component ]( const auto& c ) { return c.get() == p_component; } ),
-                                m_components.end() );
+            m_components.erase(
+                    std::remove_if( m_components.begin(), m_components.end(), [ p_component ]( const auto& p_c ) { return p_c.get() == p_component; } ),
+                    m_components.end() );
         }
 
         template<typename T>

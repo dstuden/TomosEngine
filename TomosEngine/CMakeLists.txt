@@ -163,6 +163,8 @@ add_library(${PROJECT_NAME} STATIC
 	# Asset system
 	src/Tomos/systems/asset/TAssetHandles.hh
 	src/Tomos/systems/asset/TAssetSystem.hh
+	src/Tomos/systems/asset/TAssetLoadQueue.hh
+	src/Tomos/systems/asset/TAssetLoadQueue.cc
 	src/Tomos/core/ecs/TECS.hh
 	src/Tomos/core/ecs/TECS.cc
 	src/Tomos/core/scene/TSceneNode.hh

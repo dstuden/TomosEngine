@@ -1,5 +1,6 @@
 #include "Tomos/core/app/TApplication.hh"
 
+#include <ranges>
 #include <stdexcept>
 
 #include "Tomos/core/events/TEvent.hh"
@@ -11,13 +12,13 @@
 
 namespace Tomos
 {
-    TApplication* TApplication::s_instance = nullptr;
+    TApplication* TApplication::g_sInstance = nullptr;
 
     TApplication::TApplication( const TWindowProps& p_props, const std::string& p_configPath )
     {
-        if ( s_instance != nullptr ) throw std::runtime_error( "[TApplication] Only one application instance is allowed" );
+        if ( g_sInstance != nullptr ) throw std::runtime_error( "[TApplication] Only one application instance is allowed" );
 
-        s_instance = this;
+        g_sInstance = this;
 
         TPath::init( p_configPath );
         const std::string resolvedConfig = TPath::resolveString( p_configPath );
@@ -27,17 +28,18 @@ namespace Tomos
         // A saved tomos.json wins on subsequent launches.
         if ( !m_configManager.loadedFromFile() )
         {
-            cfg.windowTitle  = p_props.m_title;
-            cfg.windowWidth  = p_props.m_width;
-            cfg.windowHeight = p_props.m_height;
-            cfg.vsync        = p_props.m_vsync;
+            cfg.m_windowTitle  = p_props.m_title;
+            cfg.m_windowWidth  = p_props.m_width;
+            cfg.m_windowHeight = p_props.m_height;
+            cfg.m_vsync        = p_props.m_vsync;
         }
 
-        const TWindowProps winProps{ static_cast<const std::string&>( cfg.windowTitle ), cfg.windowWidth, cfg.windowHeight, cfg.vsync, p_props.m_aspectRatio };
+        const TWindowProps winProps{ static_cast<const std::string&>( cfg.m_windowTitle ), cfg.m_windowWidth, cfg.m_windowHeight, cfg.m_vsync,
+                                     p_props.m_aspectRatio };
 
         m_window = std::make_unique<TWindow>( winProps );
         m_window->setEventCallback( [ this ]( TEvent& p_event ) { onEvent( p_event ); } );
-        if ( cfg.fullscreen )
+        if ( cfg.m_fullscreen )
         {
             m_window->setFullscreen( true );
             m_window->flushPendingFullscreen();  // apply before initGpu / first frame
@@ -48,19 +50,22 @@ namespace Tomos
     {
         // Detach layers before clearing assets — onDetach/deactivate still
         // borrow mesh/material/clip pointers. clear() calls onDetach.
+        m_assetLoadQueue.shutdown();
         if ( m_gpu ) m_gpu->waitIdle();
         m_layerStack.clear();
         m_assetSystem.clear();
         // Bag TVkImages (and node graph) must die before vkDestroyDevice —
         // m_sceneManager outlives m_gpu in member order.
         m_sceneManager.shutdown();
+        m_assetLoadQueue.setGpu( nullptr );
         m_gpu.reset();
-        s_instance = nullptr;
+        g_sInstance = nullptr;
     }
 
     void TApplication::initGpu( bool p_validation )
     {
         m_gpu = std::make_unique<TVkGpu>( m_window->getNativeWindow(), p_validation );
+        m_assetLoadQueue.setGpu( m_gpu.get() );
 #ifdef TOMOS_DEBUG
         m_shaderHotReload.init();
 #endif
@@ -84,6 +89,8 @@ namespace Tomos
             if ( m_window->flushPendingFullscreen() && m_gpu ) m_gpu->noteSurfaceResized();
 
             m_sceneManager.switchPoint();
+
+            m_assetLoadQueue.tick( &m_sceneManager.scene() );
 
             for ( auto& layer : m_layerStack ) layer->onUpdate( dt );
 
@@ -110,13 +117,13 @@ namespace Tomos
     void TApplication::onEvent( TEvent& p_event )
     {
         TEventDispatcher dispatcher( p_event );
-        dispatcher.dispatch<TWindowCloseEvent>( [ this ]( TWindowCloseEvent& e ) { return onWindowClose( e ); } );
-        dispatcher.dispatch<TWindowResizeEvent>( [ this ]( TWindowResizeEvent& e ) { return onWindowResize( e ); } );
+        dispatcher.dispatch<TWindowCloseEvent>( [ this ]( TWindowCloseEvent& p_e ) { return onWindowClose( p_e ); } );
+        dispatcher.dispatch<TWindowResizeEvent>( [ this ]( TWindowResizeEvent& p_e ) { return onWindowResize( p_e ); } );
 
-        for ( auto it = m_layerStack.rbegin(); it != m_layerStack.rend(); ++it )
+        for ( auto& it : std::views::reverse( m_layerStack ) )
         {
             if ( p_event.isHandled() ) break;
-            ( *it )->onEvent( p_event );
+            it->onEvent( p_event );
         }
     }
 

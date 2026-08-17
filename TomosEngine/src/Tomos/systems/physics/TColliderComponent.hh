@@ -39,8 +39,8 @@ namespace Tomos
         bool m_isTrigger = false;
         bool m_enabled   = true;
 
-        uint32_t m_layer = TPhysicsLayer::Default;
-        uint32_t m_mask  = TPhysicsLayer::All;
+        uint32_t m_layer = TPhysicsLayer::g_default;
+        uint32_t m_mask  = TPhysicsLayer::g_all;
 
         TOverlapCallback m_onOverlap;
 

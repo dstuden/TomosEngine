@@ -107,9 +107,9 @@ namespace Tomos
             if ( !any )
             {
                 const glm::vec3 c( p_node.worldMatrix()[ 3 ] );
-                constexpr float k_half = 0.25f;
-                box.m_min              = c - glm::vec3( k_half );
-                box.m_max              = c + glm::vec3( k_half );
+                constexpr float kHalf = 0.25f;
+                box.m_min             = c - glm::vec3( kHalf );
+                box.m_max             = c + glm::vec3( kHalf );
             }
             p_out.emplace_back( &p_node, box );
             for ( const auto& child : p_node.getChildren() )
@@ -177,9 +177,9 @@ namespace Tomos
                     if ( !any )
                     {
                         const glm::vec3 c( node->worldMatrix()[ 3 ] );
-                        constexpr float k_half = 0.25f;
-                        box.m_min              = c - glm::vec3( k_half );
-                        box.m_max              = c + glm::vec3( k_half );
+                        constexpr float kHalf = 0.25f;
+                        box.m_min             = c - glm::vec3( kHalf );
+                        box.m_max             = c + glm::vec3( kHalf );
                     }
                     TDebugDraw::aabb( p_dl, p_state.m_viewProj, pos, size, box, IM_COL32( 0, 220, 255, 220 ), 2.0f );
                 }
@@ -192,15 +192,15 @@ namespace Tomos
             if ( p_ctx.m_overlayColliders )
             {
                 phys->forEachCollider(
-                        [ & ]( const TPhysicsSystem::TColliderDebug& c )
+                        [ & ]( const TPhysicsSystem::TColliderDebug& p_c )
                         {
-                            if ( c.m_node == nullptr || c.m_collider == nullptr ) return;
+                            if ( p_c.m_node == nullptr || p_c.m_collider == nullptr ) return;
                             glm::vec3 mn, mx;
-                            if ( !TPhysicsSystem::colliderWorldAabb( *c.m_node, *c.m_collider, mn, mx ) ) return;
+                            if ( !TPhysicsSystem::colliderWorldAabb( *p_c.m_node, *p_c.m_collider, mn, mx ) ) return;
                             TAABB box;
                             box.m_min       = mn;
                             box.m_max       = mx;
-                            const ImU32 col = c.m_collider->m_isTrigger ? IM_COL32( 255, 200, 40, 180 ) : IM_COL32( 80, 220, 80, 160 );
+                            const ImU32 col = p_c.m_collider->m_isTrigger ? IM_COL32( 255, 200, 40, 180 ) : IM_COL32( 80, 220, 80, 160 );
                             TDebugDraw::aabb( p_dl, p_state.m_viewProj, pos, size, box, col, 1.2f );
                         } );
             }
@@ -208,12 +208,12 @@ namespace Tomos
             if ( p_ctx.m_overlayVelocity )
             {
                 phys->forEachBody(
-                        [ & ]( const TPhysicsSystem::TBodyDebug& b )
+                        [ & ]( const TPhysicsSystem::TBodyDebug& p_b )
                         {
-                            if ( b.m_node == nullptr || b.m_body == nullptr ) return;
-                            if ( !b.m_body->isDynamic() ) return;
-                            const glm::vec3 origin( b.m_node->worldMatrix()[ 3 ] );
-                            const glm::vec3 tip = origin + b.m_body->m_linearVelocity * 0.25f;
+                            if ( p_b.m_node == nullptr || p_b.m_body == nullptr ) return;
+                            if ( !p_b.m_body->isDynamic() ) return;
+                            const glm::vec3 origin( p_b.m_node->worldMatrix()[ 3 ] );
+                            const glm::vec3 tip = origin + p_b.m_body->m_linearVelocity * 0.25f;
                             TDebugDraw::line( p_dl, p_state.m_viewProj, pos, size, origin, tip, IM_COL32( 255, 80, 80, 220 ), 2.0f );
                         } );
             }

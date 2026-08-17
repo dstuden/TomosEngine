@@ -7,6 +7,7 @@
 #include <imgui_internal.h>
 
 #include "Tomos/core/app/TApplication.hh"
+#include "Tomos/core/scene/TSceneSerializer.hh"
 #include "Tomos/gpu/vulkan/TVkGpu.hh"
 #include "Tomos/ui/TImGuiBackend.hh"
 #include "Tomos/ui/editor/TAssetBrowserPanel.hh"
@@ -16,7 +17,6 @@
 #include "Tomos/ui/editor/TSceneHierarchyPanel.hh"
 #include "Tomos/ui/editor/TSceneInspectorPanel.hh"
 #include "Tomos/ui/editor/TSceneViewportPanel.hh"
-#include "Tomos/core/scene/TSceneSerializer.hh"
 
 namespace Tomos
 {
@@ -89,7 +89,7 @@ namespace Tomos
             return;
         }
         m_ctx.clearSelection();
-        if ( TSceneSerializer::loadFromFile( *m_ctx.m_scene, app.assetSystem(), *gpu, m_ctx.m_scenePath ) )
+        if ( TSceneSerializer::loadFromFile( *m_ctx.m_scene, app.assetSystem(), *gpu, app.assetLoadQueue(), m_ctx.m_scenePath ) )
         {
             m_ctx.m_status = "Loaded " + m_ctx.m_scenePath;
             if ( m_ctx.m_afterLoad ) m_ctx.m_afterLoad();

@@ -11,11 +11,12 @@
 #include "Tomos/core/scene/TSceneNode.hh"
 #include "Tomos/gpu/vulkan/TVkGpu.hh"
 #include "Tomos/systems/asset/TAssetSystem.hh"
+#include "Tomos/systems/asset/TAssetLoadQueue.hh"
 #include "Tomos/systems/audio/TAudioComponent.hh"
+#include "Tomos/systems/audio/TAudioSystem.hh"
 #include "Tomos/systems/mesh/TMeshComponent.hh"
 #include "Tomos/systems/particle/TParticleEmitterComponent.hh"
 #include "Tomos/systems/sprite/TSpriteComponent.hh"
-#include "Tomos/systems/asset/TGltfLoader.hh"
 #include "Tomos/util/logger/TLogger.hh"
 #include "Tomos/util/path/TPath.hh"
 
@@ -36,8 +37,8 @@ namespace Tomos
             if ( p_s.size() < p_suffix.size() ) return false;
             for ( size_t i = 0; i < p_suffix.size(); ++i )
             {
-                const unsigned char a = static_cast<unsigned char>( p_s[ p_s.size() - p_suffix.size() + i ] );
-                const unsigned char b = static_cast<unsigned char>( p_suffix[ i ] );
+                const auto a = static_cast<unsigned char>( p_s[ p_s.size() - p_suffix.size() + i ] );
+                const auto b = static_cast<unsigned char>( p_suffix[ i ] );
                 if ( std::tolower( a ) != std::tolower( b ) ) return false;
             }
             return true;
@@ -95,50 +96,59 @@ namespace Tomos
         bool applyMeshPath( TSceneEditorContext& p_ctx, TSceneNode& p_node, const std::string& p_path )
         {
             auto& app = TApplication::get();
-            auto* gpu = app.gpu();
-            if ( gpu == nullptr ) return false;
+            if ( app.gpu() == nullptr ) return false;
 
             TGpuAsset* asset = app.assetSystem().findByPath( p_path );
             if ( asset == nullptr ) asset = app.assetSystem().maybeGetAsset( p_path );
-            if ( asset == nullptr )
+
+            const std::string stem = std::filesystem::path( p_path ).stem().string();
+            TMeshAssetRef     ref{ stem, 0, 0 };
+
+            if ( asset != nullptr && !asset->m_meshes.empty() )
             {
-                auto result = TGltfLoader::load( p_path, *gpu );
-                if ( result.m_asset == nullptr )
+                ref.m_assetName            = asset->m_name;
+                const TVkMesh*     mesh    = asset->mesh( 0 );
+                const TVkMaterial* mat     = asset->m_materials.empty() ? nullptr : asset->material( 0 );
+                const auto         gen     = app.assetSystem().generation();
+                if ( auto* existing = p_node.findComponent<TMeshComponent>() )
                 {
-                    TLOG_ERROR() << "[TAssetBrowser] Failed to load mesh: " << p_path;
-                    p_ctx.m_status = "Load failed: " + p_path;
-                    return false;
+                    existing->m_ref             = ref;
+                    existing->m_boundGeneration = gen;
+                    existing->m_mesh            = mesh;
+                    existing->m_material        = mat;
                 }
-                if ( result.m_asset->m_name.empty() ) result.m_asset->m_name = std::filesystem::path( p_path ).stem().string();
-                result.m_asset->m_sourcePath = p_path;
-                result.m_asset->m_id         = TAssetSystem::makeStableId( p_path );
-                asset                       = result.m_asset.get();
-                app.assetSystem().registerAsset( std::move( result.m_asset ) );
+                else
+                {
+                    p_node.addComponent( std::make_shared<TMeshComponent>( ref, mesh, mat, gen ) );
+                }
+                p_ctx.m_status = "Assigned mesh from " + asset->m_name;
+                return true;
             }
 
-            if ( asset->m_meshes.empty() )
-            {
-                p_ctx.m_status = "Asset has no meshes: " + asset->m_name;
-                return false;
-            }
-
-            const TVkMesh*     mesh = asset->mesh( 0 );
-            const TVkMaterial* mat  = asset->m_materials.empty() ? nullptr : asset->material( 0 );
-            TMeshAssetRef      ref{ asset->m_name, 0, 0 };
-            const auto         gen = TApplication::get().assetSystem().generation();
-
+            // Async: bind ref now (null mesh); rebind when upload finishes.
+            const TAssetLoadHandle handle = app.assetLoadQueue().requestLoad( p_path, stem );
             if ( auto* existing = p_node.findComponent<TMeshComponent>() )
             {
                 existing->m_ref             = ref;
-                existing->m_boundGeneration = gen;
-                existing->m_mesh            = mesh;
-                existing->m_material        = mat;
+                existing->m_boundGeneration = 0;
+                existing->m_mesh            = nullptr;
+                existing->m_material        = nullptr;
             }
             else
             {
-                p_node.addComponent( std::make_shared<TMeshComponent>( ref, mesh, mat, gen ) );
+                p_node.addComponent( std::make_shared<TMeshComponent>( ref, nullptr, nullptr, 0 ) );
             }
-            p_ctx.m_status = "Assigned mesh from " + asset->m_name;
+
+            app.assetLoadQueue().onComplete( handle,
+                                             [ status = &p_ctx.m_status, path = p_path, handle ]( TAssetLoadStatus p_st )
+                                             {
+                                                 if ( p_st == TAssetLoadStatus::Ready )
+                                                     *status = "Loaded mesh: " + path;
+                                                 else
+                                                     *status = "Load failed: " + path;
+                                                 ( void ) handle;
+                                             } );
+            p_ctx.m_status = "Loading mesh: " + p_path;
             return true;
         }
 
@@ -171,8 +181,9 @@ namespace Tomos
 
         bool applyAudio( TSceneEditorContext& p_ctx, TSceneNode& p_node, const std::string& p_path )
         {
-            if ( p_ctx.m_bag == nullptr ) return false;
+            if ( p_ctx.m_bag == nullptr || p_ctx.m_scene == nullptr ) return false;
             TAudioClip* clip = p_ctx.m_bag->getOrCreateClip( p_path );
+            p_ctx.m_scene->ecs().getSystem<TAudioSystem>().preload( clip );
             if ( auto* existing = p_node.findComponent<TAudioComponent>() )
                 existing->m_clip = clip;
             else
@@ -215,11 +226,11 @@ namespace Tomos
             const char*      tag  = kind == TAssetKind::Mesh ? "[mesh]" : kind == TAssetKind::Audio ? "[audio]" : "[tex]";
             ImGui::Selectable( ( std::string( tag ) + "  " + p_path ).c_str() );
             if ( kind == TAssetKind::Mesh )
-                beginDrag( TAssetBrowserPanel::k_payloadMesh, p_path, p_path.c_str() );
+                beginDrag( TAssetBrowserPanel::g_kPayloadMesh, p_path, p_path.c_str() );
             else if ( kind == TAssetKind::Audio )
-                beginDrag( TAssetBrowserPanel::k_payloadAudio, p_path, p_path.c_str() );
+                beginDrag( TAssetBrowserPanel::g_kPayloadAudio, p_path, p_path.c_str() );
             else if ( kind == TAssetKind::Texture )
-                beginDrag( TAssetBrowserPanel::k_payloadTexture, p_path, p_path.c_str() );
+                beginDrag( TAssetBrowserPanel::g_kPayloadTexture, p_path, p_path.c_str() );
         }
     }  // namespace
 
@@ -228,10 +239,10 @@ namespace Tomos
         if ( p_payload.Data == nullptr || p_payload.DataSize < 1 ) return false;
         const std::string data( static_cast<const char*>( p_payload.Data ) );
 
-        if ( p_payload.IsDataType( k_payloadMesh ) ) return applyMeshPath( p_ctx, p_node, data );
-        if ( p_payload.IsDataType( k_payloadGpuAsset ) ) return applyGpuAsset( p_ctx, p_node, data );
-        if ( p_payload.IsDataType( k_payloadAudio ) ) return applyAudio( p_ctx, p_node, data );
-        if ( p_payload.IsDataType( k_payloadTexture ) ) return applyTexture( p_ctx, p_node, data );
+        if ( p_payload.IsDataType( g_kPayloadMesh ) ) return applyMeshPath( p_ctx, p_node, data );
+        if ( p_payload.IsDataType( g_kPayloadGpuAsset ) ) return applyGpuAsset( p_ctx, p_node, data );
+        if ( p_payload.IsDataType( g_kPayloadAudio ) ) return applyAudio( p_ctx, p_node, data );
+        if ( p_payload.IsDataType( g_kPayloadTexture ) ) return applyTexture( p_ctx, p_node, data );
         return false;
     }
 
@@ -244,15 +255,15 @@ namespace Tomos
         ImGui::InputTextWithHint( "##assetFilter", "Filter…", filterBuf, sizeof( filterBuf ) );
         const std::string filter = filterBuf;
 
-        auto matches = [ & ]( const std::string& s )
+        auto matches = [ & ]( const std::string& p_s )
         {
             if ( filter.empty() ) return true;
-            auto lower = []( std::string v )
+            auto lower = []( std::string p_v )
             {
-                for ( char& c : v ) c = static_cast<char>( std::tolower( static_cast<unsigned char>( c ) ) );
-                return v;
+                for ( char& c : p_v ) c = static_cast<char>( std::tolower( static_cast<unsigned char>( c ) ) );
+                return p_v;
             };
-            return lower( s ).find( lower( filter ) ) != std::string::npos;
+            return lower( p_s ).find( lower( filter ) ) != std::string::npos;
         };
 
         if ( ImGui::CollapsingHeader( "Loaded (GPU)", ImGuiTreeNodeFlags_DefaultOpen ) )
@@ -266,13 +277,13 @@ namespace Tomos
                 for ( const auto& name : names )
                 {
                     if ( !matches( name ) ) continue;
-                    TGpuAsset* asset = TApplication::get().assetSystem().maybeGetAsset( name );
-                    const char* hint = ( asset != nullptr && !asset->m_sourcePath.empty() ) ? asset->m_sourcePath.c_str() : name.c_str();
+                    TGpuAsset*  asset = TApplication::get().assetSystem().maybeGetAsset( name );
+                    const char* hint  = ( asset != nullptr && !asset->m_sourcePath.empty() ) ? asset->m_sourcePath.c_str() : name.c_str();
                     ImGui::Selectable( ( std::string( "[gpu]  " ) + name ).c_str() );
                     if ( ImGui::IsItemHovered() && asset != nullptr )
                         ImGui::SetTooltip( "%s\n%zu meshes, %zu materials, %zu clips", hint, asset->m_meshes.size(), asset->m_materials.size(),
                                            asset->m_clips.size() );
-                    beginDrag( k_payloadGpuAsset, name, name.c_str() );
+                    beginDrag( g_kPayloadGpuAsset, name, name.c_str() );
                 }
             }
         }

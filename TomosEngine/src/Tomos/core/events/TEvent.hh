@@ -63,7 +63,7 @@ namespace Tomos
         explicit TEventDispatcher( TEvent& p_event ) : m_event( p_event ) {}
 
         template<typename T>
-        bool dispatch( TEventFn<T> p_func )
+        bool dispatch( const TEventFn<T>& p_func )
         {
             if ( m_event.getEventType() == T::getStaticType() )
             {

@@ -57,18 +57,18 @@ namespace Tomos
             VkDescriptorSet m_particleDrawSet = VK_NULL_HANDLE;
         };
 
-        void createDepth();
-        void createHdr();
-        void createSceneColor();
-        void createShadowResources();
-        void createParticleResources();
-        void createLayouts();
-        void createFrameResources();
-        void createPipelineLayouts();
-        void createGraphicsPipelines();
-        void destroyGraphicsPipelines();
-        void createPipelines();
-        void initPostStack();
+        void                       createDepth();
+        void                       createHdr();
+        void                       createSceneColor();
+        void                       createShadowResources();
+        void                       createParticleResources();
+        void                       createLayouts();
+        void                       createFrameResources();
+        void                       createPipelineLayouts();
+        void                       createGraphicsPipelines();
+        void                       destroyGraphicsPipelines();
+        void                       createPipelines();
+        void                       initPostStack();
         [[nodiscard]] TPostContext makePostContext();
 
         void recordShadowPasses( VkCommandBuffer p_cmd, const TFrameState& p_state, const TFrameResources& p_frame );
@@ -93,8 +93,8 @@ namespace Tomos
         TVkImage m_sceneColor;
         uint32_t m_sceneColorGeneration = 0;
 
-        TVkImage                                 m_shadowMaps;
-        std::array<VkImageView, k_maxShadowMaps> m_shadowLayerViews{};
+        TVkImage                                  m_shadowMaps;
+        std::array<VkImageView, g_kMaxShadowMaps> m_shadowLayerViews{};
 
         TVkBuffer m_particleBuf;
         TVkBuffer m_freeListBuf;
@@ -117,9 +117,9 @@ namespace Tomos
         VkPipelineLayout m_particleSimPipeLayout  = VK_NULL_HANDLE;
         VkPipelineLayout m_particleDrawPipeLayout = VK_NULL_HANDLE;
 
-        VkPipeline m_shadowPipeline        = VK_NULL_HANDLE;
-        VkPipeline m_skinnedShadowPipeline = VK_NULL_HANDLE;
-        VkPipeline m_cullPipeline          = VK_NULL_HANDLE;
+        VkPipeline                                                                          m_shadowPipeline        = VK_NULL_HANDLE;
+        VkPipeline                                                                          m_skinnedShadowPipeline = VK_NULL_HANDLE;
+        VkPipeline                                                                          m_cullPipeline          = VK_NULL_HANDLE;
         std::array<TMeshTechniquePipelines, static_cast<size_t>( TMeshTechniqueId::Count )> m_meshTechniques{};
         VkPipeline                                                                          m_spritePipeline      = VK_NULL_HANDLE;
         VkPipeline                                                                          m_particleSimPipeline = VK_NULL_HANDLE;

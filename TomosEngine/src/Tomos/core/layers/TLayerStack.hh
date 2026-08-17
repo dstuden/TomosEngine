@@ -24,7 +24,7 @@ namespace Tomos
 
         [[nodiscard]] std::unique_ptr<TLayer> popLayer( TLayer* p_layer );
 
-        [[nodiscard]] std::unique_ptr<TLayer> popOverlay( TLayer* p_layer );
+        [[nodiscard]] std::unique_ptr<TLayer> popOverlay( TLayer* p_overlay );
 
         // Call while GPU is still alive.
         void clear();

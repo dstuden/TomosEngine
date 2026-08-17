@@ -2,6 +2,7 @@
 
 #include <glm/glm.hpp>
 #include <memory>
+#include <string>
 #include <unordered_map>
 
 #include "Tomos/systems/TSystem.hh"
@@ -10,6 +11,7 @@
 namespace Tomos
 {
     class TSceneNode;
+    class TAudioClip;
 
     // Call updateListener() after lateUpdate (active camera).
     class TAudioSystem : public TTypedSystem<TAudioComponent>
@@ -26,6 +28,10 @@ namespace Tomos
 
         void lateUpdate( float p_dt ) override;
 
+        // Decode once into a shared cache (path-keyed). Safe to call repeatedly.
+        bool preload( const TAudioClip* p_clip );
+        bool preloadPath( const std::string& p_path );
+
         // Forward = view direction (local −Z).
         void updateListener( const glm::vec3& p_position, const glm::vec3& p_forward, const glm::vec3& p_up );
 
@@ -36,13 +42,16 @@ namespace Tomos
 
     private:
         struct TVoice;
+        struct TCachedClip;
 
         void destroyVoice( TAudioComponent* p_comp );
         bool ensureVoice( TAudioComponent* p_comp );
         void syncVoiceParams( TAudioComponent* p_comp, TSceneNode* p_node );
+        void clearClipCache();
 
         std::unordered_map<TAudioComponent*, TSceneNode*>             m_emitters;
         std::unordered_map<TAudioComponent*, std::unique_ptr<TVoice>> m_voices;
+        std::unordered_map<std::string, std::unique_ptr<TCachedClip>> m_clipCache;
 
         void* m_engine       = nullptr;
         bool  m_ready        = false;

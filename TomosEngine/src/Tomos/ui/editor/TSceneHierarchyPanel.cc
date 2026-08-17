@@ -32,16 +32,16 @@ namespace Tomos
             uint64_t               m_duplicateId   = 0;
             uint64_t               m_deleteId      = 0;
 
-            static constexpr uint64_t k_sceneRoot = ~uint64_t{ 0 };
+            static constexpr uint64_t g_kSceneRoot = ~uint64_t{ 0 };
         };
 
         bool nameMatchesFilter( const std::string& p_name, const std::string& p_filter )
         {
             if ( p_filter.empty() ) return true;
-            auto lower = []( std::string s )
+            auto lower = []( std::string p_s )
             {
-                for ( char& c : s ) c = static_cast<char>( std::tolower( static_cast<unsigned char>( c ) ) );
-                return s;
+                for ( char& c : p_s ) c = static_cast<char>( std::tolower( static_cast<unsigned char>( c ) ) );
+                return p_s;
             };
             return lower( p_name ).find( lower( p_filter ) ) != std::string::npos;
         }
@@ -116,29 +116,29 @@ namespace Tomos
             }
         }
 
-        void drawNode( TSceneEditorContext& ctx, const std::shared_ptr<TSceneNode>& node, TPendingOps& ops, const std::string& filter )
+        void drawNode( TSceneEditorContext& p_ctx, const std::shared_ptr<TSceneNode>& p_node, TPendingOps& p_ops, const std::string& p_filter )
         {
-            if ( !subtreeMatches( *node, filter ) ) return;
+            if ( !subtreeMatches( *p_node, p_filter ) ) return;
 
             ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
-            if ( node->m_id == ctx.m_selectedId ) flags |= ImGuiTreeNodeFlags_Selected;
+            if ( p_node->m_id == p_ctx.m_selectedId ) flags |= ImGuiTreeNodeFlags_Selected;
 
-            const bool isLeaf = node->getChildren().empty();
+            const bool isLeaf = p_node->getChildren().empty();
             if ( isLeaf ) flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
 
-            const std::string badges = componentBadges( *node );
-            const std::string label  = badges.empty() ? node->m_name : ( node->m_name + "  [" + badges + "]" );
+            const std::string badges = componentBadges( *p_node );
+            const std::string label  = badges.empty() ? p_node->m_name : ( p_node->m_name + "  [" + badges + "]" );
 
-            const bool open        = ImGui::TreeNodeEx( reinterpret_cast<void*>( static_cast<uintptr_t>( node->m_id ) ), flags, "%s", label.c_str() );
+            const bool open        = ImGui::TreeNodeEx( reinterpret_cast<void*>( static_cast<uintptr_t>( p_node->m_id ) ), flags, "%s", label.c_str() );
             const bool needTreePop = open && !isLeaf;
 
-            if ( ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen() ) ctx.select( node->m_id );
+            if ( ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen() ) p_ctx.select( p_node->m_id );
 
             if ( ImGui::BeginDragDropSource() )
             {
-                const uint64_t id = node->m_id;
+                const uint64_t id = p_node->m_id;
                 ImGui::SetDragDropPayload( "TOMOS_NODE", &id, sizeof( id ) );
-                ImGui::Text( "%s", node->m_name.c_str() );
+                ImGui::Text( "%s", p_node->m_name.c_str() );
                 ImGui::EndDragDropSource();
             }
 
@@ -147,43 +147,43 @@ namespace Tomos
                 if ( const ImGuiPayload* payload = ImGui::AcceptDragDropPayload( "TOMOS_NODE" ) )
                 {
                     const uint64_t draggedId = *static_cast<const uint64_t*>( payload->Data );
-                    if ( draggedId != node->m_id ) ops.m_reparents.push_back( { draggedId, node->m_id } );
+                    if ( draggedId != p_node->m_id ) p_ops.m_reparents.push_back( { draggedId, p_node->m_id } );
                 }
-                if ( const ImGuiPayload* payload = ImGui::AcceptDragDropPayload( TAssetBrowserPanel::k_payloadMesh ) )
-                    TAssetBrowserPanel::applyDrop( ctx, *node, *payload );
-                if ( const ImGuiPayload* payload = ImGui::AcceptDragDropPayload( TAssetBrowserPanel::k_payloadGpuAsset ) )
-                    TAssetBrowserPanel::applyDrop( ctx, *node, *payload );
-                if ( const ImGuiPayload* payload = ImGui::AcceptDragDropPayload( TAssetBrowserPanel::k_payloadAudio ) )
-                    TAssetBrowserPanel::applyDrop( ctx, *node, *payload );
-                if ( const ImGuiPayload* payload = ImGui::AcceptDragDropPayload( TAssetBrowserPanel::k_payloadTexture ) )
-                    TAssetBrowserPanel::applyDrop( ctx, *node, *payload );
+                if ( const ImGuiPayload* payload = ImGui::AcceptDragDropPayload( TAssetBrowserPanel::g_kPayloadMesh ) )
+                    TAssetBrowserPanel::applyDrop( p_ctx, *p_node, *payload );
+                if ( const ImGuiPayload* payload = ImGui::AcceptDragDropPayload( TAssetBrowserPanel::g_kPayloadGpuAsset ) )
+                    TAssetBrowserPanel::applyDrop( p_ctx, *p_node, *payload );
+                if ( const ImGuiPayload* payload = ImGui::AcceptDragDropPayload( TAssetBrowserPanel::g_kPayloadAudio ) )
+                    TAssetBrowserPanel::applyDrop( p_ctx, *p_node, *payload );
+                if ( const ImGuiPayload* payload = ImGui::AcceptDragDropPayload( TAssetBrowserPanel::g_kPayloadTexture ) )
+                    TAssetBrowserPanel::applyDrop( p_ctx, *p_node, *payload );
                 ImGui::EndDragDropTarget();
             }
 
             if ( ImGui::BeginPopupContextItem() )
             {
-                ctx.select( node->m_id );
-                if ( ImGui::MenuItem( "Add Child" ) ) ops.m_addChildUnder = node->m_id;
-                if ( ImGui::MenuItem( "Duplicate" ) ) ops.m_duplicateId = node->m_id;
-                if ( ImGui::MenuItem( "Delete" ) ) ops.m_deleteId = node->m_id;
+                p_ctx.select( p_node->m_id );
+                if ( ImGui::MenuItem( "Add Child" ) ) p_ops.m_addChildUnder = p_node->m_id;
+                if ( ImGui::MenuItem( "Duplicate" ) ) p_ops.m_duplicateId = p_node->m_id;
+                if ( ImGui::MenuItem( "Delete" ) ) p_ops.m_deleteId = p_node->m_id;
                 ImGui::EndPopup();
             }
 
             if ( needTreePop )
             {
-                const std::vector<std::shared_ptr<TSceneNode>> children = node->getChildren();
-                for ( const auto& child : children ) drawNode( ctx, child, ops, filter );
+                const std::vector<std::shared_ptr<TSceneNode>> children = p_node->getChildren();
+                for ( const auto& child : children ) drawNode( p_ctx, child, p_ops, p_filter );
                 ImGui::TreePop();
             }
         }
 
-        void applyPending( TSceneEditorContext& ctx, TPendingOps& ops )
+        void applyPending( TSceneEditorContext& p_ctx, TPendingOps& p_ops )
         {
-            if ( ctx.m_scene == nullptr ) return;
+            if ( p_ctx.m_scene == nullptr ) return;
 
-            for ( const auto& op : ops.m_reparents )
+            for ( const auto& op : p_ops.m_reparents )
             {
-                auto dragged = ctx.m_scene->findSharedById( op.m_nodeId );
+                auto dragged = p_ctx.m_scene->findSharedById( op.m_nodeId );
                 if ( !dragged ) continue;
 
                 if ( op.m_parentId == 0 )
@@ -191,61 +191,61 @@ namespace Tomos
                     if ( auto old = dragged->getParent() )
                         old->removeChild( dragged.get() );
                     else
-                        ctx.m_scene->removeChild( dragged.get() );
-                    ctx.m_scene->addChild( dragged );
+                        p_ctx.m_scene->removeChild( dragged.get() );
+                    p_ctx.m_scene->addChild( dragged );
                 }
                 else
                 {
-                    auto parent = ctx.m_scene->findSharedById( op.m_parentId );
+                    auto parent = p_ctx.m_scene->findSharedById( op.m_parentId );
                     if ( parent ) dragged->reparent( parent );
                 }
             }
 
-            if ( ops.m_addChildUnder != 0 )
+            if ( p_ops.m_addChildUnder != 0 )
             {
                 auto child = std::make_shared<TSceneNode>( "New Node" );
-                if ( ops.m_addChildUnder == TPendingOps::k_sceneRoot )
+                if ( p_ops.m_addChildUnder == TPendingOps::g_kSceneRoot )
                 {
-                    ctx.m_scene->addChild( child );
+                    p_ctx.m_scene->addChild( child );
                 }
-                else if ( auto parent = ctx.m_scene->findSharedById( ops.m_addChildUnder ) )
+                else if ( auto parent = p_ctx.m_scene->findSharedById( p_ops.m_addChildUnder ) )
                 {
                     parent->addChild( child );
                 }
-                ctx.select( child->m_id );
+                p_ctx.select( child->m_id );
             }
 
-            if ( ops.m_duplicateId != 0 )
+            if ( p_ops.m_duplicateId != 0 )
             {
-                if ( auto src = ctx.m_scene->findSharedById( ops.m_duplicateId ) )
+                if ( auto src = p_ctx.m_scene->findSharedById( p_ops.m_duplicateId ) )
                 {
                     auto dup       = std::make_shared<TSceneNode>( src->m_name + " Copy" );
                     dup->m_dynamic = src->m_dynamic;
                     dup->m_transform.setLocalTRS( src->m_transform.translation(), src->m_transform.rotation(), src->m_transform.scale() );
-                    if ( ctx.m_bag != nullptr )
+                    if ( p_ctx.m_bag != nullptr )
                     {
                         std::unordered_map<uint64_t, std::shared_ptr<TSceneNode>> srcToDst;
                         std::vector<TPendingSkinnedJoints>                        pendingSkinned;
-                        deepDuplicate( *ctx.m_bag, *src, dup, srcToDst, pendingSkinned );
+                        deepDuplicate( *p_ctx.m_bag, *src, dup, srcToDst, pendingSkinned );
                         TComponentRegistry::wireSkinnedJoints( pendingSkinned, srcToDst );
                     }
                     if ( auto parent = src->getParent() )
                         parent->addChild( dup );
                     else
-                        ctx.m_scene->addChild( dup );
-                    ctx.select( dup->m_id );
+                        p_ctx.m_scene->addChild( dup );
+                    p_ctx.select( dup->m_id );
                 }
             }
 
-            if ( ops.m_deleteId != 0 )
+            if ( p_ops.m_deleteId != 0 )
             {
-                if ( auto node = ctx.m_scene->findSharedById( ops.m_deleteId ) )
+                if ( auto node = p_ctx.m_scene->findSharedById( p_ops.m_deleteId ) )
                 {
                     if ( auto parent = node->getParent() )
                         parent->removeChild( node.get() );
                     else
-                        ctx.m_scene->removeChild( node.get() );
-                    if ( ctx.m_selectedId == ops.m_deleteId ) ctx.clearSelection();
+                        p_ctx.m_scene->removeChild( node.get() );
+                    if ( p_ctx.m_selectedId == p_ops.m_deleteId ) p_ctx.clearSelection();
                 }
             }
         }
@@ -268,7 +268,7 @@ namespace Tomos
 
         TPendingOps ops;
 
-        if ( ImGui::Button( "Add Root Node" ) ) ops.m_addChildUnder = TPendingOps::k_sceneRoot;
+        if ( ImGui::Button( "Add Root Node" ) ) ops.m_addChildUnder = TPendingOps::g_kSceneRoot;
 
         ImGui::Separator();
 

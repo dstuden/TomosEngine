@@ -17,7 +17,7 @@ namespace Tomos
         void onRender() override;
         void onEvent( TEvent& p_event ) override;
 
-        [[nodiscard]] TScene& scene();
+        [[nodiscard]] static TScene& scene();
 
         template<typename T>
         [[nodiscard]] T& system()

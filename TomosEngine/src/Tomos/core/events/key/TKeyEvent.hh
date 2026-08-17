@@ -7,8 +7,8 @@ namespace Tomos
     class TKeyEvent : public TEvent
     {
     public:
-        inline int getKeyCode() const { return m_keyCode; }
-        int        getCategoryFlags() const override;
+        [[nodiscard]] inline int getKeyCode() const { return m_keyCode; }
+        [[nodiscard]] int        getCategoryFlags() const override;
 
     protected:
         explicit TKeyEvent( int p_keyCode ) : m_keyCode( p_keyCode ) {}
@@ -21,12 +21,12 @@ namespace Tomos
     public:
         TKeyPressedEvent( int p_keyCode, int p_repeatCount ) : TKeyEvent( p_keyCode ), m_repeatCount( p_repeatCount ) {}
 
-        inline int getRepeatCount() const { return m_repeatCount; }
+        [[nodiscard]] inline int getRepeatCount() const { return m_repeatCount; }
 
-        TEventType        getEventType() const override { return TEventType::KEY_PRESSED; }
-        static TEventType getStaticType() { return TEventType::KEY_PRESSED; }
-        const char*       getName() const override { return "TKeyPressedEvent"; }
-        std::string       toString() const override;
+        [[nodiscard]] TEventType  getEventType() const override { return TEventType::KEY_PRESSED; }
+        static TEventType         getStaticType() { return TEventType::KEY_PRESSED; }
+        [[nodiscard]] const char* getName() const override { return "TKeyPressedEvent"; }
+        [[nodiscard]] std::string toString() const override;
 
     protected:
         int m_repeatCount;
@@ -37,10 +37,10 @@ namespace Tomos
     public:
         explicit TKeyReleasedEvent( int p_keyCode ) : TKeyEvent( p_keyCode ) {}
 
-        TEventType        getEventType() const override { return TEventType::KEY_RELEASED; }
-        static TEventType getStaticType() { return TEventType::KEY_RELEASED; }
-        const char*       getName() const override { return "TKeyReleasedEvent"; }
-        std::string       toString() const override;
+        [[nodiscard]] TEventType  getEventType() const override { return TEventType::KEY_RELEASED; }
+        static TEventType         getStaticType() { return TEventType::KEY_RELEASED; }
+        [[nodiscard]] const char* getName() const override { return "TKeyReleasedEvent"; }
+        [[nodiscard]] std::string toString() const override;
     };
 
 }  // namespace Tomos

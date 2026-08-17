@@ -1,6 +1,7 @@
 #include "Tomos/core/layers/TLayerStack.hh"
 
 #include <algorithm>
+#include <ranges>
 
 namespace Tomos
 {
@@ -19,7 +20,7 @@ namespace Tomos
 
     std::unique_ptr<TLayer> TLayerStack::popLayer( TLayer* p_layer )
     {
-        auto it = std::find_if( m_layers.begin(), m_layers.begin() + m_layerInsertIdx, [ p_layer ]( const auto& l ) { return l.get() == p_layer; } );
+        auto it = std::find_if( m_layers.begin(), m_layers.begin() + m_layerInsertIdx, [ p_layer ]( const auto& p_l ) { return p_l.get() == p_layer; } );
 
         if ( it == m_layers.begin() + m_layerInsertIdx ) return nullptr;
 
@@ -32,7 +33,7 @@ namespace Tomos
 
     std::unique_ptr<TLayer> TLayerStack::popOverlay( TLayer* p_overlay )
     {
-        auto it = std::find_if( m_layers.begin() + m_layerInsertIdx, m_layers.end(), [ p_overlay ]( const auto& l ) { return l.get() == p_overlay; } );
+        auto it = std::find_if( m_layers.begin() + m_layerInsertIdx, m_layers.end(), [ p_overlay ]( const auto& p_l ) { return p_l.get() == p_overlay; } );
 
         if ( it == m_layers.end() ) return nullptr;
 
@@ -44,7 +45,7 @@ namespace Tomos
 
     void TLayerStack::clear()
     {
-        for ( auto it = m_layers.rbegin(); it != m_layers.rend(); ++it ) ( *it )->onDetach();
+        for ( auto& m_layer : std::views::reverse( m_layers ) ) m_layer->onDetach();
         m_layers.clear();
         m_layerInsertIdx = 0;
     }

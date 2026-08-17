@@ -12,13 +12,13 @@ namespace Tomos
 {
     void TCameraSystem::componentCreated( TSceneNode& p_node, TComponent& p_component )
     {
-        auto& cc         = static_cast<TCameraComponent&>( p_component );
+        auto& cc         = dynamic_cast<TCameraComponent&>( p_component );
         m_cameras[ &cc ] = &p_node;
     }
 
     void TCameraSystem::componentDestroyed( TSceneNode& /*p_node*/, TComponent& p_component )
     {
-        auto& cc = static_cast<TCameraComponent&>( p_component );
+        auto& cc = dynamic_cast<TCameraComponent&>( p_component );
         m_cameras.erase( &cc );
         if ( m_active == &cc )
         {

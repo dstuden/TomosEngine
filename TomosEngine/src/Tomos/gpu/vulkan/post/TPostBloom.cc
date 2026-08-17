@@ -52,18 +52,18 @@ namespace Tomos
         li2.pBindings    = b2;
         vkCreateDescriptorSetLayout( m_device, &li2, nullptr, &m_samp2Layout );
 
-        auto makeLay = [ & ]( VkDescriptorSetLayout setLay, uint32_t pcSize, VkPipelineLayout* out )
+        auto makeLay = [ & ]( VkDescriptorSetLayout p_setLay, uint32_t p_pcSize, VkPipelineLayout* p_out )
         {
             VkPushConstantRange pc{};
             pc.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-            pc.size       = pcSize;
+            pc.size       = p_pcSize;
             VkPipelineLayoutCreateInfo pl{};
             pl.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
             pl.setLayoutCount         = 1;
-            pl.pSetLayouts            = &setLay;
-            pl.pushConstantRangeCount = pcSize ? 1u : 0u;
-            pl.pPushConstantRanges    = pcSize ? &pc : nullptr;
-            vkCreatePipelineLayout( m_device, &pl, nullptr, out );
+            pl.pSetLayouts            = &p_setLay;
+            pl.pushConstantRangeCount = p_pcSize ? 1u : 0u;
+            pl.pPushConstantRanges    = p_pcSize ? &pc : nullptr;
+            vkCreatePipelineLayout( m_device, &pl, nullptr, p_out );
         };
 
         makeLay( m_samp1Layout, sizeof( TExtractPC ), &m_extractLay );
@@ -74,7 +74,7 @@ namespace Tomos
         m_blurPipe    = PostUtil::createFullscreenPipeline( m_device, m_blurLay, "bloom_blur.frag.spv", hdrFmt );
         m_compPipe    = PostUtil::createFullscreenPipeline( m_device, m_compLay, "bloom_composite.frag.spv", hdrFmt );
 
-        for ( uint32_t i = 0; i < k_frames; ++i )
+        for ( uint32_t i = 0; i < g_kFrames; ++i )
         {
             m_extractSets[ i ] = PostUtil::allocSet( m_device, p_ctx.m_gpu->descPool(), m_samp1Layout );
             m_blurHSets[ i ]   = PostUtil::allocSet( m_device, p_ctx.m_gpu->descPool(), m_samp1Layout );
@@ -111,17 +111,18 @@ namespace Tomos
 
     void TPostBloom::record( VkCommandBuffer p_cmd, TPostContext& p_ctx )
     {
-        const uint32_t   fi   = p_ctx.m_frameIndex % k_frames;
+        const uint32_t   fi   = p_ctx.m_frameIndex % g_kFrames;
         const VkExtent2D half = m_half;
 
-        auto barrierToColor = [ & ]( TVkImage& img )
+        auto barrierToColor = [ & ]( TVkImage& p_img )
         {
-            VkUtil::imageBarrier( p_cmd, img.handle(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-                                  VK_ACCESS_2_NONE, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT );
+            VkUtil::imageBarrier( p_cmd, p_img.handle(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                                  VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_ACCESS_2_NONE, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                  VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT );
         };
-        auto barrierToSample = [ & ]( TVkImage& img )
+        auto barrierToSample = [ & ]( TVkImage& p_img )
         {
-            VkUtil::imageBarrier( p_cmd, img.handle(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            VkUtil::imageBarrier( p_cmd, p_img.handle(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
                                   VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT );
         };
@@ -138,20 +139,20 @@ namespace Tomos
         vkCmdEndRendering( p_cmd );
         barrierToSample( m_brightA );
 
-        auto blurPass = [ & ]( TVkImage& src, TVkImage& dst, VkDescriptorSet set, float horizontal )
+        auto blurPass = [ & ]( TVkImage& p_src, TVkImage& p_dst, VkDescriptorSet p_set, float p_horizontal )
         {
-            barrierToColor( dst );
-            PostUtil::writeCombinedImage( m_device, set, 0, src );
+            barrierToColor( p_dst );
+            PostUtil::writeCombinedImage( m_device, p_set, 0, p_src );
             TBlurPC bpc{};
             bpc.m_texelSize  = { 1.0f / static_cast<float>( half.width ), 1.0f / static_cast<float>( half.height ) };
-            bpc.m_horizontal = horizontal;
-            PostUtil::beginColorPass( p_cmd, dst.view(), half );
+            bpc.m_horizontal = p_horizontal;
+            PostUtil::beginColorPass( p_cmd, p_dst.view(), half );
             vkCmdBindPipeline( p_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_blurPipe );
-            vkCmdBindDescriptorSets( p_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_blurLay, 0, 1, &set, 0, nullptr );
+            vkCmdBindDescriptorSets( p_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_blurLay, 0, 1, &p_set, 0, nullptr );
             vkCmdPushConstants( p_cmd, m_blurLay, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof( bpc ), &bpc );
             vkCmdDraw( p_cmd, 3, 1, 0, 0 );
             vkCmdEndRendering( p_cmd );
-            barrierToSample( dst );
+            barrierToSample( p_dst );
         };
         blurPass( m_brightA, m_brightB, m_blurHSets[ fi ], 1.0f );
         blurPass( m_brightB, m_brightA, m_blurVSets[ fi ], 0.0f );

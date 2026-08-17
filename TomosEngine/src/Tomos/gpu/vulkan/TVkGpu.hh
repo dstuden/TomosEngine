@@ -16,7 +16,7 @@ namespace Tomos
 {
     class TVkClusteredRenderer;
 
-    inline constexpr uint32_t k_framesInFlight = 3;
+    inline constexpr uint32_t g_kFramesInFlight = 3;
 
     struct TVkLayouts
     {
@@ -107,6 +107,11 @@ namespace Tomos
 
         void immediateSubmit( const auto& p_fn ) const { VkUtil::immediateSubmit( m_device, m_uploadPool, m_graphicsQueue, p_fn ); }
 
+        // Record many copies into one submit; staging lives until endUploadBatch().
+        // Nested uploadBuffer/uploadImage while a batch is open queue into it.
+        void beginUploadBatch();
+        void endUploadBatch();
+
         void uploadBuffer( TVkBuffer& p_dst, const void* p_data, size_t p_size );
         void uploadImage( TVkImage& p_dst, const void* p_pixels, uint32_t p_width, uint32_t p_height );
 
@@ -154,13 +159,17 @@ namespace Tomos
         VkExtent2D               m_renderExtent{};  // may differ from swap (HDR/post/camera)
         TPresentMode             m_presentMode = TPresentMode::Swapchain;
 
-        std::array<TVkFrameData, k_framesInFlight> m_frames{};
-        uint32_t                                   m_frameIndex = 0;
-        uint32_t                                   m_imageIndex = 0;
-        bool                                       m_frameOpen  = false;
+        std::array<TVkFrameData, g_kFramesInFlight> m_frames{};
+        uint32_t                                    m_frameIndex = 0;
+        uint32_t                                    m_imageIndex = 0;
+        bool                                        m_frameOpen  = false;
 
-        VkCommandPool            m_uploadPool = VK_NULL_HANDLE;
-        VkDescriptorPool         m_descPool   = VK_NULL_HANDLE;
+        VkCommandPool            m_uploadPool  = VK_NULL_HANDLE;
+        VkFence                  m_uploadFence = VK_NULL_HANDLE;
+        VkCommandBuffer          m_batchCmd    = VK_NULL_HANDLE;
+        bool                     m_batchOpen   = false;
+        std::vector<TVkBuffer>   m_batchStaging;
+        VkDescriptorPool         m_descPool = VK_NULL_HANDLE;
         TVkLayouts               m_layouts{};
         std::vector<VkSemaphore> m_renderDoneSems;
 

@@ -14,18 +14,18 @@ namespace Tomos
 {
     void TLightSystem::componentCreated( TSceneNode& p_node, TComponent& p_component )
     {
-        auto& lc        = static_cast<TLightComponent&>( p_component );
+        auto& lc        = dynamic_cast<TLightComponent&>( p_component );
         m_lights[ &lc ] = &p_node;
     }
 
-    void TLightSystem::componentDestroyed( TSceneNode& p_node, TComponent& p_component ) { m_lights.erase( &static_cast<TLightComponent&>( p_component ) ); }
+    void TLightSystem::componentDestroyed( TSceneNode& p_node, TComponent& p_component ) { m_lights.erase( &dynamic_cast<TLightComponent&>( p_component ) ); }
 
     void TLightSystem::populate( TFrameState& p_state ) const
     {
         p_state.m_lights.clear();
 
-        constexpr float k_dirShadowHalfSize = 40.0f;
-        constexpr float k_dirShadowDepth    = 120.0f;
+        constexpr float kDirShadowHalfSize = 40.0f;
+        constexpr float kDirShadowDepth    = 120.0f;
 
         uint32_t nextShadowSlot   = 0;
         bool     truncatedLights  = false;
@@ -33,7 +33,7 @@ namespace Tomos
 
         for ( const auto& [ lc, node ] : m_lights )
         {
-            if ( p_state.m_lights.size() >= k_maxLights )
+            if ( p_state.m_lights.size() >= g_kMaxLights )
             {
                 truncatedLights = true;
                 break;
@@ -59,7 +59,7 @@ namespace Tomos
                     break;
 
                 case TLightType::Directional:
-                    data.m_type = 1;
+                    data.m_type      = 1;
                     data.m_direction = glm::normalize( glm::vec3( world * glm::vec4( 0.0f, 0.0f, -1.0f, 0.0f ) ) );
                     break;
 
@@ -74,8 +74,8 @@ namespace Tomos
             // shadow pass / forward shader (see TPointShadow.hh).
             if ( lc->m_castShadow )
             {
-                const uint32_t slotsNeeded = ( lc->m_type == TLightType::Point ) ? k_pointShadowFaces : 1u;
-                if ( nextShadowSlot + slotsNeeded <= k_maxShadowMaps )
+                const uint32_t slotsNeeded = ( lc->m_type == TLightType::Point ) ? g_kPointShadowFaces : 1u;
+                if ( nextShadowSlot + slotsNeeded <= g_kMaxShadowMaps )
                 {
                     data.m_shadowMap = static_cast<int32_t>( nextShadowSlot );
                     nextShadowSlot += slotsNeeded;
@@ -89,7 +89,7 @@ namespace Tomos
                         glm::mat4 lightProj;
                         if ( lc->m_type == TLightType::Directional )
                         {
-                            lightProj = orthoVk( -k_dirShadowHalfSize, k_dirShadowHalfSize, -k_dirShadowHalfSize, k_dirShadowHalfSize, 0.1f, k_dirShadowDepth );
+                            lightProj = orthoVk( -kDirShadowHalfSize, kDirShadowHalfSize, -kDirShadowHalfSize, kDirShadowHalfSize, 0.1f, kDirShadowDepth );
                         }
                         else  // Spot — perspective frustum matching the outer cone.
                         {
@@ -108,7 +108,7 @@ namespace Tomos
             p_state.m_lights.push_back( data );
         }
 
-        if ( truncatedLights ) TLOG_WARN() << "[TLightSystem] Light cap reached (" << k_maxLights << ") — dropping remaining lights";
-        if ( truncatedShadows ) TLOG_WARN() << "[TLightSystem] Shadow map slots full (" << k_maxShadowMaps << ") — extra casters have no shadow";
+        if ( truncatedLights ) TLOG_WARN() << "[TLightSystem] Light cap reached (" << g_kMaxLights << ") — dropping remaining lights";
+        if ( truncatedShadows ) TLOG_WARN() << "[TLightSystem] Shadow map slots full (" << g_kMaxShadowMaps << ") — extra casters have no shadow";
     }
 }  // namespace Tomos

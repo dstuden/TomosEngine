@@ -6,8 +6,8 @@ namespace Tomos
 {
     TScriptRegistry& TScriptRegistry::get()
     {
-        static TScriptRegistry s_instance;
-        return s_instance;
+        static TScriptRegistry sInstance;
+        return sInstance;
     }
 
     void TScriptRegistry::registerType( const std::string& p_name, Factory p_factory )

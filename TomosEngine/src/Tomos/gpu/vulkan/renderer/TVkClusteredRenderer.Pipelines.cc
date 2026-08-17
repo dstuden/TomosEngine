@@ -13,13 +13,13 @@ namespace Tomos
 {
     void TVkClusteredRenderer::destroyGraphicsPipelines()
     {
-        const VkDevice device = m_gpu.device();
-        auto           destroy = [ & ]( VkPipeline& p )
+        const VkDevice device  = m_gpu.device();
+        auto           destroy = [ & ]( VkPipeline& p_p )
         {
-            if ( p != VK_NULL_HANDLE )
+            if ( p_p != VK_NULL_HANDLE )
             {
-                vkDestroyPipeline( device, p, nullptr );
-                p = VK_NULL_HANDLE;
+                vkDestroyPipeline( device, p_p, nullptr );
+                p_p = VK_NULL_HANDLE;
             }
         };
         destroy( m_shadowPipeline );
@@ -174,38 +174,38 @@ namespace Tomos
         dynamicState.pDynamicStates    = dynStates;
 
         TMeshTechniqueCreateCtx techCtx{};
-        techCtx.device        = device;
-        techCtx.layout        = m_forwardPipeLayout;
-        techCtx.inputAsm      = &inputAsm;
-        techCtx.viewportState = &viewportState;
-        techCtx.multisample   = &multisample;
-        techCtx.dynamicState  = &dynamicState;
+        techCtx.m_device        = device;
+        techCtx.m_layout        = m_forwardPipeLayout;
+        techCtx.m_inputAsm      = &inputAsm;
+        techCtx.m_viewportState = &viewportState;
+        techCtx.m_multisample   = &multisample;
+        techCtx.m_dynamicState  = &dynamicState;
 
         {
-            const std::string staticVert  = VkUtil::resolveShaderPath( "forward.vert.spv" );
-            const std::string skinnedVert = VkUtil::resolveShaderPath( "skinned.vert.spv" );
-            const std::string frag        = VkUtil::resolveShaderPath( "forward.frag.spv" );
+            const std::string        staticVert  = VkUtil::resolveShaderPath( "forward.vert.spv" );
+            const std::string        skinnedVert = VkUtil::resolveShaderPath( "skinned.vert.spv" );
+            const std::string        frag        = VkUtil::resolveShaderPath( "forward.frag.spv" );
             TMeshTechniqueCreateDesc desc{};
-            desc.staticVertSpv  = staticVert.c_str();
-            desc.skinnedVertSpv = skinnedVert.c_str();
-            desc.fragSpv        = frag.c_str();
-            desc.label          = "forward";
-            desc.createOpaque   = true;
-            desc.createBlend    = true;
+            desc.m_staticVertSpv  = staticVert.c_str();
+            desc.m_skinnedVertSpv = skinnedVert.c_str();
+            desc.m_fragSpv        = frag.c_str();
+            desc.m_label          = "forward";
+            desc.m_createOpaque   = true;
+            desc.m_createBlend    = true;
             createMeshTechniquePipelines( techCtx, desc, m_meshTechniques[ static_cast<size_t>( TMeshTechniqueId::Forward ) ] );
         }
 
         {
-            const std::string staticVert  = VkUtil::resolveShaderPath( "water.vert.spv" );
-            const std::string skinnedVert = VkUtil::resolveShaderPath( "skinned.vert.spv" );
-            const std::string frag        = VkUtil::resolveShaderPath( "water.frag.spv" );
+            const std::string        staticVert  = VkUtil::resolveShaderPath( "water.vert.spv" );
+            const std::string        skinnedVert = VkUtil::resolveShaderPath( "skinned.vert.spv" );
+            const std::string        frag        = VkUtil::resolveShaderPath( "water.frag.spv" );
             TMeshTechniqueCreateDesc desc{};
-            desc.staticVertSpv  = staticVert.c_str();
-            desc.skinnedVertSpv = skinnedVert.c_str();
-            desc.fragSpv        = frag.c_str();
-            desc.label          = "water";
-            desc.createOpaque   = false;
-            desc.createBlend    = true;
+            desc.m_staticVertSpv  = staticVert.c_str();
+            desc.m_skinnedVertSpv = skinnedVert.c_str();
+            desc.m_fragSpv        = frag.c_str();
+            desc.m_label          = "water";
+            desc.m_createOpaque   = false;
+            desc.m_createBlend    = true;
             createMeshTechniquePipelines( techCtx, desc, m_meshTechniques[ static_cast<size_t>( TMeshTechniqueId::Water ) ] );
         }
 
@@ -377,11 +377,11 @@ namespace Tomos
             vertexInput.pVertexAttributeDescriptions    = &attr;
 
             VkPipelineRasterizationStateCreateInfo raster{};
-            raster.sType       = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-            raster.polygonMode = VK_POLYGON_MODE_FILL;
-            raster.cullMode    = VK_CULL_MODE_NONE;
-            raster.frontFace   = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-            raster.lineWidth   = 1.0f;
+            raster.sType                   = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+            raster.polygonMode             = VK_POLYGON_MODE_FILL;
+            raster.cullMode                = VK_CULL_MODE_NONE;
+            raster.frontFace               = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+            raster.lineWidth               = 1.0f;
             raster.depthBiasEnable         = VK_TRUE;
             raster.depthBiasConstantFactor = 1.25f;
             raster.depthBiasSlopeFactor    = 1.75f;

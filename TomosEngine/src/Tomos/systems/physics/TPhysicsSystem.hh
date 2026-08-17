@@ -20,13 +20,13 @@ namespace Tomos
     class TPhysicsSystem : public TSystem
     {
     public:
-        static constexpr float k_maxFrame = 0.25f;
-        static constexpr int   k_maxSteps = 8;
+        static constexpr float g_kMaxFrame = 0.25f;
+        static constexpr int   g_kMaxSteps = 8;
         // Below this inbound |vn|, cancel normal instead of bouncing (rest jitter).
-        static constexpr float k_restNormalSpeed = 0.5f;
+        static constexpr float g_kRestNormalSpeed = 0.5f;
 
         glm::vec3 m_gravity{ 0.0f, -9.81f, 0.0f };
-        float m_broadphaseCellSize = 2.0f;
+        float     m_broadphaseCellSize = 2.0f;
 
         using TOverlapListener = std::function<void( TSceneNode& p_a, TSceneNode& p_b, TOverlapPhase p_phase )>;
 
@@ -130,10 +130,10 @@ namespace Tomos
         void finishOverlapFrame( const std::unordered_set<TOverlapKey, TOverlapKeyHash>& p_current );
         void emitOverlap( TColliderComponent& p_a, TSceneNode& p_nodeA, TColliderComponent& p_b, TSceneNode& p_nodeB, TOverlapPhase p_phase );
 
-        [[nodiscard]] TColliderComponent*  colliderOn( TSceneNode* p_node ) const;
-        [[nodiscard]] TRigidBodyComponent* bodyOn( TSceneNode* p_node ) const;
-        [[nodiscard]] bool                 isStaticCollider( const TColliderEntry& p_entry ) const;
-        [[nodiscard]] bool                 isDynamicBody( const TBodyEntry& p_entry ) const;
+        [[nodiscard]] static TColliderComponent*  colliderOn( TSceneNode* p_node );
+        [[nodiscard]] static TRigidBodyComponent* bodyOn( TSceneNode* p_node );
+        [[nodiscard]] bool                        isStaticCollider( const TColliderEntry& p_entry ) const;
+        [[nodiscard]] static bool                 isDynamicBody( const TBodyEntry& p_entry );
 
         static TOverlapKey makeOverlapKey( TColliderComponent* p_a, TColliderComponent* p_b );
         static TWorldPose  worldPose( const TSceneNode& p_node );
@@ -143,17 +143,17 @@ namespace Tomos
         static bool        computeContact( const glm::vec3& p_centerA, const glm::quat& p_rotA, const glm::vec3& p_scaleA, const TColliderComponent& p_colA,
                                            const glm::vec3& p_centerB, const glm::quat& p_rotB, const glm::vec3& p_scaleB, const TColliderComponent& p_colB,
                                            TContact& p_out );
-        static void applyContactImpulse( TRigidBodyComponent& p_body, const glm::vec3& p_normal, float p_restitution );
+        static void        applyContactImpulse( TRigidBodyComponent& p_body, const glm::vec3& p_normal, float p_restitution );
         static void resolveDynamicVsStatic( TBodyEntry& p_dyn, const TColliderComponent& p_dynCol, const glm::vec3& p_dynScale, const glm::quat& p_dynRot,
                                             const TWorldPose& p_staticPose, const TColliderComponent& p_staticCol );
         static void resolveDynamicVsDynamic( TBodyEntry& p_a, const TColliderComponent& p_colA, const glm::vec3& p_scaleA, const glm::quat& p_rotA,
                                              TBodyEntry& p_b, const TColliderComponent& p_colB, const glm::vec3& p_scaleB, const glm::quat& p_rotB );
 
-        std::unordered_map<TRigidBodyComponent*, TBodyEntry>                   m_bodies;
-        std::unordered_map<TColliderComponent*, TColliderEntry>                m_colliders;
-        std::unordered_set<TOverlapKey, TOverlapKeyHash>                       m_activeOverlaps;
-        TOverlapListener                                                       m_overlapListener;
-        const TTime*                                                           m_time = nullptr;
+        std::unordered_map<TRigidBodyComponent*, TBodyEntry>    m_bodies;
+        std::unordered_map<TColliderComponent*, TColliderEntry> m_colliders;
+        std::unordered_set<TOverlapKey, TOverlapKeyHash>        m_activeOverlaps;
+        TOverlapListener                                        m_overlapListener;
+        const TTime*                                            m_time = nullptr;
 
         float m_accumulator           = 0.0f;
         float m_alpha                 = 0.0f;

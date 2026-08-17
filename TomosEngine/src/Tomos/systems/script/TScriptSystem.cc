@@ -6,7 +6,7 @@ namespace Tomos
 {
     void TScriptSystem::componentCreated( TSceneNode& p_node, TComponent& p_component )
     {
-        auto& sc = static_cast<TScriptComponent&>( p_component );
+        auto& sc = dynamic_cast<TScriptComponent&>( p_component );
 
         sc.script().m_node = &p_node;
         sc.script().onAttach();
@@ -16,7 +16,7 @@ namespace Tomos
 
     void TScriptSystem::componentDestroyed( TSceneNode& /*p_node*/, TComponent& p_component )
     {
-        auto& sc = static_cast<TScriptComponent&>( p_component );
+        auto& sc = dynamic_cast<TScriptComponent&>( p_component );
 
         sc.script().onDetach();
         sc.script().m_node = nullptr;

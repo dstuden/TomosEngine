@@ -21,11 +21,11 @@ namespace Tomos
     {
         std::string m_name;
         // Prefer m_id over m_name for persistence (asset-root-relative when known).
-        std::string m_id;
-        std::string m_sourcePath;
-        std::vector<std::unique_ptr<TVkMesh>>     m_meshes;
-        std::vector<std::unique_ptr<TVkMaterial>> m_materials;
-        std::vector<std::unique_ptr<TVkImage>> m_textures;
+        std::string                                  m_id;
+        std::string                                  m_sourcePath;
+        std::vector<std::unique_ptr<TVkMesh>>        m_meshes;
+        std::vector<std::unique_ptr<TVkMaterial>>    m_materials;
+        std::vector<std::unique_ptr<TVkImage>>       m_textures;
         std::vector<std::unique_ptr<TAnimationClip>> m_clips;
 
         [[nodiscard]] const TVkMesh*        mesh( uint32_t p_idx ) const { return m_meshes.at( p_idx ).get(); }
@@ -51,7 +51,7 @@ namespace Tomos
 
             std::filesystem::path abs = TPath::resolve( p_pathOrName );
             std::error_code       ec;
-            const auto            root = TPath::assetRoot();
+            const auto&           root = TPath::assetRoot();
             auto                  rel  = std::filesystem::relative( abs, root, ec );
             std::filesystem::path use  = ( !ec && !rel.empty() && rel.native().find( ".." ) == std::string::npos ) ? rel : abs;
 
@@ -249,8 +249,8 @@ namespace Tomos
             }
         }
 
-        TResourceGeneration                                     m_generation = 1;
+        TResourceGeneration                                         m_generation = 1;
         std::unordered_map<std::string, std::unique_ptr<TGpuAsset>> m_assets;
-        std::unordered_map<std::string, TGpuAsset*> m_byPath;
+        std::unordered_map<std::string, TGpuAsset*>                 m_byPath;
     };
 }  // namespace Tomos

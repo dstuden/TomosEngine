@@ -11,13 +11,13 @@ namespace Tomos
 {
     void TSpriteSystem::componentCreated( TSceneNode& p_node, TComponent& p_component )
     {
-        auto& sc         = static_cast<TSpriteComponent&>( p_component );
+        auto& sc         = dynamic_cast<TSpriteComponent&>( p_component );
         m_sprites[ &sc ] = &p_node;
     }
 
     void TSpriteSystem::componentDestroyed( TSceneNode& /*p_node*/, TComponent& p_component )
     {
-        m_sprites.erase( &static_cast<TSpriteComponent&>( p_component ) );
+        m_sprites.erase( &dynamic_cast<TSpriteComponent&>( p_component ) );
     }
 
     void TSpriteSystem::populate( TFrameState& p_state ) const
@@ -43,7 +43,7 @@ namespace Tomos
         for ( const auto& [ sc, node ] : m_sprites )
         {
             if ( !sc->m_visible || sc->m_color.a <= 0.0f ) continue;
-            if ( entries.size() >= k_maxSprites )
+            if ( entries.size() >= g_kMaxSprites )
             {
                 truncated = true;
                 break;
@@ -57,10 +57,10 @@ namespace Tomos
         // Back-to-front for correct alpha blending.  Equal-depth ties prefer the
         // same texture so consecutive runs still batch into one draw.
         std::sort( entries.begin(), entries.end(),
-                   []( const TEntry& a, const TEntry& b )
+                   []( const TEntry& p_a, const TEntry& p_b )
                    {
-                       if ( a.m_distSq != b.m_distSq ) return a.m_distSq > b.m_distSq;
-                       return a.m_sprite->m_texture < b.m_sprite->m_texture;
+                       if ( p_a.m_distSq != p_b.m_distSq ) return p_a.m_distSq > p_b.m_distSq;
+                       return p_a.m_sprite->m_texture < p_b.m_sprite->m_texture;
                    } );
 
         const TVkImage* currentTex = nullptr;
@@ -85,6 +85,6 @@ namespace Tomos
             ++p_state.m_spriteBatches.back().m_count;
         }
 
-        if ( truncated ) TLOG_WARN() << "[TSpriteSystem] Sprite cap reached (" << k_maxSprites << ") — dropping remaining sprites";
+        if ( truncated ) TLOG_WARN() << "[TSpriteSystem] Sprite cap reached (" << g_kMaxSprites << ") — dropping remaining sprites";
     }
 }  // namespace Tomos

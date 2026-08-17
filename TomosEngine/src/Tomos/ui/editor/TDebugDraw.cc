@@ -30,11 +30,11 @@ namespace Tomos
         bool   ok[ 8 ];
         for ( int i = 0; i < 8; ++i ) ok[ i ] = project( p_viewProj, p_panelPos, p_panelSize, corners[ i ], screen[ i ] );
 
-        static constexpr int k_edges[ 12 ][ 2 ] = {
+        static constexpr int kEdges[ 12 ][ 2 ] = {
                 { 0, 1 }, { 1, 3 }, { 3, 2 }, { 2, 0 }, { 4, 5 }, { 5, 7 }, { 7, 6 }, { 6, 4 }, { 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 },
         };
 
-        for ( const auto& e : k_edges )
+        for ( const auto& e : kEdges )
         {
             if ( !ok[ e[ 0 ] ] || !ok[ e[ 1 ] ] ) continue;
             p_dl->AddLine( screen[ e[ 0 ] ], screen[ e[ 1 ] ], p_col, p_thickness );

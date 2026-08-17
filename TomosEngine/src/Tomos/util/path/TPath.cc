@@ -3,7 +3,7 @@
 #include <vector>
 
 #if defined( __linux__ )
-#include <limits.h>
+#include <climits>
 #include <unistd.h>
 #elif defined( _WIN32 )
 #define WIN32_LEAN_AND_MEAN
@@ -35,8 +35,8 @@ namespace Tomos
 
     std::filesystem::path& TPath::rootStorage()
     {
-        static std::filesystem::path s_root = std::filesystem::current_path();
-        return s_root;
+        static std::filesystem::path sRoot = std::filesystem::current_path();
+        return sRoot;
     }
 
     std::filesystem::path TPath::executableDir()
@@ -50,14 +50,13 @@ namespace Tomos
             return normalizeDir( std::filesystem::path( buf ).parent_path() );
         }
 #elif defined( _WIN32 )
-        char buf[ MAX_PATH ];
+        char  buf[ MAX_PATH ];
         DWORD n = GetModuleFileNameA( nullptr, buf, MAX_PATH );
         if ( n > 0 && n < MAX_PATH ) return normalizeDir( std::filesystem::path( buf ).parent_path() );
 #elif defined( __APPLE__ )
         char     buf[ PATH_MAX ];
         uint32_t size = sizeof( buf );
-        if ( _NSGetExecutablePath( buf, &size ) == 0 )
-            return normalizeDir( std::filesystem::path( buf ).parent_path() );
+        if ( _NSGetExecutablePath( buf, &size ) == 0 ) return normalizeDir( std::filesystem::path( buf ).parent_path() );
 #endif
         return normalizeDir( std::filesystem::current_path() );
     }

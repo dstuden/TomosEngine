@@ -17,14 +17,13 @@ namespace Tomos
             p_att.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
             p_att.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
             p_att.alphaBlendOp        = VK_BLEND_OP_ADD;
-            p_att.colorWriteMask =
-                    VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+            p_att.colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
         }
 
-        void createVariant( const TMeshTechniqueCreateCtx& p_ctx, const char* p_vertPath, const char* p_fragPath, bool p_skinned,
-                            bool p_blend, bool p_depthWrite, const char* p_label, VkPipeline& p_out )
+        void createVariant( const TMeshTechniqueCreateCtx& p_ctx, const char* p_vertPath, const char* p_fragPath, bool p_skinned, bool p_blend,
+                            bool p_depthWrite, const char* p_label, VkPipeline& p_out )
         {
-            const VkDevice device = p_ctx.device;
+            const VkDevice device = p_ctx.m_device;
 
             const VkShaderModule vertMod = VkUtil::loadSpv( device, p_vertPath );
             const VkShaderModule fragMod = VkUtil::loadSpv( device, p_fragPath );
@@ -53,8 +52,8 @@ namespace Tomos
             };
 
             const VkVertexInputBindingDescription skinnedBindings[] = {
-                    { 0, sizeof( float ) * 3, VK_VERTEX_INPUT_RATE_VERTEX },      { 1, sizeof( float ) * 2, VK_VERTEX_INPUT_RATE_VERTEX },
-                    { 2, sizeof( float ) * 3, VK_VERTEX_INPUT_RATE_VERTEX },      { 3, sizeof( float ) * 4, VK_VERTEX_INPUT_RATE_VERTEX },
+                    { 0, sizeof( float ) * 3, VK_VERTEX_INPUT_RATE_VERTEX },    { 1, sizeof( float ) * 2, VK_VERTEX_INPUT_RATE_VERTEX },
+                    { 2, sizeof( float ) * 3, VK_VERTEX_INPUT_RATE_VERTEX },    { 3, sizeof( float ) * 4, VK_VERTEX_INPUT_RATE_VERTEX },
                     { 4, sizeof( uint32_t ) * 4, VK_VERTEX_INPUT_RATE_VERTEX }, { 5, sizeof( float ) * 4, VK_VERTEX_INPUT_RATE_VERTEX },
             };
             const VkVertexInputAttributeDescription skinnedAttrs[] = {
@@ -94,8 +93,7 @@ namespace Tomos
             depthStencil.depthCompareOp   = VK_COMPARE_OP_LESS;
 
             VkPipelineColorBlendAttachmentState blendAtt{};
-            blendAtt.colorWriteMask =
-                    VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+            blendAtt.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
             if ( p_blend ) applyAlphaBlend( blendAtt );
 
             VkPipelineColorBlendStateCreateInfo blend{};
@@ -116,14 +114,14 @@ namespace Tomos
             pi.stageCount          = 2;
             pi.pStages             = stages;
             pi.pVertexInputState   = &vertexInput;
-            pi.pInputAssemblyState = p_ctx.inputAsm;
-            pi.pViewportState      = p_ctx.viewportState;
+            pi.pInputAssemblyState = p_ctx.m_inputAsm;
+            pi.pViewportState      = p_ctx.m_viewportState;
             pi.pRasterizationState = &raster;
-            pi.pMultisampleState   = p_ctx.multisample;
+            pi.pMultisampleState   = p_ctx.m_multisample;
             pi.pDepthStencilState  = &depthStencil;
             pi.pColorBlendState    = &blend;
-            pi.pDynamicState       = p_ctx.dynamicState;
-            pi.layout              = p_ctx.layout;
+            pi.pDynamicState       = p_ctx.m_dynamicState;
+            pi.layout              = p_ctx.m_layout;
 
             if ( vkCreateGraphicsPipelines( device, VK_NULL_HANDLE, 1, &pi, nullptr, &p_out ) != VK_SUCCESS )
                 throw std::runtime_error( std::string( "[TMeshTechnique] Failed to create " ) + p_label + " pipeline" );
@@ -133,18 +131,17 @@ namespace Tomos
         }
     }  // namespace
 
-    void createMeshTechniquePipelines( const TMeshTechniqueCreateCtx& p_ctx, const TMeshTechniqueCreateDesc& p_desc,
-                                       TMeshTechniquePipelines& p_out )
+    void createMeshTechniquePipelines( const TMeshTechniqueCreateCtx& p_ctx, const TMeshTechniqueCreateDesc& p_desc, TMeshTechniquePipelines& p_out )
     {
-        if ( p_desc.createOpaque )
+        if ( p_desc.m_createOpaque )
         {
-            createVariant( p_ctx, p_desc.staticVertSpv, p_desc.fragSpv, false, false, true, p_desc.label, p_out.opaque );
-            createVariant( p_ctx, p_desc.skinnedVertSpv, p_desc.fragSpv, true, false, true, p_desc.label, p_out.skinnedOpaque );
+            createVariant( p_ctx, p_desc.m_staticVertSpv, p_desc.m_fragSpv, false, false, true, p_desc.m_label, p_out.m_opaque );
+            createVariant( p_ctx, p_desc.m_skinnedVertSpv, p_desc.m_fragSpv, true, false, true, p_desc.m_label, p_out.m_skinnedOpaque );
         }
-        if ( p_desc.createBlend )
+        if ( p_desc.m_createBlend )
         {
-            createVariant( p_ctx, p_desc.staticVertSpv, p_desc.fragSpv, false, true, false, p_desc.label, p_out.blend );
-            createVariant( p_ctx, p_desc.skinnedVertSpv, p_desc.fragSpv, true, true, false, p_desc.label, p_out.skinnedBlend );
+            createVariant( p_ctx, p_desc.m_staticVertSpv, p_desc.m_fragSpv, false, true, false, p_desc.m_label, p_out.m_blend );
+            createVariant( p_ctx, p_desc.m_skinnedVertSpv, p_desc.m_fragSpv, true, true, false, p_desc.m_label, p_out.m_skinnedBlend );
         }
     }
 }  // namespace Tomos

@@ -15,9 +15,9 @@ namespace Tomos
         // Lower-bound index of the key at or before p_time; returns [i0, i1, t].
         struct TSampleKeys
         {
-            size_t i0 = 0;
-            size_t i1 = 0;
-            float  t  = 0.0f;
+            size_t m_i0 = 0;
+            size_t m_i1 = 0;
+            float  m_t  = 0.0f;
         };
 
         TSampleKeys sampleKeys( const std::vector<float>& p_times, float p_time )
@@ -26,21 +26,21 @@ namespace Tomos
             if ( p_times.empty() ) return out;
             if ( p_times.size() == 1 || p_time <= p_times.front() )
             {
-                out.i0 = out.i1 = 0;
+                out.m_i0 = out.m_i1 = 0;
                 return out;
             }
             if ( p_time >= p_times.back() )
             {
-                out.i0 = out.i1 = p_times.size() - 1;
+                out.m_i0 = out.m_i1 = p_times.size() - 1;
                 return out;
             }
 
             const auto it  = std::upper_bound( p_times.begin(), p_times.end(), p_time );
-            out.i1         = static_cast<size_t>( it - p_times.begin() );
-            out.i0         = out.i1 - 1;
-            const float t0 = p_times[ out.i0 ];
-            const float t1 = p_times[ out.i1 ];
-            out.t          = ( t1 > t0 ) ? ( p_time - t0 ) / ( t1 - t0 ) : 0.0f;
+            out.m_i1       = static_cast<size_t>( it - p_times.begin() );
+            out.m_i0       = out.m_i1 - 1;
+            const float t0 = p_times[ out.m_i0 ];
+            const float t1 = p_times[ out.m_i1 ];
+            out.m_t        = ( t1 > t0 ) ? ( p_time - t0 ) / ( t1 - t0 ) : 0.0f;
             return out;
         }
 
@@ -62,21 +62,21 @@ namespace Tomos
                 case TAnimPath::Translation:
                     if ( p_ch.m_translations.empty() ) break;
                     p_pose.m_hasT = true;
-                    p_pose.m_t    = ( keys.i0 == keys.i1 ) ? p_ch.m_translations[ keys.i0 ]
-                                                            : glm::mix( p_ch.m_translations[ keys.i0 ], p_ch.m_translations[ keys.i1 ], keys.t );
+                    p_pose.m_t    = ( keys.m_i0 == keys.m_i1 ) ? p_ch.m_translations[ keys.m_i0 ]
+                                                               : glm::mix( p_ch.m_translations[ keys.m_i0 ], p_ch.m_translations[ keys.m_i1 ], keys.m_t );
                     break;
                 case TAnimPath::Rotation:
                     if ( p_ch.m_rotations.empty() ) break;
                     p_pose.m_hasR = true;
-                    p_pose.m_r    = ( keys.i0 == keys.i1 )
-                                           ? p_ch.m_rotations[ keys.i0 ]
-                                           : glm::normalize( glm::slerp( p_ch.m_rotations[ keys.i0 ], p_ch.m_rotations[ keys.i1 ], keys.t ) );
+                    p_pose.m_r    = ( keys.m_i0 == keys.m_i1 )
+                                            ? p_ch.m_rotations[ keys.m_i0 ]
+                                            : glm::normalize( glm::slerp( p_ch.m_rotations[ keys.m_i0 ], p_ch.m_rotations[ keys.m_i1 ], keys.m_t ) );
                     break;
                 case TAnimPath::Scale:
                     if ( p_ch.m_scales.empty() ) break;
                     p_pose.m_hasS = true;
-                    p_pose.m_s    = ( keys.i0 == keys.i1 ) ? p_ch.m_scales[ keys.i0 ]
-                                                           : glm::mix( p_ch.m_scales[ keys.i0 ], p_ch.m_scales[ keys.i1 ], keys.t );
+                    p_pose.m_s    = ( keys.m_i0 == keys.m_i1 ) ? p_ch.m_scales[ keys.m_i0 ]
+                                                               : glm::mix( p_ch.m_scales[ keys.m_i0 ], p_ch.m_scales[ keys.m_i1 ], keys.m_t );
                     break;
             }
         }
@@ -108,36 +108,36 @@ namespace Tomos
             }
         }
 
-        void writePose( TSceneNode& p_root, const std::unordered_map<std::string, TJointPose>& p_from,
-                        const std::unordered_map<std::string, TJointPose>& p_to, float p_weight )
+        void writePose( TSceneNode& p_root, const std::unordered_map<std::string, TJointPose>& p_from, const std::unordered_map<std::string, TJointPose>& p_to,
+                        float p_weight )
         {
             const float w = std::clamp( p_weight, 0.0f, 1.0f );
 
-            auto writeJoint = [ & ]( const std::string& name, const TJointPose* a, const TJointPose* b )
+            auto writeJoint = [ & ]( const std::string& p_name, const TJointPose* p_a, const TJointPose* p_b )
             {
-                TSceneNode* joint = p_root.findByName( name );
+                TSceneNode* joint = p_root.findByName( p_name );
                 if ( joint == nullptr ) return;
 
-                const bool hasT = ( a && a->m_hasT ) || ( b && b->m_hasT );
-                const bool hasR = ( a && a->m_hasR ) || ( b && b->m_hasR );
-                const bool hasS = ( a && a->m_hasS ) || ( b && b->m_hasS );
+                const bool hasT = ( p_a && p_a->m_hasT ) || ( p_b && p_b->m_hasT );
+                const bool hasR = ( p_a && p_a->m_hasR ) || ( p_b && p_b->m_hasR );
+                const bool hasS = ( p_a && p_a->m_hasS ) || ( p_b && p_b->m_hasS );
 
                 if ( hasT )
                 {
-                    const glm::vec3 ta = ( a && a->m_hasT ) ? a->m_t : ( ( b && b->m_hasT ) ? b->m_t : joint->m_transform.translation() );
-                    const glm::vec3 tb = ( b && b->m_hasT ) ? b->m_t : ta;
+                    const glm::vec3 ta = ( p_a && p_a->m_hasT ) ? p_a->m_t : ( ( p_b && p_b->m_hasT ) ? p_b->m_t : joint->m_transform.translation() );
+                    const glm::vec3 tb = ( p_b && p_b->m_hasT ) ? p_b->m_t : ta;
                     joint->m_transform.setTranslation( ( w <= 0.0f ) ? ta : ( w >= 1.0f ) ? tb : glm::mix( ta, tb, w ) );
                 }
                 if ( hasR )
                 {
-                    const glm::quat ra = ( a && a->m_hasR ) ? a->m_r : ( ( b && b->m_hasR ) ? b->m_r : joint->m_transform.rotation() );
-                    const glm::quat rb = ( b && b->m_hasR ) ? b->m_r : ra;
+                    const glm::quat ra = ( p_a && p_a->m_hasR ) ? p_a->m_r : ( ( p_b && p_b->m_hasR ) ? p_b->m_r : joint->m_transform.rotation() );
+                    const glm::quat rb = ( p_b && p_b->m_hasR ) ? p_b->m_r : ra;
                     joint->m_transform.setRotation( ( w <= 0.0f ) ? ra : ( w >= 1.0f ) ? rb : glm::normalize( glm::slerp( ra, rb, w ) ) );
                 }
                 if ( hasS )
                 {
-                    const glm::vec3 sa = ( a && a->m_hasS ) ? a->m_s : ( ( b && b->m_hasS ) ? b->m_s : joint->m_transform.scale() );
-                    const glm::vec3 sb = ( b && b->m_hasS ) ? b->m_s : sa;
+                    const glm::vec3 sa = ( p_a && p_a->m_hasS ) ? p_a->m_s : ( ( p_b && p_b->m_hasS ) ? p_b->m_s : joint->m_transform.scale() );
+                    const glm::vec3 sb = ( p_b && p_b->m_hasS ) ? p_b->m_s : sa;
                     joint->m_transform.setScale( ( w <= 0.0f ) ? sa : ( w >= 1.0f ) ? sb : glm::mix( sa, sb, w ) );
                 }
             };
@@ -170,13 +170,13 @@ namespace Tomos
 
     void TAnimationSystem::componentCreated( TSceneNode& p_node, TComponent& p_component )
     {
-        auto& ac           = static_cast<TAnimatorComponent&>( p_component );
+        auto& ac           = dynamic_cast<TAnimatorComponent&>( p_component );
         m_animators[ &ac ] = &p_node;
     }
 
     void TAnimationSystem::componentDestroyed( TSceneNode& /*p_node*/, TComponent& p_component )
     {
-        auto& ac = static_cast<TAnimatorComponent&>( p_component );
+        auto& ac = dynamic_cast<TAnimatorComponent&>( p_component );
         m_animators.erase( &ac );
     }
 

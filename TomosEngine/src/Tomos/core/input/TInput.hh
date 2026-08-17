@@ -48,7 +48,7 @@ namespace Tomos
         using BlockFn = TInput::BlockFn;
 
         explicit TInputPoll( BlockFn p_block = {} );
-        TInputPoll( GLFWwindow* p_window, BlockFn p_block = {} );
+        explicit TInputPoll( GLFWwindow* p_window, BlockFn p_block = {} );
 
         [[nodiscard]] bool down( int p_key ) const;
         [[nodiscard]] bool down( int p_key, const BlockFn& p_block ) const;
