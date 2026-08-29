@@ -29,6 +29,27 @@ namespace Tomos
         }
     }  // namespace
 
+    TWindowMode TWindow::windowModeFromString( const std::string& p_s )
+    {
+        if ( p_s == "borderless" ) return TWindowMode::Borderless;
+        if ( p_s == "exclusive" ) return TWindowMode::Exclusive;
+        return TWindowMode::Windowed;
+    }
+
+    const char* TWindow::windowModeToString( TWindowMode p_mode )
+    {
+        switch ( p_mode )
+        {
+            case TWindowMode::Borderless:
+                return "borderless";
+            case TWindowMode::Exclusive:
+                return "exclusive";
+            case TWindowMode::Windowed:
+            default:
+                return "windowed";
+        }
+    }
+
     void TWindow::setDefaultWindowIcon()
     {
         if ( m_window == nullptr ) return;
@@ -61,7 +82,6 @@ namespace Tomos
         m_data.m_title       = p_props.m_title;
         m_data.m_width       = p_props.m_width;
         m_data.m_height      = p_props.m_height;
-        m_data.m_vsync       = p_props.m_vsync;
         m_data.m_aspectRatio = p_props.m_aspectRatio;
         m_windowedW          = static_cast<int>( p_props.m_width );
         m_windowedH          = static_cast<int>( p_props.m_height );
@@ -86,6 +106,7 @@ namespace Tomos
         }
         glfwSetWindowUserPointer( m_window, &m_data );
         glfwGetFramebufferSize( m_window, &m_data.m_fbWidth, &m_data.m_fbHeight );
+        glfwGetWindowPos( m_window, &m_windowedX, &m_windowedY );
         setDefaultWindowIcon();
 
         glfwSetErrorCallback( []( int p_error, const char* p_description ) { TLOG_ERROR() << "GLFW Error (" << p_error << "): " << p_description; } );
@@ -223,62 +244,76 @@ namespace Tomos
 
     GLFWwindow* TWindow::getNativeWindow() const { return m_window; }
 
-    void TWindow::setFullscreen( bool p_fullscreen )
+    void TWindow::setWindowMode( TWindowMode p_mode )
     {
-        // Defer the GLFW mode switch to flushPendingFullscreen() so ImGui's
-        // NewFrame and the swapchain rebuild see the same size in one frame.
-        if ( p_fullscreen == isFullscreen() ) return;
-        m_pendingFullscreen    = p_fullscreen;
-        m_hasPendingFullscreen = true;
+        if ( p_mode == windowMode() ) return;
+        m_pendingWindowMode    = p_mode;
+        m_hasPendingWindowMode = true;
     }
 
-    bool TWindow::isFullscreen() const { return m_hasPendingFullscreen ? m_pendingFullscreen : m_data.m_fullscreen; }
+    TWindowMode TWindow::windowMode() const { return m_hasPendingWindowMode ? m_pendingWindowMode : m_data.m_windowMode; }
 
-    bool TWindow::flushPendingFullscreen()
+    bool TWindow::flushPendingWindowMode()
     {
-        if ( !m_hasPendingFullscreen ) return false;
-        m_hasPendingFullscreen = false;
-        if ( m_pendingFullscreen == m_data.m_fullscreen ) return false;
-        applyFullscreen( m_pendingFullscreen );
+        if ( !m_hasPendingWindowMode ) return false;
+        m_hasPendingWindowMode = false;
+        if ( m_pendingWindowMode == m_data.m_windowMode ) return false;
+        applyWindowMode( m_pendingWindowMode );
         return true;
     }
 
-    void TWindow::applyFullscreen( bool p_fullscreen )
+    void TWindow::syncCachedSizes()
     {
-        if ( m_window == nullptr || p_fullscreen == m_data.m_fullscreen ) return;
-
-        if ( p_fullscreen )
-        {
-            // Size only — Wayland has no window position API (GLFW error 65548).
-            glfwGetWindowSize( m_window, &m_windowedW, &m_windowedH );
-
-            GLFWmonitor*       monitor = glfwGetPrimaryMonitor();
-            const GLFWvidmode* mode    = monitor != nullptr ? glfwGetVideoMode( monitor ) : nullptr;
-            if ( monitor == nullptr || mode == nullptr )
-            {
-                TLOG_WARN() << "Fullscreen requested but no primary monitor/video mode";
-                return;
-            }
-
-            glfwSetWindowMonitor( m_window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate );
-            m_data.m_fullscreen = true;
-        }
-        else
-        {
-            // Position 0,0 is ignored on Wayland; X11 still gets a sane restore size.
-            glfwSetWindowMonitor( m_window, nullptr, 0, 0, m_windowedW, m_windowedH, 0 );
-            m_data.m_fullscreen = false;
-        }
-
-        // Surface size has changed — poll so callbacks fire, then sync sizes and
-        // emit a framebuffer-sized resize even if the WM skipped the callback.
-        glfwPollEvents();
         glfwGetWindowSize( m_window, &m_data.m_width, &m_data.m_height );
         glfwGetFramebufferSize( m_window, &m_data.m_fbWidth, &m_data.m_fbHeight );
-        if ( m_data.m_eventCallback )
+    }
+
+    void TWindow::storeWindowedGeom()
+    {
+        glfwGetWindowSize( m_window, &m_windowedW, &m_windowedH );
+        glfwGetWindowPos( m_window, &m_windowedX, &m_windowedY );
+    }
+
+    void TWindow::applyWindowMode( TWindowMode p_mode )
+    {
+        if ( m_window == nullptr || p_mode == m_data.m_windowMode ) return;
+
+        GLFWmonitor*       monitor = glfwGetPrimaryMonitor();
+        const GLFWvidmode* mode    = monitor != nullptr ? glfwGetVideoMode( monitor ) : nullptr;
+
+        if ( p_mode != TWindowMode::Windowed && ( monitor == nullptr || mode == nullptr ) )
         {
-            TWindowResizeEvent event( m_data.m_fbWidth, m_data.m_fbHeight );
-            m_data.m_eventCallback( event );
+            TLOG_WARN() << "Window mode change requested but no primary monitor/video mode";
+            return;
         }
+
+        if ( m_data.m_windowMode == TWindowMode::Windowed ) storeWindowedGeom();
+
+        switch ( p_mode )
+        {
+            case TWindowMode::Windowed:
+            {
+                glfwSetWindowAttrib( m_window, GLFW_DECORATED, GLFW_TRUE );
+                glfwSetWindowMonitor( m_window, nullptr, m_windowedX, m_windowedY, m_windowedW, m_windowedH, 0 );
+                break;
+            }
+            case TWindowMode::Borderless:
+            {
+                int mx = 0, my = 0;
+                glfwGetMonitorPos( monitor, &mx, &my );
+                glfwSetWindowAttrib( m_window, GLFW_DECORATED, GLFW_FALSE );
+                glfwSetWindowMonitor( m_window, nullptr, mx, my, mode->width, mode->height, 0 );
+                break;
+            }
+            case TWindowMode::Exclusive:
+            {
+                glfwSetWindowAttrib( m_window, GLFW_DECORATED, GLFW_TRUE );
+                glfwSetWindowMonitor( m_window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate );
+                break;
+            }
+        }
+
+        m_data.m_windowMode = p_mode;
+        syncCachedSizes();
     }
 }  // namespace Tomos

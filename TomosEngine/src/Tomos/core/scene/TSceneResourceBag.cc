@@ -2,6 +2,7 @@
 
 #include "Tomos/gpu/TGpuEnums.hh"
 #include "Tomos/gpu/vulkan/TVkGpu.hh"
+#include "Tomos/util/image/TAnimatedTextureDecoder.hh"
 #include "Tomos/util/image/TImageLoad.hh"
 #include "Tomos/util/logger/TLogger.hh"
 
@@ -54,8 +55,11 @@ namespace Tomos
 
     const std::string* TSceneResourceBag::findImagePath( const TVkImage* p_image ) const
     {
+        if ( p_image == nullptr ) return nullptr;
         const auto it = m_imagePaths.find( p_image );
-        return it != m_imagePaths.end() ? &it->second : nullptr;
+        if ( it != m_imagePaths.end() ) return &it->second;
+        const auto ait = m_animatedPaths.find( p_image );
+        return ait != m_animatedPaths.end() ? &ait->second : nullptr;
     }
 
     TVkImage* TSceneResourceBag::loadImage( TVkGpu& p_gpu, const std::string& p_path )
@@ -68,8 +72,6 @@ namespace Tomos
         if ( !filePx )
         {
             TLOG_WARN() << "[TSceneResourceBag] Failed to load image: " << p_path << " — using missing texture";
-            // Device sentinel — not bag-owned. Remember the path so we don't re-warn,
-            // but never insert missingTexture into m_imagesByPath / m_imagePaths.
             m_failedImagePaths.insert( p_path );
             return const_cast<TVkImage*>( &p_gpu.missingTexture() );
         }
@@ -90,9 +92,89 @@ namespace Tomos
         return addImage( p_path, std::move( image ) );
     }
 
+    TAnimatedTexture* TSceneResourceBag::createAnimatedTexture( TVkGpu& p_gpu, const std::string& p_path, const TBagAnimatedTextureRef& p_opts )
+    {
+        if ( m_failedAnimatedPaths.contains( p_path ) ) return nullptr;
+
+        auto anim = std::make_unique<TAnimatedTexture>();
+        if ( !anim->create( p_gpu, p_path, p_opts ) )
+        {
+            TLOG_WARN() << "[TSceneResourceBag] Failed to create animated texture: " << p_path;
+            m_failedAnimatedPaths.insert( p_path );
+            return nullptr;
+        }
+
+        TAnimatedTexture* raw = anim.get();
+        TVkImage*         img = raw->image();
+        if ( img != nullptr )
+        {
+            m_animatedByImage[ img ] = raw;
+            m_animatedPaths[ img ]   = p_path;
+        }
+        m_animatedTextures.push_back( std::move( anim ) );
+        return raw;
+    }
+
+    TAnimatedTexture* TSceneResourceBag::findAnimatedTexture( const TVkImage* p_image )
+    {
+        if ( p_image == nullptr ) return nullptr;
+        const auto it = m_animatedByImage.find( p_image );
+        return it != m_animatedByImage.end() ? it->second : nullptr;
+    }
+
+    const TAnimatedTexture* TSceneResourceBag::findAnimatedTexture( const TVkImage* p_image ) const
+    {
+        if ( p_image == nullptr ) return nullptr;
+        const auto it = m_animatedByImage.find( p_image );
+        return it != m_animatedByImage.end() ? it->second : nullptr;
+    }
+
+    void TSceneResourceBag::tickAnimatedTextures( TVkGpu& p_gpu, float p_dt )
+    {
+        if ( m_animatedTextures.empty() ) return;
+
+        p_gpu.beginUploadBatch();
+        for ( auto& anim : m_animatedTextures )
+        {
+            if ( anim ) anim->tick( p_gpu, p_dt );
+        }
+        p_gpu.endUploadBatch();
+    }
+
+    void TSceneResourceBag::tickAnimatedTextures( TVkGpu& p_gpu, float p_dt, const std::unordered_set<const TVkImage*>& p_inUse )
+    {
+        if ( p_inUse.empty() ) return;
+
+        p_gpu.beginUploadBatch();
+        for ( const TVkImage* img : p_inUse )
+        {
+            if ( auto* anim = findAnimatedTexture( img ) ) anim->tick( p_gpu, p_dt );
+        }
+        p_gpu.endUploadBatch();
+    }
+
+    TVkImage* TSceneResourceBag::resolveTexture( TVkGpu& p_gpu, const std::string& p_path, const TBagAnimatedTextureRef& p_opts )
+    {
+        if ( p_path.empty() ) return nullptr;
+
+        if ( isAnimatedTexturePath( p_path ) )
+        {
+            TBagAnimatedTextureRef opts = p_opts;
+            if ( opts.m_path.empty() ) opts.m_path = p_path;
+            if ( auto* anim = createAnimatedTexture( p_gpu, p_path, opts ) )
+            {
+                if ( TVkImage* img = anim->image() ) return img;
+            }
+            return const_cast<TVkImage*>( &p_gpu.missingTexture() );
+        }
+
+        return loadImage( p_gpu, p_path );
+    }
+
     void TSceneResourceBag::clear()
     {
-        if ( !m_clips.empty() || !m_images.empty() || !m_failedImagePaths.empty() ) bumpGeneration();
+        if ( !m_clips.empty() || !m_images.empty() || !m_animatedTextures.empty() || !m_failedImagePaths.empty() || !m_failedAnimatedPaths.empty() )
+            bumpGeneration();
         m_clips.clear();
         m_clipsByPath.clear();
         m_clipPaths.clear();
@@ -100,5 +182,9 @@ namespace Tomos
         m_imagesByPath.clear();
         m_imagePaths.clear();
         m_failedImagePaths.clear();
+        m_animatedTextures.clear();
+        m_animatedByImage.clear();
+        m_animatedPaths.clear();
+        m_failedAnimatedPaths.clear();
     }
 }  // namespace Tomos

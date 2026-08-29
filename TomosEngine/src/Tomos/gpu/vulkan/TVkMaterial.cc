@@ -21,6 +21,11 @@ namespace Tomos
         m_ubo.m_ignoreAlpha  = ( p_desc.m_alphaMode == TMatAlpha::Mask ) ? 0u : 1u;
         m_ubo.m_hasNormalMap = p_desc.m_hasNormalMap ? 1u : 0u;
 
+        m_baseTexture     = p_desc.m_baseTexture;
+        m_metRghTexture   = p_desc.m_metRghTexture;
+        m_emissionTexture = p_desc.m_emissionTexture;
+        m_normalTexture   = p_desc.m_normalTexture;
+
         VkDescriptorSetAllocateInfo allocInfo{};
         allocInfo.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         allocInfo.descriptorPool     = p_pool;

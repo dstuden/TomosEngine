@@ -5,9 +5,12 @@
 #include <tuple>
 #include <vector>
 
+#include "Tomos/core/app/TApplication.hh"
+#include "Tomos/systems/camera/TCameraSystem.hh"
 #include "Tomos/core/scene/TSceneNode.hh"
 #include "Tomos/gpu/TGpuEnums.hh"
 #include "Tomos/gpu/TRenderLimits.hh"
+#include "Tomos/gpu/vulkan/TVkGpu.hh"
 #include "Tomos/gpu/vulkan/TVkMaterial.hh"
 #include "Tomos/gpu/vulkan/TVkMesh.hh"
 #include "Tomos/gpu/vulkan/TVkPass.hh"
@@ -35,6 +38,13 @@ namespace Tomos
             return std::tuple{ p_d.m_blend, reinterpret_cast<uintptr_t>( p_d.m_mesh ), reinterpret_cast<uintptr_t>( p_d.m_material ), p_d.m_castShadow,
                                p_d.m_visible };
         }
+
+        bool meshIntersectsFrustum( const TMeshComponent& p_mc, const TSceneNode& p_node, const glm::vec4 p_planes[ 6 ] )
+        {
+            if ( p_mc.m_mesh == nullptr || !p_mc.m_mesh->m_aabb.valid() ) return true;
+            const TAABB worldAabb = p_mc.m_mesh->m_aabb.transformed( p_node.m_transform.getGlobalMatrix() );
+            return aabbIntersectsFrustum( worldAabb, p_planes );
+        }
     }  // namespace
 
     void TMeshSystem::componentCreated( TSceneNode& p_node, TComponent& p_component )
@@ -55,8 +65,34 @@ namespace Tomos
 
     void TMeshSystem::lateUpdate( float /*p_dt*/ )
     {
+        glm::vec4 planes[ 6 ];
+        bool      haveFrustum = false;
+
+        auto& scene = TApplication::get().sceneManager().scene();
+        if ( auto* camSys = scene.ecs().maybeGetSystem<TCameraSystem>() )
+        {
+            if ( camSys->hasActiveCamera() )
+            {
+                TSceneNode*       camNode = camSys->activeCameraNode();
+                TCameraComponent* cam     = camSys->activeCamera();
+                TVkGpu*           gpu     = TApplication::get().gpu();
+                if ( camNode != nullptr && cam != nullptr && gpu != nullptr )
+                {
+                    const glm::mat4 viewProj = cam->projMatrix( gpu->renderAspectRatio() ) * camNode->m_transform.getGlobalInvMatrix();
+                    extractFrustumPlanes( viewProj, planes );
+                    haveFrustum = true;
+                }
+            }
+        }
+
         for ( auto* sk : m_skinned )
         {
+            if ( haveFrustum && !sk->m_castShadow )
+            {
+                const auto it = m_meshes.find( sk );
+                if ( it != m_meshes.end() && !meshIntersectsFrustum( *sk, *it->second, planes ) ) continue;
+            }
+
             for ( uint32_t i = 0; i < static_cast<uint32_t>( sk->m_joints.size() ); ++i )
             {
                 const TSkinJoint& joint = sk->m_joints[ i ];
@@ -66,6 +102,25 @@ namespace Tomos
                 sk->m_boneMatrices[ i ] = node->m_transform.getGlobalMatrix() * joint.m_inverseBindMtx;
             }
         }
+    }
+
+    const TVkMaterial* TMeshSystem::materialFor( const TMeshComponent& p_mc ) const
+    {
+        if ( p_mc.m_material == nullptr ) return nullptr;
+        if ( p_mc.m_baseOverrideImage == nullptr && p_mc.m_emissionOverrideImage == nullptr ) return p_mc.m_material;
+
+        const TOverrideKey key{ p_mc.m_material, p_mc.m_baseOverrideImage, p_mc.m_emissionOverrideImage };
+        const auto         it = m_overrideMaterials.find( key );
+        if ( it != m_overrideMaterials.end() ) return it->second.get();
+
+        TVkGpu* gpu = TApplication::get().gpu();
+        if ( gpu == nullptr ) return p_mc.m_material;
+
+        TVkMaterialDesc desc = p_mc.m_material->makeDesc( p_mc.m_baseOverrideImage, p_mc.m_emissionOverrideImage );
+        auto            mat  = std::make_unique<TVkMaterial>( gpu->device(), gpu->physDevice(), gpu->descPool(), gpu->layouts().m_material, desc );
+        const TVkMaterial* raw = mat.get();
+        m_overrideMaterials.emplace( key, std::move( mat ) );
+        return raw;
     }
 
     void TMeshSystem::populate( TFrameState& p_state ) const
@@ -93,17 +148,14 @@ namespace Tomos
                 break;
             }
 
-            if ( mc->m_mesh == nullptr || mc->m_material == nullptr ) continue;
+            const TVkMaterial* material = materialFor( *mc );
+            if ( mc->m_mesh == nullptr || material == nullptr ) continue;
             ++p_state.m_meshesTotal;
 
             const glm::mat4& world = node->m_transform.getGlobalMatrix();
 
             bool visible = true;
-            if ( mc->m_mesh->m_aabb.valid() )
-            {
-                const TAABB worldAabb = mc->m_mesh->m_aabb.transformed( world );
-                visible               = aabbIntersectsFrustum( worldAabb, planes );
-            }
+            if ( mc->m_mesh->m_aabb.valid() ) visible = meshIntersectsFrustum( *mc, *node, planes );
 
             if ( !visible )
             {
@@ -113,10 +165,10 @@ namespace Tomos
 
             TPendingDraw item{};
             item.m_mesh       = mc->m_mesh;
-            item.m_material   = mc->m_material;
+            item.m_material   = material;
             item.m_castShadow = mc->m_castShadow;
             item.m_visible    = visible;
-            item.m_blend      = ( mc->m_material->alphaMode() == TMatAlpha::Blend );
+            item.m_blend      = ( material->alphaMode() == TMatAlpha::Blend );
 
             item.m_instance.m_transform    = world;
             item.m_instance.m_invTransform = node->m_transform.getGlobalInvMatrix();

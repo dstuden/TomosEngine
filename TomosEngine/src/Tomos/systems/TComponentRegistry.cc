@@ -103,12 +103,31 @@ namespace Tomos
             return TColliderShape::Box;
         }
 
-        const TVkImage* resolveTexture( const json& p_j, TComponentResolveCtx& p_ctx )
+        TBagAnimatedTextureRef animRefFromJson( const json& p_j, const std::string& p_pathKey = "texturePath" )
         {
-            if ( !p_j.contains( "texturePath" ) || !p_j[ "texturePath" ].is_string() ) return nullptr;
-            const std::string path = p_j[ "texturePath" ].get<std::string>();
-            if ( path.empty() || p_ctx.m_gpu == nullptr ) return nullptr;
-            return p_ctx.m_bag.loadImage( *p_ctx.m_gpu, path );
+            TBagAnimatedTextureRef ref{};
+            if ( p_j.contains( p_pathKey ) && p_j[ p_pathKey ].is_string() ) ref.m_path = p_j[ p_pathKey ].get<std::string>();
+            ref.m_looping = p_j.value( "animLoop", true );
+            ref.m_playing = p_j.value( "animPlaying", true );
+            ref.m_speed   = p_j.value( "animSpeed", 1.0f );
+            return ref;
+        }
+
+        void writeAnimFields( json& p_j, const TBagAnimatedTextureRef& p_ref )
+        {
+            if ( p_ref.empty() ) return;
+            // Only write non-defaults to keep JSON compact for static textures.
+            if ( !p_ref.m_looping ) p_j[ "animLoop" ] = false;
+            if ( !p_ref.m_playing ) p_j[ "animPlaying" ] = false;
+            if ( p_ref.m_speed != 1.0f ) p_j[ "animSpeed" ] = p_ref.m_speed;
+        }
+
+        const TVkImage* resolveTexture( const json& p_j, TComponentResolveCtx& p_ctx, TBagAnimatedTextureRef* p_outRef = nullptr )
+        {
+            TBagAnimatedTextureRef ref = animRefFromJson( p_j );
+            if ( p_outRef != nullptr ) *p_outRef = ref;
+            if ( ref.empty() || p_ctx.m_gpu == nullptr ) return nullptr;
+            return p_ctx.m_bag.resolveTexture( *p_ctx.m_gpu, ref.m_path, ref );
         }
 
         json texturePathJson( const TVkImage* p_tex, const TComponentResolveCtx& p_ctx )
@@ -116,6 +135,16 @@ namespace Tomos
             if ( p_tex == nullptr ) return nullptr;
             if ( const auto* path = p_ctx.m_bag.findImagePath( p_tex ) ) return *path;
             return nullptr;
+        }
+
+        TBagAnimatedTextureRef overrideRefFromJson( const json& p_j, const char* p_pathKey, const char* p_loopKey, const char* p_playKey, const char* p_speedKey )
+        {
+            TBagAnimatedTextureRef ref{};
+            if ( p_j.contains( p_pathKey ) && p_j[ p_pathKey ].is_string() ) ref.m_path = p_j[ p_pathKey ].get<std::string>();
+            ref.m_looping = p_j.value( p_loopKey, true );
+            ref.m_playing = p_j.value( p_playKey, true );
+            ref.m_speed   = p_j.value( p_speedKey, 1.0f );
+            return ref;
         }
     }  // namespace
 
@@ -300,6 +329,20 @@ namespace Tomos
                         j[ "meshIdx" ]     = ref.m_meshIdx;
                         j[ "materialIdx" ] = ref.m_materialIdx;
                     }
+                    if ( !mesh.m_baseTextureOverride.empty() )
+                    {
+                        j[ "baseTexturePath" ] = mesh.m_baseTextureOverride.m_path;
+                        if ( !mesh.m_baseTextureOverride.m_looping ) j[ "baseAnimLoop" ] = false;
+                        if ( !mesh.m_baseTextureOverride.m_playing ) j[ "baseAnimPlaying" ] = false;
+                        if ( mesh.m_baseTextureOverride.m_speed != 1.0f ) j[ "baseAnimSpeed" ] = mesh.m_baseTextureOverride.m_speed;
+                    }
+                    if ( !mesh.m_emissionTextureOverride.empty() )
+                    {
+                        j[ "emissionTexturePath" ] = mesh.m_emissionTextureOverride.m_path;
+                        if ( !mesh.m_emissionTextureOverride.m_looping ) j[ "emissionAnimLoop" ] = false;
+                        if ( !mesh.m_emissionTextureOverride.m_playing ) j[ "emissionAnimPlaying" ] = false;
+                        if ( mesh.m_emissionTextureOverride.m_speed != 1.0f ) j[ "emissionAnimSpeed" ] = mesh.m_emissionTextureOverride.m_speed;
+                    }
                     return j;
                 },
                 .m_load =
@@ -313,7 +356,14 @@ namespace Tomos
                         if ( !p_ctx.m_assets.tryResolve( ref, mesh, material ) )
                             TLOG_WARN() << "[TComponentRegistry] mesh asset not found: " << ref.m_assetName;
                     }
-                    return std::make_shared<TMeshComponent>( ref, mesh, material, p_ctx.m_assets.generation(), p_j.value( "castShadow", true ) );
+                    auto mc = std::make_shared<TMeshComponent>( ref, mesh, material, p_ctx.m_assets.generation(), p_j.value( "castShadow", true ) );
+                    mc->m_baseTextureOverride =
+                            overrideRefFromJson( p_j, "baseTexturePath", "baseAnimLoop", "baseAnimPlaying", "baseAnimSpeed" );
+                    mc->m_emissionTextureOverride =
+                            overrideRefFromJson( p_j, "emissionTexturePath", "emissionAnimLoop", "emissionAnimPlaying", "emissionAnimSpeed" );
+                    if ( p_ctx.m_gpu != nullptr && ( !mc->m_baseTextureOverride.empty() || !mc->m_emissionTextureOverride.empty() ) )
+                        mc->rebindOverrides( p_ctx.m_bag, *p_ctx.m_gpu );
+                    return mc;
                 },
         } );
 
@@ -423,8 +473,15 @@ namespace Tomos
                                    { "rotation", spr.m_rotation },
                                    { "mode", billboardName( spr.m_mode ) },
                                    { "visible", spr.m_visible } };
-                    if ( !spr.m_textureRef.empty() )
+                    if ( !spr.m_animRef.empty() )
+                    {
+                        j[ "texturePath" ] = spr.m_animRef.m_path;
+                        writeAnimFields( j, spr.m_animRef );
+                    }
+                    else if ( !spr.m_textureRef.empty() )
+                    {
                         j[ "texturePath" ] = spr.m_textureRef.m_path;
+                    }
                     else
                     {
                         auto texPath = texturePathJson( spr.m_texture, p_ctx );
@@ -435,9 +492,10 @@ namespace Tomos
                 .m_load =
                         []( const json& p_j, TComponentResolveCtx& p_ctx )
                 {
-                    auto spr = std::make_shared<TSpriteComponent>( resolveTexture( p_j, p_ctx ) );
-                    if ( p_j.contains( "texturePath" ) && p_j[ "texturePath" ].is_string() )
-                        spr->m_textureRef = TBagTextureRef{ p_j[ "texturePath" ].get<std::string>() };
+                    TBagAnimatedTextureRef animRef;
+                    auto                   spr = std::make_shared<TSpriteComponent>( resolveTexture( p_j, p_ctx, &animRef ) );
+                    spr->m_animRef             = animRef;
+                    if ( !animRef.empty() ) spr->m_textureRef = TBagTextureRef{ animRef.m_path };
                     spr->m_size     = jsonToVec2( p_j.value( "size", json::array() ), spr->m_size );
                     spr->m_color    = jsonToVec4( p_j.value( "color", json::array() ), spr->m_color );
                     spr->m_uvMin    = jsonToVec2( p_j.value( "uvMin", json::array() ), spr->m_uvMin );
@@ -473,7 +531,15 @@ namespace Tomos
                                    { "uvMax", vec2ToJson( p.m_uvMax ) },
                                    { "seed", p.m_seed } };
                     auto        texPath = texturePathJson( p.m_texture, p_ctx );
-                    if ( !texPath.is_null() ) j[ "texturePath" ] = texPath;
+                    if ( !p.m_animRef.empty() )
+                    {
+                        j[ "texturePath" ] = p.m_animRef.m_path;
+                        writeAnimFields( j, p.m_animRef );
+                    }
+                    else if ( !texPath.is_null() )
+                    {
+                        j[ "texturePath" ] = texPath;
+                    }
                     return j;
                 },
                 .m_load =
@@ -494,7 +560,9 @@ namespace Tomos
                     p->m_uvMin       = jsonToVec2( p_j.value( "uvMin", json::array() ), p->m_uvMin );
                     p->m_uvMax       = jsonToVec2( p_j.value( "uvMax", json::array() ), p->m_uvMax );
                     p->m_seed        = p_j.value( "seed", p->m_seed );
-                    p->m_texture     = resolveTexture( p_j, p_ctx );
+                    TBagAnimatedTextureRef animRef;
+                    p->m_texture = resolveTexture( p_j, p_ctx, &animRef );
+                    p->m_animRef = animRef;
                     return p;
                 },
         } );

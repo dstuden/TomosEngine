@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -33,6 +34,12 @@ namespace Tomos
         [[nodiscard]] auto end() { return m_layers.end(); }
         [[nodiscard]] auto rbegin() { return m_layers.rbegin(); }
         [[nodiscard]] auto rend() { return m_layers.rend(); }
+
+        // Layers below insert index; overlays from insert index to end.
+        [[nodiscard]] auto layersBegin() { return m_layers.begin(); }
+        [[nodiscard]] auto layersEnd() { return m_layers.begin() + static_cast<std::ptrdiff_t>( m_layerInsertIdx ); }
+        [[nodiscard]] auto overlaysBegin() { return m_layers.begin() + static_cast<std::ptrdiff_t>( m_layerInsertIdx ); }
+        [[nodiscard]] auto overlaysEnd() { return m_layers.end(); }
 
         [[nodiscard]] bool   empty() const { return m_layers.empty(); }
         [[nodiscard]] size_t size() const { return m_layers.size(); }

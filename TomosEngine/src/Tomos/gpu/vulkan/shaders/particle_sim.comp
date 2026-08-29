@@ -4,7 +4,9 @@
 // Phase (push constant):
 //   0 — update alive particles (integrate, recycle dead → free list, rebuild draw list)
 //   1 — emit new particles from CPU-provided spawn counts
-//   2 — write indirect draw instanceCount from aliveCount
+//   2 — prefix-sum per-texture counts into offsets, reset scatter cursors
+//   3 — scatter the flat draw list into one contiguous run per texture slot
+//   4 — write one indirect draw command per texture slot
 
 layout( local_size_x = 64 ) in;
 
@@ -58,6 +60,24 @@ layout( set = 0, binding = 5 ) readonly buffer EmitterSSBO
     Emitter emitters[];
 };
 
+#include "common/particle_buckets.glsl"
+
+layout( set = 0, binding = 6 ) buffer TexBucketSSBO
+{
+    TexBuckets buckets;
+};
+
+// Alive particle indices grouped by texture slot; drawn with one indirect call each.
+layout( set = 0, binding = 7 ) writeonly buffer CompactDrawIndexSSBO
+{
+    uint compactDrawIndices[];
+};
+
+layout( set = 0, binding = 8 ) writeonly buffer TexDrawCmdSSBO
+{
+    uvec4 texDrawCmds[];  // xyzw = vertexCount, instanceCount, firstVertex, firstInstance
+};
+
 const float TAU              = 6.28318530718;
 const float k_spinRadPerSec  = 1.5;
 
@@ -101,6 +121,19 @@ void pushFree( uint particleIndex )
     freeList[ slot ] = particleIndex;
 }
 
+uint texSlot( uint texIndex )
+{
+    return min( texIndex, uint( PARTICLE_TEX_SLOTS ) - 1u );
+}
+
+// Append to the flat draw list and tally the particle's texture bucket.
+void appendAlive( uint particleIndex, uint texIndex )
+{
+    const uint drawSlot = atomicAdd( counters.aliveCount, 1u );
+    drawIndices[ drawSlot ] = particleIndex;
+    atomicAdd( buckets.counts[ texSlot( texIndex ) ], 1u );
+}
+
 void updatePhase()
 {
     const uint idx = gl_GlobalInvocationID.x;
@@ -123,8 +156,7 @@ void updatePhase()
     }
 
     particles[ idx ] = p;
-    const uint drawSlot = atomicAdd( counters.aliveCount, 1u );
-    drawIndices[ drawSlot ] = idx;
+    appendAlive( idx, p.texIndex );
 }
 
 void emitPhase()
@@ -160,18 +192,48 @@ void emitPhase()
 
         particles[ pidx ] = p;
 
-        const uint drawSlot = atomicAdd( counters.aliveCount, 1u );
-        drawIndices[ drawSlot ] = pidx;
+        appendAlive( pidx, p.texIndex );
     }
 }
 
-void finalizePhase()
+// Serial over 64 slots on a single invocation — cheaper than a parallel scan at
+// this width, and keeps the offsets exact without extra barriers.
+void prefixSumPhase()
 {
     if ( gl_GlobalInvocationID.x != 0u ) return;
+
+    uint running = 0u;
+    for ( uint t = 0u; t < uint( PARTICLE_TEX_SLOTS ); ++t )
+    {
+        buckets.offsets[ t ]     = running;
+        buckets.writeCursor[ t ] = 0u;
+        running += buckets.counts[ t ];
+    }
+
     counters.vertexCount   = 6u;
     counters.instanceCount = counters.aliveCount;
     counters.firstVertex   = 0u;
     counters.firstInstance = 0u;
+}
+
+void scatterPhase()
+{
+    const uint i = gl_GlobalInvocationID.x;
+    if ( i >= counters.aliveCount ) return;
+
+    const uint pidx = drawIndices[ i ];
+    const uint tex  = texSlot( particles[ pidx ].texIndex );
+
+    const uint slot = buckets.offsets[ tex ] + atomicAdd( buckets.writeCursor[ tex ], 1u );
+    compactDrawIndices[ slot ] = pidx;
+}
+
+void texCmdPhase()
+{
+    const uint t = gl_GlobalInvocationID.x;
+    if ( t >= uint( PARTICLE_TEX_SLOTS ) ) return;
+
+    texDrawCmds[ t ] = uvec4( 6u, buckets.counts[ t ], 0u, 0u );
 }
 
 void main()
@@ -181,5 +243,9 @@ void main()
     else if ( pc.phase == 1u )
         emitPhase();
     else if ( pc.phase == 2u )
-        finalizePhase();
+        prefixSumPhase();
+    else if ( pc.phase == 3u )
+        scatterPhase();
+    else if ( pc.phase == 4u )
+        texCmdPhase();
 }

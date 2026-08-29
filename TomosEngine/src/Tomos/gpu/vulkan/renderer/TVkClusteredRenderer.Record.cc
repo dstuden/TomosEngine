@@ -327,39 +327,29 @@ namespace Tomos
                               VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT, VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
                               VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT, VK_IMAGE_ASPECT_DEPTH_BIT );
 
-        const bool editor = m_gpu.presentMode() == TVkGpu::TPresentMode::EditorViewport;
+        const TRenderDestination dest = m_gpu.resolvedRenderDestination();
 
         TPostContext ctx{};
         ctx.m_gpu          = &m_gpu;
-        ctx.m_extent       = m_renderExtent;
+        ctx.m_extent       = dest.m_extent;
         ctx.m_hdr          = &m_hdrA;
         ctx.m_hdrOther     = &m_hdrB;
         ctx.m_depth        = &m_depth;
         ctx.m_near         = p_state.m_near;
         ctx.m_far          = p_state.m_far;
+        ctx.m_proj         = p_state.m_proj;
         ctx.m_projInv      = p_state.m_projInv;
         ctx.m_viewInv      = p_state.m_viewInv;
-        ctx.m_outputFormat = m_gpu.swapFormat();
+        ctx.m_outputFormat = dest.m_format;
         ctx.m_frameIndex   = p_frameIndex;
-
-        if ( editor )
-        {
-            // Tonemap → offscreen scene color (ImGui samples this).
-            ctx.m_outputImage = m_sceneColor.handle();
-            ctx.m_outputView  = m_sceneColor.view();
-        }
-        else
-        {
-            ctx.m_outputImage = m_gpu.currentSwapImage();
-            ctx.m_outputView  = m_gpu.currentSwapView();
-        }
+        ctx.m_outputImage  = dest.m_image;
+        ctx.m_outputView   = dest.m_view;
 
         m_post.execute( p_cmd, ctx );
 
-        // Editor: scene color must be sampled by ImGui in the same cmd buffer.
-        if ( editor )
+        if ( dest.m_sampleAfterTonemap && dest.m_image != VK_NULL_HANDLE )
         {
-            VkUtil::imageBarrier( p_cmd, m_sceneColor.handle(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            VkUtil::imageBarrier( p_cmd, dest.m_image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                                   VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
                                   VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT );
         }
@@ -387,6 +377,7 @@ namespace Tomos
     void TVkClusteredRenderer::recordParticleSim( VkCommandBuffer p_cmd, const TFrameResources& p_frame, uint32_t p_emitterCount )
     {
         vkCmdFillBuffer( p_cmd, m_particleCounters.handle(), offsetof( TParticleCounters, m_aliveCount ), sizeof( uint32_t ), 0 );
+        vkCmdFillBuffer( p_cmd, m_texBucketBuf.handle(), offsetof( TParticleTexBuckets, m_counts ), sizeof( TParticleTexBuckets::m_counts ), 0 );
 
         VkUtil::memoryBarrier( p_cmd, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                                VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT );
@@ -406,7 +397,10 @@ namespace Tomos
 
         if ( p_emitterCount > 0 ) dispatchPhase( 1, ( p_emitterCount + 63 ) / 64 );
 
+        // Bucket the alive list per texture, then emit one draw command per slot.
         dispatchPhase( 2, 1 );
+        dispatchPhase( 3, ( g_kMaxParticles + 63 ) / 64 );
+        dispatchPhase( 4, ( g_kMaxParticleTextures + 63 ) / 64 );
 
         VkUtil::memoryBarrier( p_cmd, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
                                VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
@@ -463,9 +457,9 @@ namespace Tomos
         vkCmdBindPipeline( p_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_particlePipeline );
         vkCmdBindDescriptorSets( p_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_particleDrawPipeLayout, 0, 1, &p_frame.m_particleDrawSet, 0, nullptr );
 
-        constexpr VkDeviceSize kIndirectOffset = offsetof( TParticleCounters, m_vertexCount );
-
-        const size_t texCount = std::max<size_t>( 1, p_state.m_particleTextures.size() );
+        // One indirect draw per allocated texture slot; the sim wrote each slot's
+        // instanceCount, so empty slots cost nothing and no particle is drawn twice.
+        const size_t texCount = std::min<size_t>( std::max<size_t>( 1, p_state.m_particleTextures.size() ), g_kMaxParticleTextures );
         for ( size_t i = 0; i < texCount; ++i )
         {
             const TVkImage*       tex    = ( i < p_state.m_particleTextures.size() ) ? p_state.m_particleTextures[ i ] : nullptr;
@@ -473,9 +467,9 @@ namespace Tomos
             vkCmdBindDescriptorSets( p_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_particleDrawPipeLayout, 1, 1, &texSet, 0, nullptr );
 
             const auto texIndex = static_cast<uint32_t>( i );
-            vkCmdPushConstants( p_cmd, m_particleDrawPipeLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof( uint32_t ), &texIndex );
+            vkCmdPushConstants( p_cmd, m_particleDrawPipeLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof( uint32_t ), &texIndex );
 
-            vkCmdDrawIndirect( p_cmd, m_particleCounters.handle(), kIndirectOffset, 1, sizeof( uint32_t ) * 4 );
+            vkCmdDrawIndirect( p_cmd, m_texDrawCmdBuf.handle(), i * sizeof( TParticleTexDrawCmd ), 1, sizeof( TParticleTexDrawCmd ) );
         }
 
         vkCmdEndRendering( p_cmd );

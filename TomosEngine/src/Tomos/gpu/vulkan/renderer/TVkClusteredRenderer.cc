@@ -8,7 +8,7 @@
 #include "Tomos/gpu/vulkan/TVkUtil.hh"
 #include "Tomos/gpu/vulkan/post/TPostBloom.hh"
 #include "Tomos/gpu/vulkan/post/TPostFog.hh"
-#include "Tomos/gpu/vulkan/post/TPostSSAO.hh"
+#include "Tomos/gpu/vulkan/post/TPostSAO.hh"
 #include "Tomos/gpu/vulkan/post/TPostTonemap.hh"
 
 namespace Tomos
@@ -30,6 +30,10 @@ namespace Tomos
     TVkClusteredRenderer::~TVkClusteredRenderer()
     {
         const VkDevice device = m_gpu.device();
+        if ( device == VK_NULL_HANDLE ) return;
+
+        for ( auto& e : m_post.effects() ) e->destroy();
+        m_post.effects().clear();
 
         destroyGraphicsPipelines();
 
@@ -49,6 +53,28 @@ namespace Tomos
 
         for ( VkImageView view : m_shadowLayerViews )
             if ( view != VK_NULL_HANDLE ) vkDestroyImageView( device, view, nullptr );
+
+        m_particleBuf         = TVkBuffer{};
+        m_freeListBuf         = TVkBuffer{};
+        m_drawIndexBuf        = TVkBuffer{};
+        m_particleCounters    = TVkBuffer{};
+        m_texBucketBuf        = TVkBuffer{};
+        m_compactDrawIndexBuf = TVkBuffer{};
+        m_texDrawCmdBuf       = TVkBuffer{};
+        for ( auto& frame : m_frames )
+        {
+            frame.m_lightGrid      = TVkBuffer{};
+            frame.m_lightIndices   = TVkBuffer{};
+            frame.m_counter        = TVkBuffer{};
+            frame.m_emitterBuf     = TVkBuffer{};
+            frame.m_particleSimUBO = TVkBuffer{};
+        }
+
+        m_depth      = TVkImage{};
+        m_hdrA       = TVkImage{};
+        m_hdrB       = TVkImage{};
+        m_sceneColor = TVkImage{};
+        m_shadowMaps = TVkImage{};
     }
 
     TPostContext TVkClusteredRenderer::makePostContext()
@@ -65,17 +91,13 @@ namespace Tomos
 
     void TVkClusteredRenderer::onResize()
     {
-        // Swapchain rebuild only: in editor mode HDR/sceneColor follow the Scene
-        // panel (renderExtent), not the swapchain. Recreating them here would
-        // destroy views still referenced by ImGui_ImplVulkan_AddTexture.
-        if ( m_gpu.presentMode() == TVkGpu::TPresentMode::EditorViewport )
+        if ( !m_gpu.tonemapTargetsSwapchain() )
         {
             if ( m_renderExtent.width == 0 || m_renderExtent.height == 0 )
             {
                 m_renderExtent = m_gpu.extent();
                 onRenderExtentChanged( m_renderExtent );
             }
-            // Tonemap pipelines key off swap format — refresh post if format changed.
             m_post.onResize( makePostContext() );
             return;
         }
@@ -106,8 +128,8 @@ namespace Tomos
 
     void TVkClusteredRenderer::initPostStack()
     {
-        // Fixed legal order: SSAO → fog → bloom → tonemap (tonemap always last).
-        m_post.add( std::make_unique<TPostSSAO>() );
+        // Fixed legal order: SAO → fog → bloom → tonemap (tonemap always last).
+        m_post.add( std::make_unique<TPostSAO>() );
         m_post.add( std::make_unique<TPostFog>() );
         m_post.add( std::make_unique<TPostBloom>() );
         m_post.add( std::make_unique<TPostTonemap>() );
@@ -238,12 +260,16 @@ namespace Tomos
                 { 3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr },
                 { 4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr },
                 { 5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr },
+                { 6, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr },
+                { 7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr },
+                { 8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr },
         } );
 
         m_particleDrawLayout = makeLayout( {
                 { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr },
                 { 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr },
                 { 2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr },
+                { 3, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr },
         } );
     }
 
@@ -256,6 +282,12 @@ namespace Tomos
         m_freeListBuf      = TVkBuffer( device, physDevice, g_kMaxParticles * sizeof( uint32_t ), TBufUsage::Storage );
         m_drawIndexBuf     = TVkBuffer( device, physDevice, g_kMaxParticles * sizeof( uint32_t ), TBufUsage::Storage );
         m_particleCounters = TVkBuffer( device, physDevice, sizeof( TParticleCounters ), TBufUsage::Storage | TBufUsage::Indirect | TBufUsage::CopyDst );
+
+        // Counts are cleared with vkCmdFillBuffer each frame, hence CopyDst.
+        m_texBucketBuf        = TVkBuffer( device, physDevice, sizeof( TParticleTexBuckets ), TBufUsage::Storage | TBufUsage::CopyDst );
+        m_compactDrawIndexBuf = TVkBuffer( device, physDevice, g_kMaxParticles * sizeof( uint32_t ), TBufUsage::Storage );
+        m_texDrawCmdBuf       = TVkBuffer( device, physDevice, g_kMaxParticleTextures * sizeof( TParticleTexDrawCmd ),
+                                           TBufUsage::Storage | TBufUsage::Indirect | TBufUsage::CopyDst );
 
         std::vector<uint32_t> freeList( g_kMaxParticles );
         for ( uint32_t i = 0; i < g_kMaxParticles; ++i ) freeList[ i ] = i;
@@ -270,6 +302,12 @@ namespace Tomos
         counters.m_vertexCount   = 6;
         counters.m_instanceCount = 0;
         m_particleCounters.upload( &counters, 0, sizeof( counters ) );
+
+        const TParticleTexBuckets buckets{};
+        m_texBucketBuf.upload( &buckets, 0, sizeof( buckets ) );
+
+        std::array<TParticleTexDrawCmd, g_kMaxParticleTextures> texCmds{};
+        m_texDrawCmdBuf.upload( texCmds.data(), 0, texCmds.size() * sizeof( TParticleTexDrawCmd ) );
 
         m_particlesInitialized = true;
     }
@@ -324,8 +362,11 @@ namespace Tomos
             VkDescriptorBufferInfo pcntB{ m_particleCounters.handle(), 0, m_particleCounters.size() };
             VkDescriptorBufferInfo drawB{ m_drawIndexBuf.handle(), 0, m_drawIndexBuf.size() };
             VkDescriptorBufferInfo emitB{ frame.m_emitterBuf.handle(), 0, frame.m_emitterBuf.size() };
+            VkDescriptorBufferInfo bucketB{ m_texBucketBuf.handle(), 0, m_texBucketBuf.size() };
+            VkDescriptorBufferInfo compactB{ m_compactDrawIndexBuf.handle(), 0, m_compactDrawIndexBuf.size() };
+            VkDescriptorBufferInfo texCmdB{ m_texDrawCmdBuf.handle(), 0, m_texDrawCmdBuf.size() };
 
-            const std::array<VkWriteDescriptorSet, 23> writes{ {
+            const std::array<VkWriteDescriptorSet, 27> writes{ {
                     { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, frame.m_sceneSet, 0, 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &sceneB,
                       nullptr },
                     { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, frame.m_sceneSet, 1, 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &instB, nullptr },
@@ -356,11 +397,19 @@ namespace Tomos
                       nullptr },
                     { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, frame.m_particleSimSet, 5, 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &emitB,
                       nullptr },
+                    { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, frame.m_particleSimSet, 6, 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &bucketB,
+                      nullptr },
+                    { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, frame.m_particleSimSet, 7, 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &compactB,
+                      nullptr },
+                    { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, frame.m_particleSimSet, 8, 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &texCmdB,
+                      nullptr },
                     { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, frame.m_particleDrawSet, 0, 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &sceneB,
                       nullptr },
                     { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, frame.m_particleDrawSet, 1, 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &partB,
                       nullptr },
-                    { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, frame.m_particleDrawSet, 2, 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &drawB,
+                    { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, frame.m_particleDrawSet, 2, 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &compactB,
+                      nullptr },
+                    { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, frame.m_particleDrawSet, 3, 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &bucketB,
                       nullptr },
             } };
             vkUpdateDescriptorSets( device, static_cast<uint32_t>( writes.size() ), writes.data(), 0, nullptr );

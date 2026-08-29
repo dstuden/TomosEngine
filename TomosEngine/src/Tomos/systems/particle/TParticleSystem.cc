@@ -1,6 +1,9 @@
 #include "Tomos/systems/particle/TParticleSystem.hh"
 
+#include <algorithm>
+#include <functional>
 #include <unordered_set>
+#include <vector>
 
 #include "Tomos/core/scene/TSceneNode.hh"
 #include "Tomos/gpu/vulkan/TVkPass.hh"
@@ -17,11 +20,34 @@ namespace Tomos
     {
         auto& emitter          = dynamic_cast<TParticleEmitterComponent&>( p_component );
         m_emitters[ &emitter ] = &p_node;
+        m_lastTextureFingerprint.reset();
     }
 
     void TParticleSystem::componentDestroyed( TSceneNode& /*p_node*/, TComponent& p_component )
     {
         m_emitters.erase( &dynamic_cast<TParticleEmitterComponent&>( p_component ) );
+        m_lastTextureFingerprint.reset();
+    }
+
+    size_t TParticleSystem::computeTextureFingerprint() const
+    {
+        std::vector<const TVkImage*> textures;
+        textures.reserve( m_emitters.size() );
+        for ( const auto& [ emitter, node ] : m_emitters )
+        {
+            ( void ) node;
+            if ( emitter->m_texture != nullptr ) textures.push_back( emitter->m_texture );
+        }
+
+        std::sort( textures.begin(), textures.end() );
+
+        size_t hash = 0;
+        for ( const TVkImage* tex : textures )
+        {
+            const size_t h = std::hash<const void*>{}( tex );
+            hash ^= h + 0x9e3779b9 + ( hash << 6 ) + ( hash >> 2 );
+        }
+        return hash;
     }
 
     void TParticleSystem::syncTextureSlots()
@@ -91,7 +117,12 @@ namespace Tomos
         p_state.m_particleDt = p_dt;
         m_overflowWarned     = false;
 
-        syncTextureSlots();
+        const size_t fingerprint = computeTextureFingerprint();
+        if ( !m_lastTextureFingerprint || *m_lastTextureFingerprint != fingerprint )
+        {
+            syncTextureSlots();
+            m_lastTextureFingerprint = fingerprint;
+        }
         p_state.m_particleTextures = m_textures;
 
         if ( m_emitters.empty() ) return;

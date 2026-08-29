@@ -14,6 +14,8 @@ namespace Tomos
         Uniform  = 1 << 4,
         Storage  = 1 << 5,
         Indirect = 1 << 6,
+        // Host-visible upload scratch — map/unmap per upload(), not kept mapped.
+        Staging  = 1 << 7,
     };
 
     inline TBufUsage operator|( TBufUsage p_a, TBufUsage p_b ) { return static_cast<TBufUsage>( static_cast<uint32_t>( p_a ) | static_cast<uint32_t>( p_b ) ); }

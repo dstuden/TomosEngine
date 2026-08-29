@@ -14,6 +14,7 @@
 #include "Tomos/systems/physics/TPhysicsSystem.hh"
 #include "Tomos/systems/script/TScriptSystem.hh"
 #include "Tomos/systems/sprite/TSpriteSystem.hh"
+#include "Tomos/systems/texture/TAnimatedTextureSystem.hh"
 
 namespace Tomos
 {
@@ -33,6 +34,7 @@ namespace Tomos
             ecs.addSystem( std::move( phys ) );
         }
         if ( ecs.maybeGetSystem<TAnimationSystem>() == nullptr ) ecs.addSystem( std::make_unique<TAnimationSystem>() );
+        if ( ecs.maybeGetSystem<TAnimatedTextureSystem>() == nullptr ) ecs.addSystem( std::make_unique<TAnimatedTextureSystem>() );
         if ( ecs.maybeGetSystem<TCameraSystem>() == nullptr ) ecs.addSystem( std::make_unique<TCameraSystem>() );
         if ( ecs.maybeGetSystem<TMeshSystem>() == nullptr ) ecs.addSystem( std::make_unique<TMeshSystem>() );
         if ( ecs.maybeGetSystem<TLightSystem>() == nullptr ) ecs.addSystem( std::make_unique<TLightSystem>() );
@@ -47,7 +49,10 @@ namespace Tomos
         scene().activate();
     }
 
-    void TSceneLayer::onDetach() { scene().deactivate(); }
+    void TSceneLayer::onDetach()
+    {
+        if ( auto scene = TApplication::get().sceneManager().scenePtr() ) scene->deactivate();
+    }
 
     void TSceneLayer::onUpdate( float p_dt )
     {
@@ -65,8 +70,6 @@ namespace Tomos
             ecs.update( p_dt );
         }
         sc.computeTransforms();
-        if ( simulating ) ecs.lateUpdate( p_dt );
-
         if ( simulating )
         {
             if ( auto* audio = ecs.maybeGetSystem<TAudioSystem>() )
@@ -81,6 +84,7 @@ namespace Tomos
                     audio->updateListener( pos, fwd, up );
                 }
             }
+            ecs.lateUpdate( p_dt );
         }
 
         m_lastDt = p_dt;

@@ -17,8 +17,9 @@ namespace Tomos
     public:
         explicit TSpriteComponent( const TVkImage* p_texture = nullptr ) : m_texture( p_texture ) {}
 
-        TBagTextureRef  m_textureRef{};
-        const TVkImage* m_texture = nullptr;
+        TBagTextureRef         m_textureRef{};
+        TBagAnimatedTextureRef m_animRef{};
+        const TVkImage*        m_texture = nullptr;
 
         glm::vec2      m_size     = { 1.0f, 1.0f };
         glm::vec4      m_color    = { 1.0f, 1.0f, 1.0f, 1.0f };

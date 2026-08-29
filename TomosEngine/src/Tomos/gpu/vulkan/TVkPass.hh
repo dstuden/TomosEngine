@@ -163,6 +163,26 @@ namespace Tomos
         uint32_t m_firstInstance{ 0 };
     };
 
+    // Per-texture particle bucketing. Layout must match common/particle_buckets.glsl.
+    // Counts are accumulated during update/emit, prefix-summed into offsets, then
+    // used to scatter alive particles into one contiguous run per texture slot.
+    struct alignas( 16 ) TParticleTexBuckets
+    {
+        uint32_t m_counts[ g_kMaxParticleTextures ]{};
+        uint32_t m_offsets[ g_kMaxParticleTextures ]{};
+        uint32_t m_write[ g_kMaxParticleTextures ]{};
+    };
+
+    // One VkDrawIndirectCommand per particle texture slot (written by particle_sim.comp).
+    struct alignas( 16 ) TParticleTexDrawCmd
+    {
+        uint32_t m_vertexCount{ 6 };
+        uint32_t m_instanceCount{ 0 };
+        uint32_t m_firstVertex{ 0 };
+        uint32_t m_firstInstance{ 0 };
+    };
+    static_assert( sizeof( TParticleTexDrawCmd ) == 16, "TParticleTexDrawCmd must match VkDrawIndirectCommand" );
+
     struct alignas( 16 ) TParticleSimUBO
     {
         float    m_dt{ 0.0f };

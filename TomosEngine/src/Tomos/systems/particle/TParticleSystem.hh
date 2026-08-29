@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -8,6 +9,7 @@
 
 namespace Tomos
 {
+    class TAnimatedTextureSystem;
     class TSceneNode;
     class TVkImage;
     struct TFrameState;
@@ -15,6 +17,8 @@ namespace Tomos
     // Texture slots stable for in-flight GPU particles; overflow → default slot + warn.
     class TParticleSystem : public TTypedSystem<TParticleEmitterComponent>
     {
+        friend class TAnimatedTextureSystem;
+
     public:
         TParticleSystem();
 
@@ -26,6 +30,7 @@ namespace Tomos
         [[nodiscard]] size_t emitterCount() const { return m_emitters.size(); }
 
     private:
+        [[nodiscard]] size_t   computeTextureFingerprint() const;
         void                   syncTextureSlots();
         [[nodiscard]] uint32_t textureIndex( const TVkImage* p_texture );
 
@@ -33,6 +38,7 @@ namespace Tomos
         std::vector<const TVkImage*>                                m_textures;
         std::unordered_map<const TVkImage*, uint32_t>               m_texToIndex;
         std::vector<uint32_t>                                       m_freeSlots;
+        std::optional<size_t>                                       m_lastTextureFingerprint;
         bool                                                        m_overflowWarned = false;
     };
 }  // namespace Tomos

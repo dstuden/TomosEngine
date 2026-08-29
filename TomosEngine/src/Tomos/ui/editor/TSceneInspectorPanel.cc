@@ -23,11 +23,53 @@
 #include "Tomos/systems/sprite/TSpriteComponent.hh"
 #include "Tomos/ui/editor/TAssetBrowserPanel.hh"
 #include "Tomos/ui/editor/TSceneEditorContext.hh"
+#include "Tomos/util/image/TAnimatedTexture.hh"
 
 namespace Tomos
 {
     namespace
     {
+        void editAnimPlayback( TSceneEditorContext& p_ctx, const TVkImage* p_tex, TBagAnimatedTextureRef& p_ref )
+        {
+            if ( p_ctx.m_bag == nullptr || p_tex == nullptr ) return;
+            TAnimatedTexture* anim = p_ctx.m_bag->findAnimatedTexture( p_tex );
+            if ( anim == nullptr )
+            {
+                ImGui::TextDisabled( "Static texture" );
+                return;
+            }
+            ImGui::Separator();
+            ImGui::TextUnformatted( "Animated texture" );
+            if ( ImGui::Checkbox( "Playing##anim", &anim->m_playing ) ) p_ref.m_playing = anim->m_playing;
+            if ( ImGui::Checkbox( "Loop##anim", &anim->m_looping ) ) p_ref.m_looping = anim->m_looping;
+            if ( ImGui::SliderFloat( "Speed##anim", &anim->m_speed, 0.0f, 4.0f ) ) p_ref.m_speed = anim->m_speed;
+            p_ref.m_path = anim->path();
+        }
+
+        void editTexturePath( TSceneEditorContext& p_ctx, const TVkImage*& p_tex, TBagTextureRef* p_pathRef, TBagAnimatedTextureRef& p_animRef,
+                              const char* p_label = "Texture path" )
+        {
+            std::string texPath = p_animRef.m_path;
+            if ( texPath.empty() && p_ctx.m_bag != nullptr )
+            {
+                if ( const std::string* p = p_ctx.m_bag->findImagePath( p_tex ) ) texPath = *p;
+            }
+            char pathBuf[ 512 ];
+            std::snprintf( pathBuf, sizeof( pathBuf ), "%s", texPath.c_str() );
+            if ( ImGui::InputText( p_label, pathBuf, sizeof( pathBuf ), ImGuiInputTextFlags_EnterReturnsTrue ) )
+            {
+                if ( p_ctx.m_bag != nullptr && TApplication::get().gpu() != nullptr )
+                {
+                    p_animRef.m_path = pathBuf;
+                    p_tex            = p_ctx.m_bag->resolveTexture( *TApplication::get().gpu(), pathBuf, p_animRef );
+                    if ( p_pathRef != nullptr ) p_pathRef->m_path = pathBuf;
+                    if ( auto* anim = p_ctx.m_bag->findAnimatedTexture( p_tex ) ) anim->applyOpts( p_animRef );
+                }
+            }
+            ImGui::Text( "Texture: %s", p_tex ? "bound" : "nullptr" );
+            editAnimPlayback( p_ctx, p_tex, p_animRef );
+        }
+
         void editTransform( TSceneNode& p_node )
         {
             TTransform& t = p_node.m_transform;
@@ -109,7 +151,7 @@ namespace Tomos
             ImGui::Checkbox( "Cast shadow", &p_lit.m_castShadow );
         }
 
-        void editMesh( TMeshComponent& p_mesh, bool p_skinned )
+        void editMesh( TMeshComponent& p_mesh, bool p_skinned, TSceneEditorContext& p_ctx )
         {
             ImGui::Text( "Mesh ptr: %s", p_mesh.m_mesh ? "bound" : "null" );
             ImGui::Text( "Material: %s", p_mesh.m_material ? "bound" : "null" );
@@ -120,44 +162,45 @@ namespace Tomos
             if ( names.empty() )
             {
                 ImGui::TextDisabled( "No registered assets" );
-                return;
             }
-
-            TMeshAssetRef ref{};
-            const bool    resolved = assets.resolveMesh( p_mesh.m_mesh, p_mesh.m_material, ref );
-            int           assetIdx = 0;
-            for ( size_t i = 0; i < names.size(); ++i )
+            else
             {
-                if ( resolved && names[ i ] == ref.m_assetName ) assetIdx = static_cast<int>( i );
-            }
-
-            std::vector<const char*> namePtrs;
-            namePtrs.reserve( names.size() );
-            for ( const auto& n : names ) namePtrs.push_back( n.c_str() );
-
-            bool changed = ImGui::Combo( "Asset", &assetIdx, namePtrs.data(), static_cast<int>( namePtrs.size() ) );
-            int  meshIdx = resolved ? static_cast<int>( ref.m_meshIdx ) : 0;
-            int  matIdx  = resolved ? static_cast<int>( ref.m_materialIdx ) : 0;
-
-            TGpuAsset* asset = assets.maybeGetAsset( names[ static_cast<size_t>( assetIdx ) ] );
-            if ( asset != nullptr )
-            {
-                const int meshCount = static_cast<int>( asset->m_meshes.size() );
-                const int matCount  = static_cast<int>( asset->m_materials.size() );
-                if ( meshCount > 0 )
+                TMeshAssetRef ref{};
+                const bool    resolved = assets.resolveMesh( p_mesh.m_mesh, p_mesh.m_material, ref );
+                int           assetIdx = 0;
+                for ( size_t i = 0; i < names.size(); ++i )
                 {
-                    meshIdx = std::clamp( meshIdx, 0, meshCount - 1 );
-                    changed = ImGui::SliderInt( "Mesh index", &meshIdx, 0, meshCount - 1 ) || changed;
+                    if ( resolved && names[ i ] == ref.m_assetName ) assetIdx = static_cast<int>( i );
                 }
-                if ( matCount > 0 )
+
+                std::vector<const char*> namePtrs;
+                namePtrs.reserve( names.size() );
+                for ( const auto& n : names ) namePtrs.push_back( n.c_str() );
+
+                bool changed = ImGui::Combo( "Asset", &assetIdx, namePtrs.data(), static_cast<int>( namePtrs.size() ) );
+                int  meshIdx = resolved ? static_cast<int>( ref.m_meshIdx ) : 0;
+                int  matIdx  = resolved ? static_cast<int>( ref.m_materialIdx ) : 0;
+
+                TGpuAsset* asset = assets.maybeGetAsset( names[ static_cast<size_t>( assetIdx ) ] );
+                if ( asset != nullptr )
                 {
-                    matIdx  = std::clamp( matIdx, 0, matCount - 1 );
-                    changed = ImGui::SliderInt( "Material index", &matIdx, 0, matCount - 1 ) || changed;
-                }
-                if ( changed )
-                {
-                    p_mesh.m_mesh     = meshCount > 0 ? asset->mesh( static_cast<uint32_t>( meshIdx ) ) : nullptr;
-                    p_mesh.m_material = matCount > 0 ? asset->material( static_cast<uint32_t>( matIdx ) ) : nullptr;
+                    const int meshCount = static_cast<int>( asset->m_meshes.size() );
+                    const int matCount  = static_cast<int>( asset->m_materials.size() );
+                    if ( meshCount > 0 )
+                    {
+                        meshIdx = std::clamp( meshIdx, 0, meshCount - 1 );
+                        changed = ImGui::SliderInt( "Mesh index", &meshIdx, 0, meshCount - 1 ) || changed;
+                    }
+                    if ( matCount > 0 )
+                    {
+                        matIdx  = std::clamp( matIdx, 0, matCount - 1 );
+                        changed = ImGui::SliderInt( "Material index", &matIdx, 0, matCount - 1 ) || changed;
+                    }
+                    if ( changed )
+                    {
+                        p_mesh.m_mesh     = meshCount > 0 ? asset->mesh( static_cast<uint32_t>( meshIdx ) ) : nullptr;
+                        p_mesh.m_material = matCount > 0 ? asset->material( static_cast<uint32_t>( matIdx ) ) : nullptr;
+                    }
                 }
             }
 
@@ -165,6 +208,31 @@ namespace Tomos
             {
                 auto* sk = dynamic_cast<TSkinnedMeshComponent*>( &p_mesh );
                 if ( sk != nullptr ) ImGui::Text( "Joints: %zu", sk->m_joints.size() );
+            }
+
+            ImGui::Separator();
+            ImGui::TextUnformatted( "Texture overrides" );
+            {
+                char pathBuf[ 512 ];
+                std::snprintf( pathBuf, sizeof( pathBuf ), "%s", p_mesh.m_baseTextureOverride.m_path.c_str() );
+                if ( ImGui::InputText( "Base override", pathBuf, sizeof( pathBuf ), ImGuiInputTextFlags_EnterReturnsTrue ) )
+                {
+                    p_mesh.m_baseTextureOverride.m_path = pathBuf;
+                    if ( p_ctx.m_bag != nullptr && TApplication::get().gpu() != nullptr )
+                        p_mesh.rebindOverrides( *p_ctx.m_bag, *TApplication::get().gpu() );
+                }
+                editAnimPlayback( p_ctx, p_mesh.m_baseOverrideImage, p_mesh.m_baseTextureOverride );
+            }
+            {
+                char pathBuf[ 512 ];
+                std::snprintf( pathBuf, sizeof( pathBuf ), "%s", p_mesh.m_emissionTextureOverride.m_path.c_str() );
+                if ( ImGui::InputText( "Emission override", pathBuf, sizeof( pathBuf ), ImGuiInputTextFlags_EnterReturnsTrue ) )
+                {
+                    p_mesh.m_emissionTextureOverride.m_path = pathBuf;
+                    if ( p_ctx.m_bag != nullptr && TApplication::get().gpu() != nullptr )
+                        p_mesh.rebindOverrides( *p_ctx.m_bag, *TApplication::get().gpu() );
+                }
+                editAnimPlayback( p_ctx, p_mesh.m_emissionOverrideImage, p_mesh.m_emissionTextureOverride );
             }
         }
 
@@ -227,20 +295,7 @@ namespace Tomos
             ImGui::DragFloat2( "UV min", &p_spr.m_uvMin.x, 0.01f );
             ImGui::DragFloat2( "UV max", &p_spr.m_uvMax.x, 0.01f );
             ImGui::Checkbox( "Visible", &p_spr.m_visible );
-
-            std::string texPath;
-            if ( p_ctx.m_bag != nullptr )
-            {
-                if ( const std::string* p = p_ctx.m_bag->findImagePath( p_spr.m_texture ) ) texPath = *p;
-            }
-            char pathBuf[ 512 ];
-            std::snprintf( pathBuf, sizeof( pathBuf ), "%s", texPath.c_str() );
-            if ( ImGui::InputText( "Texture path", pathBuf, sizeof( pathBuf ), ImGuiInputTextFlags_EnterReturnsTrue ) )
-            {
-                if ( p_ctx.m_bag != nullptr && TApplication::get().gpu() != nullptr )
-                    p_spr.m_texture = p_ctx.m_bag->loadImage( *TApplication::get().gpu(), pathBuf );
-            }
-            ImGui::Text( "Texture: %s", p_spr.m_texture ? "bound" : "nullptr" );
+            editTexturePath( p_ctx, p_spr.m_texture, &p_spr.m_textureRef, p_spr.m_animRef );
         }
 
         void editParticle( TParticleEmitterComponent& p_p, TSceneEditorContext& p_ctx )
@@ -261,20 +316,7 @@ namespace Tomos
             int seed = static_cast<int>( p_p.m_seed );
             if ( ImGui::DragInt( "Seed", &seed, 1, 1, 1000000 ) ) p_p.m_seed = static_cast<uint32_t>( std::max( 1, seed ) );
             if ( ImGui::Button( "Burst 200" ) ) p_p.burst( 200 );
-
-            std::string texPath;
-            if ( p_ctx.m_bag != nullptr )
-            {
-                if ( const std::string* path = p_ctx.m_bag->findImagePath( p_p.m_texture ) ) texPath = *path;
-            }
-            char pathBuf[ 512 ];
-            std::snprintf( pathBuf, sizeof( pathBuf ), "%s", texPath.c_str() );
-            if ( ImGui::InputText( "Texture path", pathBuf, sizeof( pathBuf ), ImGuiInputTextFlags_EnterReturnsTrue ) )
-            {
-                if ( p_ctx.m_bag != nullptr && TApplication::get().gpu() != nullptr )
-                    p_p.m_texture = p_ctx.m_bag->loadImage( *TApplication::get().gpu(), pathBuf );
-            }
-            ImGui::Text( "Texture: %s", p_p.m_texture ? "bound" : "nullptr" );
+            editTexturePath( p_ctx, p_p.m_texture, nullptr, p_p.m_animRef );
         }
 
         void editAudio( TAudioComponent& p_a, TSceneEditorContext& p_ctx )
@@ -417,9 +459,9 @@ namespace Tomos
                 else if ( auto* lit = dynamic_cast<TLightComponent*>( c ) )
                     editLight( *lit );
                 else if ( auto* sk = dynamic_cast<TSkinnedMeshComponent*>( c ) )
-                    editMesh( *sk, true );
+                    editMesh( *sk, true, p_ctx );
                 else if ( auto* mesh = dynamic_cast<TMeshComponent*>( c ) )
-                    editMesh( *mesh, false );
+                    editMesh( *mesh, false, p_ctx );
                 else if ( auto* anim = dynamic_cast<TAnimatorComponent*>( c ) )
                     editAnimator( *anim );
                 else if ( auto* spr = dynamic_cast<TSpriteComponent*>( c ) )

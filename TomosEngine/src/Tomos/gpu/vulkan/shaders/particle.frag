@@ -6,11 +6,6 @@
 
 layout( set = 1, binding = 0 ) uniform sampler2D tParticle;
 
-layout( push_constant ) uniform Push
-{
-    uint texIndex;
-} pc;
-
 layout( location = 0 ) in vec2  vUV;
 layout( location = 1 ) in vec2  vLocalUV;
 layout( location = 2 ) in vec4  vColor;
@@ -22,9 +17,6 @@ const float k_alphaDiscard = 0.004;
 
 void main()
 {
-    // One draw per texture batch — skip particles that belong to another slot.
-    if ( vTexIndex != pc.texIndex ) discard;
-
     const vec4 texel = texture( tParticle, vUV );
 
     float a = texel.a * vColor.a;

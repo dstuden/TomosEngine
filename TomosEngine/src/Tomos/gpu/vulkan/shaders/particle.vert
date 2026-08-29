@@ -1,8 +1,8 @@
 #version 450
 
 // Additive particle billboards — spherical, vertex-pulled from the GPU particle pool.
-// Push constant selects which texture batch to draw; mismatched particles are
-// clipped in the vertex shader (and discarded in the fragment shader).
+// One indirect draw per texture slot; the compute sim groups alive particles into
+// a contiguous run per slot, so every instance here belongs to pc.texIndex.
 
 layout( set = 0, binding = 0 ) uniform SceneUBO
 {
@@ -16,9 +16,16 @@ layout( set = 0, binding = 1 ) readonly buffer ParticleSSBO
     Particle particles[];
 };
 
-layout( set = 0, binding = 2 ) readonly buffer DrawIndexSSBO
+layout( set = 0, binding = 2 ) readonly buffer CompactDrawIndexSSBO
 {
-    uint drawIndices[];
+    uint compactDrawIndices[];
+};
+
+#include "common/particle_buckets.glsl"
+
+layout( set = 0, binding = 3 ) readonly buffer TexBucketSSBO
+{
+    TexBuckets buckets;
 };
 
 layout( push_constant ) uniform Push
@@ -35,20 +42,10 @@ layout( location = 3 ) flat out uint vTexIndex;
 
 void main()
 {
-    const uint     pidx = drawIndices[ gl_InstanceIndex ];
+    const uint     pidx = compactDrawIndices[ buckets.offsets[ pc.texIndex ] + uint( gl_InstanceIndex ) ];
     const Particle p    = particles[ pidx ];
 
     vTexIndex = p.texIndex;
-
-    // Wrong texture batch — push outside the clip volume (no fragment work).
-    if ( p.texIndex != pc.texIndex )
-    {
-        vUV         = vec2( 0.0 );
-        vLocalUV    = vec2( 0.0 );
-        vColor      = vec4( 0.0 );
-        gl_Position = vec4( 2.0, 2.0, 2.0, 1.0 );
-        return;
-    }
 
     const float age   = 1.0 - clamp( p.life / max( p.maxLife, 1e-4 ), 0.0, 1.0 );
     const vec2  size  = mix( p.sizeStart, p.sizeEnd, age );

@@ -100,6 +100,10 @@ namespace Tomos
         TVkBuffer m_freeListBuf;
         TVkBuffer m_drawIndexBuf;
         TVkBuffer m_particleCounters;
+        // Alive particles regrouped per texture slot so each slot draws only its own.
+        TVkBuffer m_texBucketBuf;
+        TVkBuffer m_compactDrawIndexBuf;
+        TVkBuffer m_texDrawCmdBuf;
         bool      m_particlesInitialized = false;
         uint32_t  m_particleFrameCounter = 0;
 

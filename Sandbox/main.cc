@@ -576,6 +576,63 @@ private:
 
         spawnWaterDemo();
         spawnPhysicsDemo();
+        spawnAnimatedTextureDemo();
+    }
+
+    void spawnAnimatedTextureDemo()
+    {
+        auto& app = TApplication::get();
+        auto* gpu = app.gpu();
+        if ( gpu == nullptr ) return;
+
+        {
+            TBagAnimatedTextureRef opts{ "assets/textures/demo.gif" };
+            TVkImage*              gif = scene().resources().resolveTexture( *gpu, opts.m_path, opts );
+
+            auto node = std::make_shared<TSceneNode>( "AnimGifSprite" );
+            node->m_transform.setTranslation( { 1.5f, 1.2f, 1.0f } );
+
+            auto sprite       = std::make_shared<TSpriteComponent>( gif );
+            sprite->m_size    = { 0.6f, 0.6f };
+            sprite->m_color   = { 1.0f, 1.0f, 1.0f, 1.0f };
+            sprite->m_mode    = TBillboardMode::Spherical;
+            sprite->m_animRef = opts;
+            sprite->m_textureRef = TBagTextureRef{ opts.m_path };
+            node->addComponent( sprite );
+            scene().addChild( node );
+        }
+
+        TGpuAsset* screenAsset = app.assetSystem().maybeGetAsset( "VideoScreen" );
+        if ( screenAsset == nullptr )
+        {
+            auto asset    = std::make_unique<TGpuAsset>();
+            asset->m_name = "VideoScreen";
+            asset->m_meshes.push_back( TMeshPrimitives::makePlane( *gpu ) );
+
+            TVkMaterialDesc desc{};
+            desc.m_baseColorFactor = { 1.0f, 1.0f, 1.0f, 1.0f };
+            desc.m_metallicFactor  = 0.0f;
+            desc.m_roughnessFactor = 0.9f;
+            desc.m_baseTexture     = &gpu->defaultTexture();
+            desc.m_metRghTexture   = &gpu->defaultTexture();
+            desc.m_emissionTexture = &gpu->defaultTexture();
+            desc.m_normalTexture   = &gpu->defaultTexture();
+            asset->m_materials.push_back(
+                    std::make_unique<TVkMaterial>( gpu->device(), gpu->physDevice(), gpu->descPool(), gpu->layouts().m_material, desc ) );
+            app.assetSystem().registerAsset( std::move( asset ) );
+            screenAsset = app.assetSystem().maybeGetAsset( "VideoScreen" );
+        }
+        if ( screenAsset == nullptr || screenAsset->m_meshes.empty() || screenAsset->m_materials.empty() ) return;
+
+        auto node = std::make_shared<TSceneNode>( "VideoScreen" );
+        node->m_transform.setLocalTRS( { -2.5f, 1.5f, 0.0f }, glm::angleAxis( glm::radians( 90.0f ), glm::vec3( 1.0f, 0.0f, 0.0f ) ),
+                                       glm::vec3( 1.2f, 1.0f, 0.8f ) );
+
+        auto mesh                     = std::make_shared<TMeshComponent>( screenAsset->m_meshes[ 0 ].get(), screenAsset->m_materials[ 0 ].get(), false );
+        mesh->m_baseTextureOverride   = TBagAnimatedTextureRef{ "assets/textures/screen.mp4" };
+        mesh->rebindOverrides( scene().resources(), *gpu );
+        node->addComponent( mesh );
+        scene().addChild( node );
     }
 
     void spawnWaterDemo()

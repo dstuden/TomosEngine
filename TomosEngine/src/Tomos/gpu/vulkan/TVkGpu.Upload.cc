@@ -12,24 +12,73 @@
 
 namespace Tomos
 {
-    void TVkGpu::beginUploadBatch()
+    void TVkGpu::createUploadRing()
     {
-        if ( m_batchOpen ) throw std::runtime_error( "[TVkGpu] Upload batch already open" );
-
         VkCommandBufferAllocateInfo allocInfo{};
         allocInfo.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
         allocInfo.commandPool        = m_uploadPool;
         allocInfo.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         allocInfo.commandBufferCount = 1;
-        if ( vkAllocateCommandBuffers( m_device, &allocInfo, &m_batchCmd ) != VK_SUCCESS )
-            throw std::runtime_error( "[TVkGpu] Failed to allocate upload command buffer" );
+
+        VkFenceCreateInfo fenceInfo{ VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
+
+        for ( auto& slot : m_uploadSlots )
+        {
+            if ( vkAllocateCommandBuffers( m_device, &allocInfo, &slot.m_cmd ) != VK_SUCCESS )
+                throw std::runtime_error( "[TVkGpu] Failed to allocate upload command buffer" );
+            if ( vkCreateFence( m_device, &fenceInfo, nullptr, &slot.m_fence ) != VK_SUCCESS )
+                throw std::runtime_error( "[TVkGpu] Failed to create upload fence" );
+        }
+    }
+
+    void TVkGpu::destroyUploadRing()
+    {
+        for ( auto& slot : m_uploadSlots )
+        {
+            if ( slot.m_inFlight && slot.m_fence != VK_NULL_HANDLE ) vkWaitForFences( m_device, 1, &slot.m_fence, VK_TRUE, UINT64_MAX );
+            slot.m_staging.clear();
+            slot.m_inFlight = false;
+            if ( slot.m_fence != VK_NULL_HANDLE ) vkDestroyFence( m_device, slot.m_fence, nullptr );
+            slot.m_fence = VK_NULL_HANDLE;
+            slot.m_cmd   = VK_NULL_HANDLE;  // freed with m_uploadPool
+        }
+    }
+
+    void TVkGpu::waitUploadSlot( TVkUploadSlot& p_slot )
+    {
+        if ( p_slot.m_inFlight )
+        {
+            vkWaitForFences( m_device, 1, &p_slot.m_fence, VK_TRUE, UINT64_MAX );
+            p_slot.m_inFlight = false;
+        }
+        vkResetFences( m_device, 1, &p_slot.m_fence );
+        p_slot.m_staging.clear();
+    }
+
+    void TVkGpu::reclaimUploadSlots()
+    {
+        for ( auto& slot : m_uploadSlots )
+        {
+            if ( !slot.m_inFlight || slot.m_staging.empty() ) continue;
+            if ( vkGetFenceStatus( m_device, slot.m_fence ) == VK_SUCCESS ) slot.m_staging.clear();
+        }
+    }
+
+    void TVkGpu::beginUploadBatch()
+    {
+        if ( m_batchOpen ) throw std::runtime_error( "[TVkGpu] Upload batch already open" );
+
+        TVkUploadSlot& slot = m_uploadSlots[ m_uploadSlotIndex ];
+        waitUploadSlot( slot );
+
+        vkResetCommandBuffer( slot.m_cmd, 0 );
 
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-        vkBeginCommandBuffer( m_batchCmd, &beginInfo );
+        vkBeginCommandBuffer( slot.m_cmd, &beginInfo );
 
-        m_batchStaging.clear();
+        m_batchCmd  = slot.m_cmd;
         m_batchOpen = true;
     }
 
@@ -37,25 +86,23 @@ namespace Tomos
     {
         if ( !m_batchOpen ) return;
 
-        vkEndCommandBuffer( m_batchCmd );
+        TVkUploadSlot& slot = m_uploadSlots[ m_uploadSlotIndex ];
 
-        if ( vkResetFences( m_device, 1, &m_uploadFence ) != VK_SUCCESS )
-            throw std::runtime_error( "[TVkGpu] Failed to reset upload fence" );
+        vkEndCommandBuffer( slot.m_cmd );
 
         VkSubmitInfo submitInfo{};
         submitInfo.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers    = &m_batchCmd;
+        submitInfo.pCommandBuffers    = &slot.m_cmd;
 
-        if ( vkQueueSubmit( m_graphicsQueue, 1, &submitInfo, m_uploadFence ) != VK_SUCCESS )
+        if ( vkQueueSubmit( m_graphicsQueue, 1, &submitInfo, slot.m_fence ) != VK_SUCCESS )
             throw std::runtime_error( "[TVkGpu] Upload batch submit failed" );
 
-        vkWaitForFences( m_device, 1, &m_uploadFence, VK_TRUE, UINT64_MAX );
+        slot.m_inFlight = true;
 
-        vkFreeCommandBuffers( m_device, m_uploadPool, 1, &m_batchCmd );
-        m_batchCmd = VK_NULL_HANDLE;
-        m_batchStaging.clear();
-        m_batchOpen = false;
+        m_uploadSlotIndex = ( m_uploadSlotIndex + 1 ) % g_kFramesInFlight;
+        m_batchCmd        = VK_NULL_HANDLE;
+        m_batchOpen       = false;
     }
 
     void TVkGpu::uploadBuffer( TVkBuffer& p_dst, const void* p_data, size_t p_size )
@@ -63,14 +110,14 @@ namespace Tomos
         const bool ownedBatch = !m_batchOpen;
         if ( ownedBatch ) beginUploadBatch();
 
-        TVkBuffer staging( m_device, m_physDevice, p_size, TBufUsage::Uniform | TBufUsage::CopySrc );
+        TVkBuffer staging( m_device, m_physDevice, p_size, TBufUsage::CopySrc | TBufUsage::Staging );
         staging.upload( p_data, 0, p_size );
 
         VkBufferCopy region{};
         region.size = p_size;
         vkCmdCopyBuffer( m_batchCmd, staging.handle(), p_dst.handle(), 1, &region );
 
-        m_batchStaging.push_back( std::move( staging ) );
+        m_uploadSlots[ m_uploadSlotIndex ].m_staging.push_back( std::move( staging ) );
 
         if ( ownedBatch ) endUploadBatch();
     }
@@ -83,7 +130,7 @@ namespace Tomos
         const size_t   byteSize  = static_cast<size_t>( p_width ) * p_height * 4;
         const uint32_t mipLevels = std::max( 1u, p_dst.mipLevels() );
 
-        TVkBuffer staging( m_device, m_physDevice, byteSize, TBufUsage::Uniform | TBufUsage::CopySrc );
+        TVkBuffer staging( m_device, m_physDevice, byteSize, TBufUsage::CopySrc | TBufUsage::Staging );
         staging.upload( p_pixels, 0, byteSize );
 
         VkCommandBuffer p_cmd = m_batchCmd;
@@ -177,7 +224,44 @@ namespace Tomos
                         VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT );
         }
 
-        m_batchStaging.push_back( std::move( staging ) );
+        m_uploadSlots[ m_uploadSlotIndex ].m_staging.push_back( std::move( staging ) );
+
+        if ( ownedBatch ) endUploadBatch();
+    }
+
+    void TVkGpu::updateImage( TVkImage& p_dst, const void* p_pixels, uint32_t p_width, uint32_t p_height )
+    {
+        if ( !p_dst.valid() ) throw std::runtime_error( "[TVkGpu] updateImage: destination image is invalid" );
+        if ( p_pixels == nullptr ) throw std::runtime_error( "[TVkGpu] updateImage: pixels is null" );
+        if ( p_dst.mipLevels() != 1 ) throw std::runtime_error( "[TVkGpu] updateImage: requires mipLevels == 1" );
+        if ( p_width != p_dst.width() || p_height != p_dst.height() )
+            throw std::runtime_error( "[TVkGpu] updateImage: size mismatch with destination image" );
+
+        const bool ownedBatch = !m_batchOpen;
+        if ( ownedBatch ) beginUploadBatch();
+
+        const size_t byteSize = static_cast<size_t>( p_width ) * p_height * 4;
+
+        TVkBuffer staging( m_device, m_physDevice, byteSize, TBufUsage::CopySrc | TBufUsage::Staging );
+        staging.upload( p_pixels, 0, byteSize );
+
+        VkCommandBuffer p_cmd = m_batchCmd;
+
+        VkUtil::imageBarrier( p_cmd, p_dst.handle(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                              VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT, VK_PIPELINE_STAGE_2_COPY_BIT,
+                              VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_ASPECT_COLOR_BIT, p_dst.layers(), 1 );
+
+        VkBufferImageCopy region{};
+        region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.imageSubresource.layerCount = 1;
+        region.imageExtent                 = { p_width, p_height, 1 };
+        vkCmdCopyBufferToImage( p_cmd, staging.handle(), p_dst.handle(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region );
+
+        VkUtil::imageBarrier( p_cmd, p_dst.handle(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                              VK_PIPELINE_STAGE_2_COPY_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+                              VK_ACCESS_2_SHADER_READ_BIT, VK_IMAGE_ASPECT_COLOR_BIT, p_dst.layers(), 1 );
+
+        m_uploadSlots[ m_uploadSlotIndex ].m_staging.push_back( std::move( staging ) );
 
         if ( ownedBatch ) endUploadBatch();
     }

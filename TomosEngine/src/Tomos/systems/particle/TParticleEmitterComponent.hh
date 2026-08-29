@@ -5,6 +5,7 @@
 #include <glm/glm.hpp>
 
 #include "Tomos/systems/TComponent.hh"
+#include "Tomos/systems/asset/TAssetHandles.hh"
 
 namespace Tomos
 {
@@ -34,6 +35,8 @@ namespace Tomos
         const TVkImage* m_texture = nullptr;
         glm::vec2       m_uvMin   = { 0.0f, 0.0f };
         glm::vec2       m_uvMax   = { 1.0f, 1.0f };
+
+        TBagAnimatedTextureRef m_animRef{};
 
         void burst( uint32_t p_count ) { m_pendingBurst += p_count; }
 

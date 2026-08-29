@@ -44,17 +44,7 @@ namespace Tomos
             return out;
         }
 
-        struct TJointPose
-        {
-            bool      m_hasT = false;
-            bool      m_hasR = false;
-            bool      m_hasS = false;
-            glm::vec3 m_t{ 0.0f };
-            glm::quat m_r{ 1.0f, 0.0f, 0.0f, 0.0f };
-            glm::vec3 m_s{ 1.0f };
-        };
-
-        void sampleChannel( const TAnimationChannel& p_ch, float p_time, TJointPose& p_pose )
+        void sampleChannel( const TAnimationChannel& p_ch, float p_time, TAnimationSystem::TJointPose& p_pose )
         {
             const TSampleKeys keys = sampleKeys( p_ch.m_times, p_time );
             switch ( p_ch.m_path )
@@ -81,7 +71,7 @@ namespace Tomos
             }
         }
 
-        void sampleClip( const TAnimationClip& p_clip, float p_time, std::unordered_map<std::string, TJointPose>& p_out )
+        void sampleClip( const TAnimationClip& p_clip, float p_time, std::unordered_map<std::string, TAnimationSystem::TJointPose>& p_out )
         {
             for ( const TAnimationChannel& ch : p_clip.m_channels )
             {
@@ -108,12 +98,12 @@ namespace Tomos
             }
         }
 
-        void writePose( TSceneNode& p_root, const std::unordered_map<std::string, TJointPose>& p_from, const std::unordered_map<std::string, TJointPose>& p_to,
-                        float p_weight )
+        void writePose( TSceneNode& p_root, const std::unordered_map<std::string, TAnimationSystem::TJointPose>& p_from,
+                        const std::unordered_map<std::string, TAnimationSystem::TJointPose>& p_to, float p_weight )
         {
             const float w = std::clamp( p_weight, 0.0f, 1.0f );
 
-            auto writeJoint = [ & ]( const std::string& p_name, const TJointPose* p_a, const TJointPose* p_b )
+            auto writeJoint = [ & ]( const std::string& p_name, const TAnimationSystem::TJointPose* p_a, const TAnimationSystem::TJointPose* p_b )
             {
                 TSceneNode* joint = p_root.findByName( p_name );
                 if ( joint == nullptr ) return;
@@ -184,7 +174,8 @@ namespace Tomos
     {
         for ( auto& [ ac, node ] : m_animators )
         {
-            // Scripts set bools first; evaluate graph before sampling.
+            if ( !ac->m_playing || ac->m_clip == nullptr ) continue;
+
             if ( ac->m_stateMachine.m_enabled )
             {
                 const TAnimState* next = nullptr;
@@ -192,7 +183,6 @@ namespace Tomos
                 if ( ac->m_stateMachine.evaluate( next, fade ) && next != nullptr ) ac->applyState( *next, fade, true );
             }
 
-            if ( !ac->m_playing || ac->m_clip == nullptr ) continue;
             if ( ac->m_clip->m_channels.empty() && ( ac->m_fadeFromClip == nullptr || ac->m_fadeFromClip->m_channels.empty() ) ) continue;
 
             advanceClipTime( ac->m_clip, ac->m_time, ac->m_speed, ac->m_looping, ac->m_playing, p_dt );
@@ -213,11 +203,11 @@ namespace Tomos
                 if ( ac->m_blendWeight >= 1.0f ) ac->clearCrossfade();
             }
 
-            std::unordered_map<std::string, TJointPose> fromPose;
-            std::unordered_map<std::string, TJointPose> toPose;
-            if ( ac->m_fadeFromClip != nullptr ) sampleClip( *ac->m_fadeFromClip, ac->m_fadeFromTime, fromPose );
-            sampleClip( *ac->m_clip, ac->m_time, toPose );
-            writePose( *node, fromPose, toPose, ac->m_fadeFromClip != nullptr ? ac->m_blendWeight : 1.0f );
+            m_fromPose.clear();
+            m_toPose.clear();
+            if ( ac->m_fadeFromClip != nullptr ) sampleClip( *ac->m_fadeFromClip, ac->m_fadeFromTime, m_fromPose );
+            sampleClip( *ac->m_clip, ac->m_time, m_toPose );
+            writePose( *node, m_fromPose, m_toPose, ac->m_fadeFromClip != nullptr ? ac->m_blendWeight : 1.0f );
         }
     }
 }  // namespace Tomos

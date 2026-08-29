@@ -31,32 +31,28 @@ namespace Tomos
             cfg.m_windowTitle  = p_props.m_title;
             cfg.m_windowWidth  = p_props.m_width;
             cfg.m_windowHeight = p_props.m_height;
-            cfg.m_vsync        = p_props.m_vsync;
         }
 
-        const TWindowProps winProps{ static_cast<const std::string&>( cfg.m_windowTitle ), cfg.m_windowWidth, cfg.m_windowHeight, cfg.m_vsync,
-                                     p_props.m_aspectRatio };
+        const TWindowProps winProps{ static_cast<const std::string&>( cfg.m_windowTitle ), cfg.m_windowWidth, cfg.m_windowHeight, p_props.m_aspectRatio };
 
         m_window = std::make_unique<TWindow>( winProps );
         m_window->setEventCallback( [ this ]( TEvent& p_event ) { onEvent( p_event ); } );
-        if ( cfg.m_fullscreen )
+
+        const TWindowMode mode = TWindow::windowModeFromString( static_cast<const std::string&>( cfg.m_windowMode ) );
+        if ( mode != TWindowMode::Windowed )
         {
-            m_window->setFullscreen( true );
-            m_window->flushPendingFullscreen();  // apply before initGpu / first frame
+            m_window->setWindowMode( mode );
+            m_window->flushPendingWindowMode();  // apply before initGpu / first frame
         }
     }
 
     TApplication::~TApplication()
     {
-        // Detach layers before clearing assets — onDetach/deactivate still
-        // borrow mesh/material/clip pointers. clear() calls onDetach.
         m_assetLoadQueue.shutdown();
         if ( m_gpu ) m_gpu->waitIdle();
         m_layerStack.clear();
-        m_assetSystem.clear();
-        // Bag TVkImages (and node graph) must die before vkDestroyDevice —
-        // m_sceneManager outlives m_gpu in member order.
         m_sceneManager.shutdown();
+        m_assetSystem.clear();
         m_assetLoadQueue.setGpu( nullptr );
         m_gpu.reset();
         g_sInstance = nullptr;
@@ -65,6 +61,7 @@ namespace Tomos
     void TApplication::initGpu( bool p_validation )
     {
         m_gpu = std::make_unique<TVkGpu>( m_window->getNativeWindow(), p_validation );
+        m_gpu->setSwapchainPresentPolicy( TVkGpu::presentPolicyFromString( static_cast<const std::string&>( config().m_presentMode ) ) );
         m_assetLoadQueue.setGpu( m_gpu.get() );
 #ifdef TOMOS_DEBUG
         m_shaderHotReload.init();
@@ -86,13 +83,18 @@ namespace Tomos
             m_window->updatePerfStats( m_time.realDt() );
 #endif
 
-            if ( m_window->flushPendingFullscreen() && m_gpu ) m_gpu->noteSurfaceResized();
+            if ( m_window->flushPendingWindowMode() && m_gpu )
+            {
+                const auto& d = m_window->getData();
+                if ( d.m_fbWidth > 0 && d.m_fbHeight > 0 ) m_gpu->noteSurfaceResized();
+            }
 
             m_sceneManager.switchPoint();
 
             m_assetLoadQueue.tick( &m_sceneManager.scene() );
 
-            for ( auto& layer : m_layerStack ) layer->onUpdate( dt );
+            // Scene layers before startFrame; overlays after (ImGui matches rebuilt swapchain).
+            for ( auto it = m_layerStack.layersBegin(); it != m_layerStack.layersEnd(); ++it ) ( *it )->onUpdate( dt );
 
             if ( m_gpu )
             {
@@ -104,7 +106,12 @@ namespace Tomos
                 }
 #endif
                 m_gpu->startFrame();
+            }
 
+            for ( auto it = m_layerStack.overlaysBegin(); it != m_layerStack.overlaysEnd(); ++it ) ( *it )->onUpdate( dt );
+
+            if ( m_gpu )
+            {
                 for ( auto& layer : m_layerStack ) layer->onRender();
 
                 m_gpu->endFrame();

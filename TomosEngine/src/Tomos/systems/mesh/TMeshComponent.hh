@@ -12,7 +12,10 @@ namespace Tomos
 {
     struct TVkMesh;
     class TVkMaterial;
+    class TVkImage;
+    class TVkGpu;
     class TAssetSystem;
+    class TSceneResourceBag;
 
     // Borrowed mesh/material from TAssetSystem (see TAssetHandles.hh).
     class TMeshComponent : public TComponent
@@ -36,7 +39,16 @@ namespace Tomos
         const TVkMaterial* m_material   = nullptr;
         bool               m_castShadow = true;
 
+        // Optional scene-bag texture overrides (GIF / WebP / video / static).
+        TBagAnimatedTextureRef m_baseTextureOverride{};
+        TBagAnimatedTextureRef m_emissionTextureOverride{};
+        const TVkImage*         m_baseOverrideImage     = nullptr;
+        const TVkImage*         m_emissionOverrideImage = nullptr;
+
         bool rebind( const TAssetSystem& p_assets );
+
+        // Resolve override paths from the scene resource bag.
+        void rebindOverrides( TSceneResourceBag& p_bag, TVkGpu& p_gpu );
     };
 
     struct TSkinJoint

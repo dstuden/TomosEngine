@@ -98,7 +98,7 @@ namespace Tomos
         }
         {
             const VkDescriptorSetLayout setLayouts[] = { m_particleDrawLayout, m_spriteTexLayout };
-            VkPushConstantRange         push{ VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof( uint32_t ) };
+            VkPushConstantRange         push{ VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof( uint32_t ) };
             VkPipelineLayoutCreateInfo  li{};
             li.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
             li.setLayoutCount         = 2;

@@ -33,6 +33,8 @@ namespace Tomos
 
         void close() { m_running = false; }
 
+        [[nodiscard]] bool isRunning() const { return m_running; }
+
         // Must be called after the window exists, before any TSceneLayer.
         void initGpu( bool p_validation = true );
 

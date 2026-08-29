@@ -34,13 +34,12 @@ namespace Tomos
     void TSceneEditorLayer::onAttach()
     {
         TUiLayer::onAttach();
-        if ( auto* gpu = TApplication::get().gpu() ) gpu->setPresentMode( TVkGpu::TPresentMode::EditorViewport );
+        if ( auto* gpu = TApplication::get().gpu() ) gpu->setRenderDestination( gpu->makeSceneColorDestination() );
     }
 
     void TSceneEditorLayer::onDetach()
     {
         auto* gpu = TApplication::get().gpu();
-        // Single device idle for texture retire + ImGui shutdown + present-mode flip.
         if ( gpu ) gpu->waitIdle();
 
         if ( m_registeredTex != nullptr )
@@ -56,8 +55,11 @@ namespace Tomos
         // Skip TUiLayer::onDetach — it would waitIdle again.
         backend().shutdown();
 
-        if ( gpu ) gpu->setPresentMode( TVkGpu::TPresentMode::Swapchain, false );
-        if ( m_ctx.m_scene != nullptr ) m_ctx.m_scene->setSimulationPlaying( true );
+        // App exit: skip render-target churn; TVkGpu is about to be destroyed.
+        if ( gpu && TApplication::get().isRunning() ) gpu->resetRenderDestinationToSwapchain( false );
+
+        m_ctx.m_scene = nullptr;
+        m_ctx.m_bag   = nullptr;
     }
 
     void TSceneEditorLayer::saveScene()
@@ -268,6 +270,8 @@ namespace Tomos
         m_texHeight          = ext.height;
         m_texGeneration      = gen;
         m_ctx.m_sceneTexture = reinterpret_cast<ImTextureID>( m_registeredTex );
+
+        gpu->updateOffscreenDestination();
     }
 
     void TSceneEditorLayer::onUi( float p_dt )

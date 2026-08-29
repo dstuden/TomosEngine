@@ -21,7 +21,7 @@ namespace Tomos
         selectPhysicalDevice();
         createLogicalDevice();
         createSwapchain();
-        m_renderExtent = m_extent;
+        syncSwapchainDestinationFields();
         createFrameData();
         createDescriptorPool();
         createLayouts();
@@ -74,7 +74,11 @@ namespace Tomos
 
     TVkGpu::~TVkGpu()
     {
-        vkDeviceWaitIdle( m_device );
+        if ( m_device != VK_NULL_HANDLE ) vkDeviceWaitIdle( m_device );
+
+        // Drop upload staging first — buffers may host-unmap during destruction.
+        if ( m_batchOpen ) endUploadBatch();
+        destroyUploadRing();
 
         m_renderer.reset();
 
@@ -82,9 +86,9 @@ namespace Tomos
         {
             frame.m_instanceBuf = TVkBuffer{};
             frame.m_lightBuf    = TVkBuffer{};
-            frame.m_spriteBuf   = TVkBuffer{};
-            frame.m_boneBuf     = TVkBuffer{};
-            frame.m_sceneUBO    = TVkBuffer{};
+            frame.m_spriteBuf       = TVkBuffer{};
+            frame.m_boneBuf         = TVkBuffer{};
+            frame.m_sceneUBO        = TVkBuffer{};
 
             vkDestroySemaphore( m_device, frame.m_imgReady, nullptr );
             vkDestroyFence( m_device, frame.m_fence, nullptr );
@@ -100,11 +104,12 @@ namespace Tomos
 
         destroySwapchain();
 
-        if ( m_batchOpen ) endUploadBatch();
-        if ( m_uploadFence != VK_NULL_HANDLE ) vkDestroyFence( m_device, m_uploadFence, nullptr );
-        vkDestroyCommandPool( m_device, m_uploadPool, nullptr );
+        if ( m_uploadPool != VK_NULL_HANDLE ) vkDestroyCommandPool( m_device, m_uploadPool, nullptr );
         vkDestroyDevice( m_device, nullptr );
-        vkDestroySurfaceKHR( m_instance, m_surface, nullptr );
+        m_device = VK_NULL_HANDLE;
+
+        if ( m_instance != VK_NULL_HANDLE && m_surface != VK_NULL_HANDLE ) vkDestroySurfaceKHR( m_instance, m_surface, nullptr );
+        m_surface = VK_NULL_HANDLE;
 
         if ( m_debugMessenger != VK_NULL_HANDLE )
         {
@@ -117,7 +122,8 @@ namespace Tomos
 
     void TVkGpu::startFrame()
     {
-        m_frameOpen         = false;
+        m_frameOpen = false;
+        reclaimUploadSlots();
         TVkFrameData& frame = m_frames[ m_frameIndex ];
 
         vkWaitForFences( m_device, 1, &frame.m_fence, VK_TRUE, UINT64_MAX );
@@ -365,9 +371,7 @@ namespace Tomos
         poolInfo.flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
         vkCreateCommandPool( m_device, &poolInfo, nullptr, &m_uploadPool );
 
-        VkFenceCreateInfo fenceInfo{ VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
-        if ( vkCreateFence( m_device, &fenceInfo, nullptr, &m_uploadFence ) != VK_SUCCESS )
-            throw std::runtime_error( "[TVkGpu] Failed to create upload fence" );
+        createUploadRing();
     }
 
 

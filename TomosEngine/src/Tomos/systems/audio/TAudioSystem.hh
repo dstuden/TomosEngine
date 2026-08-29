@@ -13,7 +13,7 @@ namespace Tomos
     class TSceneNode;
     class TAudioClip;
 
-    // Call updateListener() after lateUpdate (active camera).
+    // Call updateListener() before lateUpdate (active camera).
     class TAudioSystem : public TTypedSystem<TAudioComponent>
     {
     public:
@@ -53,8 +53,10 @@ namespace Tomos
         std::unordered_map<TAudioComponent*, std::unique_ptr<TVoice>> m_voices;
         std::unordered_map<std::string, std::unique_ptr<TCachedClip>> m_clipCache;
 
-        void* m_engine       = nullptr;
-        bool  m_ready        = false;
-        float m_masterVolume = 1.0f;
+        void*     m_engine       = nullptr;
+        bool      m_ready        = false;
+        float     m_masterVolume = 1.0f;
+        glm::vec3 m_listenerPos{};
+        bool      m_hasListener = false;
     };
 }  // namespace Tomos

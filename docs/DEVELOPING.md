@@ -29,7 +29,7 @@ TSceneLayer::onRender          (populate TFrameState, then gpu->render)
         ↓
 TVkClusteredRenderer::render   (shadow → cluster cull → forward+sprites → particle sim+draw → HDR)
         ↓
-TPostStack                     (SSAO / fog / bloom → tonemap → swapchain or editor scene color)
+TPostStack                     (SAO / fog / bloom → tonemap → swapchain or editor scene color)
         ↓
 UI overlays (TUiLayer: ImGui into the same command buffer)
         ↓
@@ -78,7 +78,7 @@ flowchart TB
     FW[forward / skinned.vert + forward.frag]
     SP[sprite.vert / sprite.frag]
     PT[particle_sim.comp + particle.vert/frag]
-    PS[TPostStack SSAO fog bloom tonemap]
+    PS[TPostStack SAO fog bloom tonemap]
   end
 
   SA --> SL
@@ -131,12 +131,13 @@ sequenceDiagram
   participant R as TVkClusteredRenderer
 
   T->>T: tick (glfwGetTime → dt / elapsed)
-  W->>W: flushPendingFullscreen (if queued)
-  Note over W,G: resize → noteSurfaceResized (dirty flag)
+  W->>W: flushPendingWindowMode (if queued)
+  Note over W,G: resize → noteSurfaceResized when FB gt 0
   L->>L: earlyUpdate → update(dt) → computeTransforms → lateUpdate
   Note over L: scripts then physics (fixed steps) then animation…
-  O->>O: TUiLayer onUpdate → onUi (gizmo / inspector edit locals)
   G->>G: startFrame (rebuild swapchain if dirty / FB drift)
+  O->>O: TUiLayer onUpdate → onUi (gizmo / inspector edit locals)
+  Note over O: ImGui NewFrame after swapchain matches GLFW
   L->>L: onRender → computeTransforms again
   L->>FS: Camera / Mesh / Light / Sprite / Particle populate()
   Note over L,FS: picks up same-frame editor TRS edits
@@ -146,13 +147,23 @@ sequenceDiagram
   G->>G: endFrame (submit + present)
 ```
 
-Fullscreen is **deferred**: `setFullscreen` only queues; the mode switch runs at
-the start of the next frame so ImGui `DisplaySize` and the swapchain agree.
-`TWindowResizeEvent` / that flush call `TVkGpu::noteSurfaceResized()`. On
-`startFrame`, if the dirty flag is set **or** the GLFW framebuffer size no longer
-matches `m_extent`, the swapchain (and post targets) rebuild, then the flag
-clears. Present/`acquire` `OUT_OF_DATE` / `SUBOPTIMAL` still rebuild immediately
-as a fallback.
+Window mode is **deferred**: `setWindowMode` only queues; apply runs at the start
+of the next frame (`Windowed` / `Borderless` / `Exclusive`). Apply does **not**
+call `glfwPollEvents` or synthesize resize events. `TWindowResizeEvent` from the
+normal poll, or a successful flush with a valid FB, call `TVkGpu::noteSurfaceResized()`.
+On `startFrame`, if the dirty flag is set **or** the GLFW framebuffer size no longer
+matches `m_extent`, the swapchain rebuilds (never at 0×0; prefers GLFW size when
+surface caps are stale). Present/`acquire` `OUT_OF_DATE` / `SUBOPTIMAL` still
+rebuild as a fallback.
+
+**Present policy** (`fifo` / `mailbox` / `immediate` in config) selects
+`VkPresentModeKHR` with fallbacks. Orthogonal to window mode.
+`TRenderDestination` is where the post stack tonemaps for the primary view — swapchain
+by default, or a custom offscreen image (`m_sampleAfterTonemap` for ImGui sampling).
+`tonemapTargetsSwapchain()` drives UI compositing (LOAD vs CLEAR on the swapchain).
+
+Overlay `onUpdate` (ImGui) runs **after** `startFrame` so `DisplaySize` matches
+the rebuilt swapchain.
 
 ### What each stage reads/writes
 
@@ -179,6 +190,28 @@ as a fallback.
 Source of truth for the shared CPU↔GPU types:
 
 - [`TomosEngine/src/Tomos/gpu/vulkan/TVkPass.hh`](../TomosEngine/src/Tomos/gpu/vulkan/TVkPass.hh)
+
+### Two ways data reaches the GPU
+
+| Path | Used by | Cost |
+|------|---------|------|
+| Host-mapped `memcpy` | Per-frame UBO / SSBOs in `uploadFrameState` (instances, lights, sprites, bones) | A `memcpy` into already-mapped memory; no command buffer |
+| Transfer command batch | `uploadBuffer` / `uploadImage` / `updateImage` — asset loads and animated-texture frames | A `vkCmdCopy*` recorded into the upload ring |
+
+The **upload ring** is three `TVkUploadSlot`s (one per frame in flight), each
+with its own command buffer, fence and list of staging buffers.
+`beginUploadBatch` claims the current slot, waiting on its fence only if that
+slot is still in flight; `endUploadBatch` submits to the graphics queue and
+returns immediately, then advances to the next slot. Staging buffers live on the
+slot until its fence signals, and `startFrame` polls the fences to release them
+early.
+
+Nothing waits for a transfer before rendering because the uploads and the frame's
+draws go to the same queue: the layout/access barriers recorded in the upload
+command buffer also apply to work submitted after it. If you ever submit uploads
+on a dedicated transfer queue, that guarantee disappears and you will need a
+semaphore. `VkUtil::immediateSubmit` remains the synchronous escape hatch for
+one-off work outside the frame loop.
 
 ### Transforms — locals, cached globals, `worldMatrix()`
 
@@ -303,7 +336,7 @@ Hierarchy matters: a flashlight parented under the camera moves with it automati
   `TProjection::Orthographic` + `m_orthoHalfHeight`.
 - After GLM `perspective` / `ortho`, Tomos flips `proj[1][1] *= -1` for Vulkan
   NDC (Y down). Depth is **0 → 1** (`GLM_FORCE_DEPTH_ZERO_TO_ONE` in CMake).
-  Frustum extraction, SSAO, and fog all assume that convention — do not drop
+  Frustum extraction, SAO, and fog all assume that convention — do not drop
   either without updating `TFrustum.hh` and the post shaders.
 - Defaults are near `0.1` / far `1000`; Sandbox uses a tighter near (`0.05`).
 
@@ -577,7 +610,7 @@ the binary directory).
 | `particle.vert` | Vertex | Vertex-pulled spherical billboards from particle pool |
 | `particle.frag` | Fragment | Soft disc × tint, additive blend |
 | `fullscreen.vert` | Vertex | Full-screen triangle for all post passes |
-| `ssao.frag` / `ssao_compose.frag` | Fragment | World-radius AO → multiply into HDR |
+| `sao_linearize.frag` / `sao_sample.frag` / `sao_blur.frag` / `sao_compose.frag` | Fragment | McGuire SAO (Alchemy AO + bilateral) → × HDR |
 | `fog.frag` | Fragment | Exponential distance fog |
 | `bloom_extract.frag` / `bloom_blur.frag` / `bloom_composite.frag` | Fragment | Threshold → blur → add |
 | `tonemap.frag` | Fragment | Reinhard HDR → swapchain |
@@ -614,8 +647,16 @@ the binary directory).
 
 **Cluster compute — set 0:** scene UBO, lights, grid, indices, atomic counter.
 
-**Particle sim / draw:** layouts live in `TVkClusteredRenderer::createLayouts`
-(emitter SSBO + pool for compute; particle draw set 0/1 alongside sprite-style textures).
+**Particle sim — set 0:** sim UBO, particle pool, free list, counters, flat draw
+list, emitters, then the per-texture bucketing trio: `TParticleTexBuckets`
+(binding 6), the compacted draw-index list (7) and one `VkDrawIndirectCommand`
+per texture slot (8).
+
+**Particle draw — set 0:** scene UBO, particle pool, compacted draw indices,
+`TParticleTexBuckets` (the vertex shader adds `offsets[texIndex]` to
+`gl_InstanceIndex`). Set 1 = the batch texture, same as sprites.
+
+Layouts live in `TVkClusteredRenderer::createLayouts`.
 
 If you change a layout in GLSL, update `TVkClusteredRenderer::createLayouts` / `createFrameResources` and the matching `struct` in `TVkPass.hh`.
 
@@ -713,13 +754,13 @@ Mesh **CPU frustum culling** is separate — see [Frustum culling](#frustum-cull
 
 ---
 
-## How to add post effects (SSAO, bloom, fog, …)
+## How to add post effects (SAO, bloom, fog, …)
 
 The scene no longer writes the swapchain directly.  Flow:
 
 ```
 shadows → cluster cull → forward+sprites → particle sim+draw → HDR + depth
-        → TPostStack (SSAO → fog → bloom → tonemap → swapchain)
+        → TPostStack (SAO → fog → bloom → tonemap → swapchain)
         → UI overlays
 ```
 
@@ -731,14 +772,17 @@ Effects live under `gpu/vulkan/post/`:
 
 | Class | Default | Tunables | Role |
 |-------|---------|----------|------|
-| `TPostSSAO` | on | `m_radius` (world m), `m_bias`, `m_intensity` | Depth AO × HDR |
+| `TPostSAO` | on | `m_radius` (world m), `m_bias`, `m_intensity`, `m_blurSharpness` | McGuire SAO × HDR |
 | `TPostFog` | off | `m_density`, `m_color` | Distance fog |
 | `TPostBloom` | on | `m_threshold`, `m_strength` | Threshold extract → blur → add |
 | `TPostTonemap` | always | — | Reinhard HDR → swapchain (cannot disable) |
 
-SSAO uses a **world-space** radius that the shader projects to UV at the
-fragment depth. A fixed UV kernel grows with distance and causes dark banding
-on floors/walls — keep radius in meters (Sandbox slider ~0.05–2).
+SAO (Scalable Ambient Obscurance, McGuire HPG 2012 core variant) linearizes
+depth, runs a 9-sample AlchemyAO spiral with normals from depth gradients, then
+a separable bilateral blur. Radius is **world-space meters** (Sandbox slider
+~0.05–2). The z-MIP hierarchy from the paper is not implemented yet — linear Z
+is mip 0 only. Finite far planes are used today; an infinite-far
+`perspectiveVk` would improve Z reconstruction precision.
 
 Toggle / tune from the Sandbox Renderer panel, or in code:
 
@@ -823,6 +867,38 @@ Sprites are unlit and never cast shadows.
 For a texture, upload a `TVkImage` (same path as material textures) and keep it
 alive — the component only borrows the pointer.
 
+### Animated textures (GIF / WebP / video)
+
+`TSceneResourceBag::resolveTexture` routes by extension:
+
+| Extension | Path |
+|-----------|------|
+| `.png` `.jpg` `.jpeg` `.bmp` `.tga` | Static via stb (`loadImage`) |
+| `.gif` `.webp` | Cached frame decode (FFmpeg) → shared CPU cache |
+| `.mp4` `.webm` `.mov` `.mkv` `.avi` | Streaming video decode (one FFmpeg decoder per instance) |
+
+Each animated assignment creates a `TAnimatedTexture` that owns a stable
+`TVkImage` (mipLevels = 1). `TAnimatedTextureSystem` ticks all bag instances
+each frame and re-uploads pixels via `TVkGpu::updateImage` — shaders and
+descriptor sets stay unchanged. Those per-frame uploads go through the async
+upload ring (below), so decoding a new video frame no longer stalls rendering.
+
+```cpp
+TBagAnimatedTextureRef opts{ "assets/textures/demo.gif" };
+TVkImage* tex = scene().resources().resolveTexture( *gpu, opts.m_path, opts );
+
+auto sprite       = std::make_shared<TSpriteComponent>( tex );
+sprite->m_animRef = opts;
+node->addComponent( sprite );
+
+// Mesh base / emission override (clones material in TMeshSystem):
+mesh->m_baseTextureOverride = TBagAnimatedTextureRef{ "assets/textures/screen.mp4" };
+mesh->rebindOverrides( scene().resources(), *gpu );
+```
+
+Host package: FFmpeg (`libavformat` / `libavcodec` / `libavutil` / `libswscale`) —
+see root [`README.md`](../README.md). Sandbox demos: `AnimGifSprite` + `VideoScreen`.
+
 ---
 
 ## How to spawn GPU particles
@@ -863,12 +939,17 @@ Frame path:
    writes `TFrameState::m_emitters` / `m_particleDt` / `m_particleTextures`.
 2. `startFrame` → `TVkClusteredRenderer::uploadParticles` fills the emitter SSBO
    and sim UBO.
-3. After sprites: `particle_sim.comp` updates the pool, emits into free slots,
-   rebuilds an indirect draw list.
+3. After sprites, `particle_sim.comp` runs five phases: update the pool (0),
+   emit into free slots (1), prefix-sum the per-texture counts (2), scatter the
+   flat draw list into one contiguous run per texture (3), and write one
+   `VkDrawIndirectCommand` per texture slot (4). Phases 0 and 1 tally
+   `TParticleTexBuckets::m_counts` as they append.
 4. `particle.vert` / `particle.frag` draw textured soft spherical discs with
    **additive** blend (`SRC_ALPHA` / `ONE`) into HDR (bloom picks them up).
-   Textures reuse the sprite descriptor cache (`spriteTextureSet`); one draw
-   per registered texture (up to `k_maxParticleTextures` = 64).
+   Textures reuse the sprite descriptor cache (`spriteTextureSet`); one indirect
+   draw per registered texture (up to `k_maxParticleTextures` = 64). Because the
+   sim wrote each slot's `instanceCount`, a draw only touches its own particles —
+   unused slots cost nothing and no shader-side texture check is needed.
 
 Limits: `k_maxEmitters = 64`. Unlit, no shadows, no depth write. Keep textures
 alive (same borrow rules as `TSpriteComponent`).
@@ -913,12 +994,25 @@ Behaviour:
 | `TAudioClip` | Path to a WAV / FLAC / MP3 / Ogg file (borrowed by emitters) |
 | `TAudioComponent` | Per-node emitter — volume, pitch, loop, spatial range, `play` / `stop` |
 | `TAudioSystem` | Owns the miniaudio engine; starts/stops voices in `lateUpdate` |
-| Listener | Active camera pose, wired by `TSceneLayer` after transforms |
+| Listener | Active camera pose, wired by `TSceneLayer` before `lateUpdate` |
+
+Spatial emitters use **linear attenuation** (miniaudio
+`ma_attenuation_model_linear`): gain falls to zero at `m_maxDistance`, so sounds
+go fully silent beyond that range. `m_minDistance` is the distance at which
+attenuation begins (full volume inside). Non-spatial (`m_spatial = false`) voices
+ignore distance and play at constant volume.
+
+`TAudioSystem` also **culls voices by distance** for CPU savings: when the
+listener is farther than `m_maxDistance`, the voice is destroyed but `m_playing`
+stays true so looping sounds resume when you re-enter range. Re-creation uses
+**hysteresis** at `m_maxDistance * 0.9` to avoid flicker at the boundary. Emitters
+with `m_volume <= 0` skip voice creation entirely.
 
 Master volume: `system<TAudioSystem>().setMasterVolume(0.5f)`.
 
 Sandbox: green sprite near CesiumMan is the emitter — press **F** to beep, or
-edit the Audio component in the Inspector. Walk toward / away to hear attenuation.
+edit the Audio component in the Inspector. Walk toward / away to hear attenuation
+and silence beyond `m_maxDistance`.
 
 > Changing `m_spatial` while a voice is active requires `stop()` then `play()`
 > so the system can recreate the voice with the right flags.
@@ -931,8 +1025,8 @@ UI lives in `src/Tomos/ui/` and is split into two pieces:
 
 - **`TUiLayer`** — an overlay layer that owns a backend and drives it each frame
   (`newFrame` → your UI code → `render` into the frame's command buffer).
-  In **game** present mode this is a color-only `LOAD` pass over the tonemapped
-  swapchain. In **editor** present mode the swapchain is cleared and only ImGui
+  In **game** frame output this is a color-only `LOAD` pass over the tonemapped
+  swapchain. In **editor** frame output the swapchain is cleared and only ImGui
   draws (the 3D scene is shown inside a Scene panel via `ImGui::Image`).
 - **`TUiBackend`** — the interface a UI technology implements.
   - `TImGuiBackend` — Dear ImGui docking branch (GLFW + Vulkan dynamic rendering).
@@ -986,7 +1080,7 @@ compiled into `libTomos` when **`TOMOS_EDITOR=ON`** (CMake default). Build witho
 it: `cmake -B build -DTOMOS_EDITOR=OFF`. That also defines the public
 `TOMOS_EDITOR` macro — gate app includes / overlays with `#ifdef TOMOS_EDITOR`.
 
-On attach it sets `TVkGpu::TPresentMode::EditorViewport`: tonemap writes an offscreen LDR
+On attach it sets an offscreen `TRenderDestination` (renderer `m_sceneColor`): tonemap writes LDR
 `m_sceneColor` sized to the Scene panel (`renderExtent`), the swapchain is cleared
 to the editor background, and the Scene panel samples that texture.
 
@@ -1008,7 +1102,9 @@ to the editor background, and the Scene panel samples that texture.
 
 **Present / render extent:** `TVkGpu::renderExtent()` drives HDR/depth/post and
 camera aspect. Swapchain extent stays at the window size. Without the editor
-overlay, present mode stays `Swapchain` (tonemap → swapchain as before).
+overlay, tonemap targets the swapchain via `TRenderDestination` (default).
+Config `presentMode` (`fifo` / `mailbox` / `immediate`) controls `VkPresentModeKHR`.
+Config `windowMode` (`windowed` / `borderless` / `exclusive`) controls the OS window.
 
 **Play / Pause:** menu bar Play/Pause button (Space is unbound — fly-cam uses
 it for move-up). Toggles `TScene::setSimulationPlaying` /
@@ -1101,6 +1197,7 @@ TomosEngine/src/Tomos/
 │   ├── animation/                  # clips + animator playback
 │   ├── light/                      # lights + shadow VPs
 │   ├── sprite/                     # world billboards → sprite batches
+│   ├── texture/                    # TAnimatedTextureSystem (GIF/WebP/video)
 │   ├── particle/                   # GPU additive emitters → TFrameState
 │   ├── audio/                      # TAudioClip + emitters (miniaudio)
 │   ├── physics/                    # rigid body + collider (fixed timestep)
@@ -1114,6 +1211,7 @@ TomosEngine/src/Tomos/
 ├── util/
 │   ├── config/TConfig.hh           # tomos.json via TConfigManager
 │   ├── image/TImageLoad.*          # CPU image decode (stb)
+│   ├── image/TAnimatedTexture.*    # animated texture + FFmpeg decoder
 │   ├── path/TPath.*                # asset-root resolve (binary dir / tomos.json)
 │   ├── shader/TShaderHotReload.*   # Debug F5 / file-watch pipeline reload
 │   ├── time/TTime.*                # pause-aware clock (dt / fixedDt / elapsed)
@@ -1129,7 +1227,7 @@ TomosEngine/src/Tomos/
         ├── TMeshTechnique.*        # technique ids + shared PSO factory
         ├── TVkMaterial.* / TVkMesh.*  # mesh includes local AABB
         ├── renderer/TVkClusteredRenderer.*  # + .Pipelines / .Record TUs
-        ├── post/                   # TPostStack + SSAO / fog / bloom / tonemap
+        ├── post/                   # TPostStack + SAO / fog / bloom / tonemap
         └── shaders/                # GLSL sources (post + sprite + common/*.glsl)
 Sandbox/main.cc                     # example game + scene editor wiring
 docs/DEVELOPING.md                  # this file
@@ -1192,7 +1290,7 @@ docs/DEVELOPING.md                  # this file
    many texture switches still mean more draws. Use alpha < 1 only when you
    need blending (Sandbox light gizmos are opaque).
 10. **Vulkan projection.** Y is flipped (`proj[1][1] *= -1`) and depth is 0–1.
-    Frustum cull / SSAO / fog depend on this.
+    Frustum cull / SAO / fog depend on this.
 11. **Opaque meshes batch by mesh+material.** Blend draws stay one instance each
     so they can sort. Shared mesh+material opaque instances become one
     `vkCmdDraw*` with `m_instanceCount > 1`.

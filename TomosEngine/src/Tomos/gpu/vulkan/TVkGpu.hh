@@ -3,10 +3,12 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <array>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
 
+#include "Tomos/gpu/vulkan/TRenderDestination.hh"
 #include "Tomos/gpu/vulkan/TVkBuffer.hh"
 #include "Tomos/gpu/vulkan/TVkImage.hh"
 #include "Tomos/gpu/vulkan/TVkPass.hh"
@@ -37,6 +39,16 @@ namespace Tomos
         TVkBuffer m_sceneUBO;
     };
 
+    // One in-flight transfer submission. Staging buffers stay alive until the
+    // slot's fence signals, so batches never block the render thread.
+    struct TVkUploadSlot
+    {
+        VkCommandBuffer        m_cmd      = VK_NULL_HANDLE;
+        VkFence                m_fence    = VK_NULL_HANDLE;
+        bool                   m_inFlight = false;
+        std::vector<TVkBuffer> m_staging;
+    };
+
     class TVkGpu
     {
     public:
@@ -46,11 +58,12 @@ namespace Tomos
         TVkGpu( const TVkGpu& )            = delete;
         TVkGpu& operator=( const TVkGpu& ) = delete;
 
-        // Where tonemap writes the final LDR image.
-        enum class TPresentMode
+        // User-facing swapchain present policy → VkPresentModeKHR with fallbacks.
+        enum class TSwapchainPresentPolicy
         {
-            Swapchain,
-            EditorViewport,
+            Fifo,
+            Mailbox,
+            Immediate,
         };
 
         [[nodiscard]] uint32_t viewportWidth() const { return m_renderExtent.width; }
@@ -79,9 +92,25 @@ namespace Tomos
         [[nodiscard]] float             renderAspectRatio() const { return aspectRatio(); }
         [[nodiscard]] VkFormat          swapFormat() const { return m_swapFormat; }
 
-        [[nodiscard]] TPresentMode presentMode() const { return m_presentMode; }
-        // When p_waitIdle is false, device must already be idle (teardown paths).
-        void setPresentMode( TPresentMode p_mode, bool p_waitIdle = true );
+        [[nodiscard]] bool               tonemapTargetsSwapchain() const { return m_renderDestination.m_targetsSwapchain; }
+        [[nodiscard]] TRenderDestination resolvedRenderDestination() const;
+
+        void setRenderDestination( const TRenderDestination& p_dest, bool p_waitIdle = true );
+        void resetRenderDestinationToSwapchain( bool p_waitIdle = true );
+        void updateOffscreenDestination();
+
+        [[nodiscard]] TRenderDestination makeSceneColorDestination() const;
+
+        [[nodiscard]] TSwapchainPresentPolicy swapchainPresentPolicy() const { return m_presentPolicy; }
+        void                                  setSwapchainPresentPolicy( TSwapchainPresentPolicy p_policy );
+        [[nodiscard]] VkPresentModeKHR        activePresentMode() const { return m_activePresentMode; }
+
+        static TSwapchainPresentPolicy presentPolicyFromString( const std::string& p_s );
+        static const char*             presentPolicyToString( TSwapchainPresentPolicy p_policy );
+        static const char*             vkPresentModeName( VkPresentModeKHR p_mode );
+
+        // Called after a successful swapchain recreate (e.g. ImGui SetMinImageCount).
+        void setSwapchainRebuildHook( std::function<void( uint32_t )> p_hook ) { m_swapchainRebuildHook = std::move( p_hook ); }
 
         // Cheap; never recreate from event callbacks or while a frame is open.
         void noteSurfaceResized() { m_swapchainDirty = true; }
@@ -107,13 +136,19 @@ namespace Tomos
 
         void immediateSubmit( const auto& p_fn ) const { VkUtil::immediateSubmit( m_device, m_uploadPool, m_graphicsQueue, p_fn ); }
 
-        // Record many copies into one submit; staging lives until endUploadBatch().
-        // Nested uploadBuffer/uploadImage while a batch is open queue into it.
+        // Record many copies into one submit; staging lives until the slot's fence
+        // signals. Nested uploadBuffer/uploadImage while a batch is open queue into it.
+        // endUploadBatch() submits without waiting — same-queue submission order
+        // keeps the transfers visible to the frame's draws.
         void beginUploadBatch();
         void endUploadBatch();
 
         void uploadBuffer( TVkBuffer& p_dst, const void* p_data, size_t p_size );
         void uploadImage( TVkImage& p_dst, const void* p_pixels, uint32_t p_width, uint32_t p_height );
+
+        // Re-upload mip 0 of an existing sampled image (SHADER_READ_ONLY → TRANSFER_DST → copy → SHADER_READ_ONLY).
+        // Requires mipLevels == 1 (animated textures). Batches with beginUploadBatch when open.
+        void updateImage( TVkImage& p_dst, const void* p_pixels, uint32_t p_width, uint32_t p_height );
 
         [[nodiscard]] const TVkImage& defaultTexture() const { return m_defaultTexture; }
         // Device sentinel — not bag-owned.
@@ -135,7 +170,17 @@ namespace Tomos
         void               rebuildSwapchain();
         void               flushPendingResizes();
         void               uploadFrameState( TVkFrameData& p_frame );
+        void               createUploadRing();
+        void               destroyUploadRing();
+        // Blocks only when the slot is still in flight; also releases its staging.
+        void waitUploadSlot( TVkUploadSlot& p_slot );
+        // Non-blocking: frees staging for slots whose fence already signalled.
+        void reclaimUploadSlots();
         [[nodiscard]] bool framebufferSizeDrifted() const;
+        [[nodiscard]] VkExtent2D resolveSwapchainExtent( const VkSurfaceCapabilitiesKHR& p_caps ) const;
+        [[nodiscard]] VkPresentModeKHR choosePresentMode( const std::vector<VkPresentModeKHR>& p_modes ) const;
+        void                             applyRenderExtentForDestination();
+        void                             syncSwapchainDestinationFields();
 
         static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback( VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
                                                              const VkDebugUtilsMessengerCallbackDataEXT*, void* );
@@ -157,19 +202,23 @@ namespace Tomos
         VkFormat                 m_swapFormat = VK_FORMAT_UNDEFINED;
         VkExtent2D               m_extent{};
         VkExtent2D               m_renderExtent{};  // may differ from swap (HDR/post/camera)
-        TPresentMode             m_presentMode = TPresentMode::Swapchain;
+        TRenderDestination       m_renderDestination{};
+
+        TSwapchainPresentPolicy m_presentPolicy      = TSwapchainPresentPolicy::Mailbox;
+        VkPresentModeKHR        m_activePresentMode  = VK_PRESENT_MODE_FIFO_KHR;
+        std::function<void( uint32_t )> m_swapchainRebuildHook;
 
         std::array<TVkFrameData, g_kFramesInFlight> m_frames{};
         uint32_t                                    m_frameIndex = 0;
         uint32_t                                    m_imageIndex = 0;
         bool                                        m_frameOpen  = false;
 
-        VkCommandPool            m_uploadPool  = VK_NULL_HANDLE;
-        VkFence                  m_uploadFence = VK_NULL_HANDLE;
-        VkCommandBuffer          m_batchCmd    = VK_NULL_HANDLE;
-        bool                     m_batchOpen   = false;
-        std::vector<TVkBuffer>   m_batchStaging;
-        VkDescriptorPool         m_descPool = VK_NULL_HANDLE;
+        VkCommandPool                                m_uploadPool = VK_NULL_HANDLE;
+        std::array<TVkUploadSlot, g_kFramesInFlight> m_uploadSlots{};
+        uint32_t                                     m_uploadSlotIndex = 0;
+        VkCommandBuffer                              m_batchCmd        = VK_NULL_HANDLE;
+        bool                                         m_batchOpen       = false;
+        VkDescriptorPool                             m_descPool        = VK_NULL_HANDLE;
         TVkLayouts               m_layouts{};
         std::vector<VkSemaphore> m_renderDoneSems;
 

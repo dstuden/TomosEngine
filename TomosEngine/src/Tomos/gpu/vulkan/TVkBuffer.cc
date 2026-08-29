@@ -20,7 +20,18 @@ namespace Tomos
         return flags;
     }
 
-    TVkBuffer::TVkBuffer( VkDevice p_device, VkPhysicalDevice p_physDevice, size_t p_size, TBufUsage p_usage ) : m_device( p_device ), m_size( p_size )
+    static bool isHostVisible( TBufUsage p_usage )
+    {
+        return ( p_usage & TBufUsage::Uniform ) || ( p_usage & TBufUsage::Storage ) || ( p_usage & TBufUsage::Staging );
+    }
+
+    static bool isPersistentlyMapped( TBufUsage p_usage )
+    {
+        return ( p_usage & TBufUsage::Uniform ) || ( p_usage & TBufUsage::Storage );
+    }
+
+    TVkBuffer::TVkBuffer( VkDevice p_device, VkPhysicalDevice p_physDevice, size_t p_size, TBufUsage p_usage ) :
+        m_device( p_device ), m_size( p_size ), m_usage( p_usage )
     {
         VkBufferCreateInfo bufInfo{};
         bufInfo.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -33,9 +44,9 @@ namespace Tomos
         VkMemoryRequirements memReq{};
         vkGetBufferMemoryRequirements( m_device, m_buffer, &memReq );
 
-        // Host-visible buffers (uniforms, storage) are kept persistently mapped.
+        // Host-visible buffers (uniforms, storage, upload staging) use coherent memory.
         // Vertex / index buffers use device-local memory.
-        const bool            hostVisible = ( p_usage & TBufUsage::Uniform ) || ( p_usage & TBufUsage::Storage );
+        const bool            hostVisible = isHostVisible( p_usage );
         VkMemoryPropertyFlags props =
                 hostVisible ? ( VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT ) : VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
@@ -49,7 +60,7 @@ namespace Tomos
 
         vkBindBufferMemory( m_device, m_buffer, m_memory, 0 );
 
-        if ( hostVisible ) vkMapMemory( m_device, m_memory, 0, p_size, 0, &m_mapped );
+        if ( hostVisible && isPersistentlyMapped( p_usage ) ) vkMapMemory( m_device, m_memory, 0, p_size, 0, &m_mapped );
     }
 
     TVkBuffer::~TVkBuffer()
@@ -61,7 +72,8 @@ namespace Tomos
     }
 
     TVkBuffer::TVkBuffer( TVkBuffer&& p_other ) noexcept :
-        m_device( p_other.m_device ), m_buffer( p_other.m_buffer ), m_memory( p_other.m_memory ), m_mapped( p_other.m_mapped ), m_size( p_other.m_size )
+        m_device( p_other.m_device ), m_buffer( p_other.m_buffer ), m_memory( p_other.m_memory ), m_mapped( p_other.m_mapped ), m_size( p_other.m_size ),
+        m_usage( p_other.m_usage )
     {
         p_other.m_device = VK_NULL_HANDLE;
         p_other.m_buffer = VK_NULL_HANDLE;
@@ -79,7 +91,18 @@ namespace Tomos
 
     void TVkBuffer::upload( const void* p_data, size_t p_offset, size_t p_size ) const
     {
-        if ( m_mapped == nullptr ) throw std::runtime_error( "[TVkBuffer] Cannot upload — buffer is not host-visible" );
-        std::memcpy( static_cast<char*>( m_mapped ) + p_offset, p_data, p_size );
+        if ( !isHostVisible( m_usage ) ) throw std::runtime_error( "[TVkBuffer] Cannot upload — buffer is not host-visible" );
+
+        if ( m_mapped != nullptr )
+        {
+            std::memcpy( static_cast<char*>( m_mapped ) + p_offset, p_data, p_size );
+            return;
+        }
+
+        void* mapped = nullptr;
+        if ( vkMapMemory( m_device, m_memory, p_offset, p_size, 0, &mapped ) != VK_SUCCESS )
+            throw std::runtime_error( "[TVkBuffer] Failed to map staging buffer for upload" );
+        std::memcpy( mapped, p_data, p_size );
+        vkUnmapMemory( m_device, m_memory );
     }
 }  // namespace Tomos

@@ -42,7 +42,7 @@ namespace Tomos
         bool truncated = false;
         for ( const auto& [ sc, node ] : m_sprites )
         {
-            if ( !sc->m_visible || sc->m_color.a <= 0.0f ) continue;
+            if ( !sc->m_visible || sc->m_color.a <= 0.0f || sc->m_texture == nullptr ) continue;
             if ( entries.size() >= g_kMaxSprites )
             {
                 truncated = true;

@@ -31,5 +31,6 @@ namespace Tomos
         VkDeviceMemory m_memory = VK_NULL_HANDLE;
         void*          m_mapped = nullptr;
         size_t         m_size   = 0;
+        TBufUsage      m_usage  = TBufUsage::None;
     };
 }  // namespace Tomos

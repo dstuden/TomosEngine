@@ -48,22 +48,22 @@ namespace Tomos
         const VkCommandBuffer cmd = gpu->currentFrame().m_cmd;
         m_backend->prepareRender( cmd );
 
-        const bool editor = gpu->presentMode() == TVkGpu::TPresentMode::EditorViewport;
+        const bool tonemapToSwapchain = gpu->tonemapTargetsSwapchain();
 
         VkRenderingAttachmentInfo colorAtt{};
         colorAtt.sType       = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
         colorAtt.imageView   = gpu->currentSwapView();
         colorAtt.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        colorAtt.loadOp      = editor ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_LOAD;
+        colorAtt.loadOp      = tonemapToSwapchain ? VK_ATTACHMENT_LOAD_OP_LOAD : VK_ATTACHMENT_LOAD_OP_CLEAR;
         colorAtt.storeOp     = VK_ATTACHMENT_STORE_OP_STORE;
-        if ( editor )
+        if ( !tonemapToSwapchain )
         {
             colorAtt.clearValue.color.float32[ 0 ] = 0.12f;
             colorAtt.clearValue.color.float32[ 1 ] = 0.12f;
             colorAtt.clearValue.color.float32[ 2 ] = 0.14f;
             colorAtt.clearValue.color.float32[ 3 ] = 1.0f;
 
-            // Editor swapchain is never written by tonemap — transition from UNDEFINED before clear.
+            // Tonemap skipped swapchain — present may still be UNDEFINED first use.
             VkImageMemoryBarrier2 barrier{};
             barrier.sType            = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
             barrier.srcStageMask     = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;

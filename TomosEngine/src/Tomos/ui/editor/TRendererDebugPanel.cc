@@ -7,7 +7,7 @@
 #include "Tomos/gpu/vulkan/TVkPass.hh"
 #include "Tomos/gpu/vulkan/post/TPostBloom.hh"
 #include "Tomos/gpu/vulkan/post/TPostFog.hh"
-#include "Tomos/gpu/vulkan/post/TPostSSAO.hh"
+#include "Tomos/gpu/vulkan/post/TPostSAO.hh"
 #include "Tomos/gpu/vulkan/post/TPostTonemap.hh"
 #include "Tomos/gpu/vulkan/renderer/TVkClusteredRenderer.hh"
 
@@ -36,18 +36,38 @@ namespace Tomos
 
         {
             auto& app = TApplication::get();
-            bool  fs  = app.window().isFullscreen();
-            if ( ImGui::Checkbox( "Fullscreen", &fs ) )
+
+            static const char* kWindowModes[] = { "Windowed", "Borderless fullscreen", "Exclusive fullscreen" };
+            int                winMode        = static_cast<int>( app.window().windowMode() );
+            if ( ImGui::Combo( "Window mode", &winMode, kWindowModes, 3 ) )
             {
-                app.window().setFullscreen( fs );
-                app.config().m_fullscreen = fs;
-                if ( !fs )
+                const TWindowMode mode    = static_cast<TWindowMode>( winMode );
+                const TWindowMode prev    = app.window().windowMode();
+                if ( prev == TWindowMode::Windowed && mode != TWindowMode::Windowed )
                 {
                     app.config().m_windowWidth  = static_cast<unsigned int>( app.window().getData().m_width );
                     app.config().m_windowHeight = static_cast<unsigned int>( app.window().getData().m_height );
                 }
+                app.window().setWindowMode( mode );
+                app.config().m_windowMode = TWindow::windowModeToString( mode );
+                if ( mode == TWindowMode::Windowed )
+                {
+                    app.config().m_windowWidth  = static_cast<unsigned int>( app.window().windowedWidth() );
+                    app.config().m_windowHeight = static_cast<unsigned int>( app.window().windowedHeight() );
+                }
                 app.configManager().save();
             }
+
+            static const char* kPresentPolicies[] = { "FIFO (vsync)", "Mailbox", "Immediate" };
+            int                policyIdx          = static_cast<int>( gpu->swapchainPresentPolicy() );
+            if ( ImGui::Combo( "Present mode", &policyIdx, kPresentPolicies, 3 ) )
+            {
+                const auto policy = static_cast<TVkGpu::TSwapchainPresentPolicy>( policyIdx );
+                gpu->setSwapchainPresentPolicy( policy );
+                app.config().m_presentMode = TVkGpu::presentPolicyToString( policy );
+                app.configManager().save();
+            }
+            ImGui::Text( "Active VkPresentMode: %s", TVkGpu::vkPresentModeName( gpu->activePresentMode() ) );
         }
 
         ImGui::Separator();
@@ -145,11 +165,13 @@ namespace Tomos
                     ImGui::SliderFloat( "Bloom threshold", &bloom->m_threshold, 0.0f, 4.0f );
                     ImGui::SliderFloat( "Bloom strength", &bloom->m_strength, 0.0f, 2.0f );
                 }
-                if ( auto* ssao = renderer->postStack().find<TPostSSAO>() )
+                if ( auto* sao = renderer->postStack().find<TPostSAO>() )
                 {
-                    ImGui::SliderFloat( "SSAO radius", &ssao->m_radius, 0.05f, 2.0f, "%.2f" );
-                    ImGui::SliderFloat( "SSAO bias", &ssao->m_bias, 0.001f, 0.2f, "%.3f" );
-                    ImGui::SliderFloat( "SSAO intensity", &ssao->m_intensity, 0.0f, 2.0f );
+                    ImGui::SliderFloat( "SAO radius", &sao->m_radius, 0.05f, 2.0f, "%.2f" );
+                    ImGui::SliderFloat( "SAO bias", &sao->m_bias, 0.001f, 0.2f, "%.3f" );
+                    ImGui::SliderFloat( "SAO intensity", &sao->m_intensity, 0.0f, 2.0f );
+                    ImGui::SliderFloat( "SAO blur sharpness", &sao->m_blurSharpness, 10.0f, 500.0f, "%.0f" );
+                    ImGui::SliderFloat( "SAO temporal", &sao->m_temporalBlend, 0.0f, 0.9f, "%.2f" );
                 }
             }
         }

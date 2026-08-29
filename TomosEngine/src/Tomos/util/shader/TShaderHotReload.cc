@@ -18,10 +18,11 @@ namespace Tomos
     {
         constexpr auto g_kPollInterval = std::chrono::milliseconds( 500 );
 
-        const std::array<const char*, 19> g_kGlslFiles = {
+        const std::array<const char*, 22> g_kGlslFiles = {
                 "forward.vert",       "forward.frag",      "shadow.vert",          "skinned.vert",  "skinned_shadow.vert", "cluster_cull.comp", "sprite.vert",
                 "sprite.frag",        "particle_sim.comp", "particle.vert",        "particle.frag", "fullscreen.vert",     "tonemap.frag",      "fog.frag",
-                "bloom_extract.frag", "bloom_blur.frag",   "bloom_composite.frag", "ssao.frag",     "ssao_compose.frag",
+                "bloom_extract.frag", "bloom_blur.frag",   "bloom_composite.frag", "sao_linearize.frag", "sao_sample.frag", "sao_blur.frag",
+                "sao_temporal.frag",  "sao_compose.frag",
         };
 
         std::filesystem::file_time_type fileMtime( const std::filesystem::path& p_path )

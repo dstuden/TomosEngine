@@ -33,6 +33,8 @@ namespace Tomos
 
         for ( const auto& [ lc, node ] : m_lights )
         {
+            if ( lc->m_intensity <= 0.0f || glm::dot( lc->m_color, lc->m_color ) <= 0.0f ) continue;
+
             if ( p_state.m_lights.size() >= g_kMaxLights )
             {
                 truncatedLights = true;

@@ -33,4 +33,15 @@ namespace Tomos
 
         [[nodiscard]] bool empty() const { return m_path.empty(); }
     };
+
+    // Path + playback options for GIF / animated WebP / video (and static textures via resolveTexture).
+    struct TBagAnimatedTextureRef
+    {
+        std::string m_path;
+        bool        m_looping = true;
+        bool        m_playing = true;
+        float       m_speed   = 1.0f;
+
+        [[nodiscard]] bool empty() const { return m_path.empty(); }
+    };
 }  // namespace Tomos

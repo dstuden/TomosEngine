@@ -169,6 +169,8 @@ namespace Tomos
             return false;
         }
 
+        if ( p_comp->m_spatial ) ma_sound_set_attenuation_model( &voice->m_sound, ma_attenuation_model_linear );
+
         voice->m_inited    = true;
         m_voices[ p_comp ] = std::move( voice );
         return true;
@@ -218,6 +220,27 @@ namespace Tomos
                 continue;
             }
 
+            if ( ac->m_volume <= 0.0f )
+            {
+                destroyVoice( ac );
+                continue;
+            }
+
+            if ( ac->m_spatial && m_hasListener )
+            {
+                const glm::vec3 emitterPos = glm::vec3( node->m_transform.getGlobalMatrix()[ 3 ] );
+                const float     distance   = glm::length( emitterPos - m_listenerPos );
+                const float     maxDist    = ac->m_maxDistance;
+
+                if ( distance > maxDist )
+                {
+                    destroyVoice( ac );
+                    continue;
+                }
+
+                if ( distance > maxDist * 0.9f ) continue;
+            }
+
             if ( ac->m_restart )
             {
                 destroyVoice( ac );
@@ -261,6 +284,9 @@ namespace Tomos
     void TAudioSystem::updateListener( const glm::vec3& p_position, const glm::vec3& p_forward, const glm::vec3& p_up )
     {
         if ( !m_ready || m_engine == nullptr ) return;
+
+        m_listenerPos   = p_position;
+        m_hasListener   = true;
 
         auto* engine = static_cast<ma_engine*>( m_engine );
         ma_engine_listener_set_position( engine, 0, p_position.x, p_position.y, p_position.z );

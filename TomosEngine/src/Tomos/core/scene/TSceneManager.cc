@@ -25,5 +25,7 @@ namespace Tomos
         if ( m_scene->isActive() ) m_scene->deactivate();
         m_scene->clearChildren();
         m_scene->resources().clear();
+        // Drop ECS (mesh override materials, etc.) before TVkGpu teardown.
+        m_scene.reset();
     }
 }  // namespace Tomos

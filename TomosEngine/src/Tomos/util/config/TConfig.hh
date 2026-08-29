@@ -103,8 +103,8 @@ namespace Tomos
         TProperty<unsigned int> m_windowWidth{ this, "windowWidth", 1280, "Video", "Width of window" };
         TProperty<unsigned int> m_windowHeight{ this, "windowHeight", 720, "Video", "Height of window" };
         TProperty<std::string>  m_windowTitle{ this, "windowTitle", "Tomos Engine", "General", "Window Title" };
-        TProperty<bool>         m_vsync{ this, "vsync", true, "Video", "Enable VSync" };
-        TProperty<bool>         m_fullscreen{ this, "fullscreen", false, "Video", "Start in fullscreen mode" };
+        TProperty<std::string>  m_windowMode{ this, "windowMode", "windowed", "Video", "windowed | borderless | exclusive" };
+        TProperty<std::string>  m_presentMode{ this, "presentMode", "mailbox", "Video", "fifo | mailbox | immediate" };
     };
 
     template<typename T>

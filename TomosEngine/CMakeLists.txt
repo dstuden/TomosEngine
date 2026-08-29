@@ -78,6 +78,10 @@ FetchContent_Declare(miniaudio
 )
 FetchContent_MakeAvailable(miniaudio)
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET
+	libavformat libavcodec libavutil libswscale)
+
 add_library(${PROJECT_NAME} STATIC
 	src/Tomos/util/logger/TLogger.cc
 	src/Tomos/util/logger/TLogger.hh
@@ -187,6 +191,13 @@ add_library(${PROJECT_NAME} STATIC
 	src/Tomos/systems/asset/TGltfLoader.cc
 	src/Tomos/util/image/TImageLoad.hh
 	src/Tomos/util/image/TImageLoad.cc
+	src/Tomos/util/image/TAnimatedTextureDecoder.hh
+	src/Tomos/util/image/TAnimatedTextureDecoder.cc
+	src/Tomos/util/image/TAnimatedTexture.hh
+	src/Tomos/util/image/TAnimatedTexture.cc
+	# Animated texture system
+	src/Tomos/systems/texture/TAnimatedTextureSystem.hh
+	src/Tomos/systems/texture/TAnimatedTextureSystem.cc
 	# GPU
 	src/Tomos/gpu/TGpuEnums.hh
 	src/Tomos/gpu/TRenderLimits.hh
@@ -223,8 +234,8 @@ add_library(${PROJECT_NAME} STATIC
 	src/Tomos/gpu/vulkan/post/TPostFog.cc
 	src/Tomos/gpu/vulkan/post/TPostBloom.hh
 	src/Tomos/gpu/vulkan/post/TPostBloom.cc
-	src/Tomos/gpu/vulkan/post/TPostSSAO.hh
-	src/Tomos/gpu/vulkan/post/TPostSSAO.cc
+	src/Tomos/gpu/vulkan/post/TPostSAO.hh
+	src/Tomos/gpu/vulkan/post/TPostSAO.cc
 	src/Tomos/util/math/TFrustum.hh
 	src/Tomos/util/math/TProjection.hh
 	# UI
@@ -322,6 +333,7 @@ target_link_libraries(${PROJECT_NAME}
 		nlohmann_json::nlohmann_json
 		assimp::assimp
 		miniaudio
+		PkgConfig::FFMPEG
 )
 
 # ---------------------------------------------------------------------------
@@ -361,8 +373,11 @@ set(GLSL_SOURCES
 	${SHADER_SRC_DIR}/bloom_extract.frag
 	${SHADER_SRC_DIR}/bloom_blur.frag
 	${SHADER_SRC_DIR}/bloom_composite.frag
-	${SHADER_SRC_DIR}/ssao.frag
-	${SHADER_SRC_DIR}/ssao_compose.frag
+	${SHADER_SRC_DIR}/sao_linearize.frag
+	${SHADER_SRC_DIR}/sao_sample.frag
+	${SHADER_SRC_DIR}/sao_blur.frag
+	${SHADER_SRC_DIR}/sao_temporal.frag
+	${SHADER_SRC_DIR}/sao_compose.frag
 )
 
 # Shared GLSL headers (#include "common/…"); -I so paths are relative to shaders/.

@@ -55,12 +55,21 @@ namespace Tomos
 
         if ( !ImGui_ImplVulkan_Init( &info ) ) throw std::runtime_error( "[TImGuiBackend] ImGui_ImplVulkan_Init failed" );
 
+        p_gpu.setSwapchainRebuildHook(
+                []( uint32_t p_imageCount )
+                {
+                    const uint32_t minCount = std::min( g_kFramesInFlight, p_imageCount );
+                    ImGui_ImplVulkan_SetMinImageCount( minCount );
+                } );
+
         m_initialized = true;
     }
 
     void TImGuiBackend::shutdown()
     {
         if ( !m_initialized ) return;
+
+        if ( m_gpu ) m_gpu->setSwapchainRebuildHook( {} );
 
         // Caller must already have waitIdle'd — font atlas / pipelines are destroyed here.
         ImGui_ImplVulkan_Shutdown();

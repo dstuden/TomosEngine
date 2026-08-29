@@ -52,7 +52,9 @@ namespace Tomos
                 return TAssetKind::Audio;
             if ( endsWithIgnoreCase( p_path, ".png" ) || endsWithIgnoreCase( p_path, ".jpg" ) || endsWithIgnoreCase( p_path, ".jpeg" ) ||
                  endsWithIgnoreCase( p_path, ".tga" ) || endsWithIgnoreCase( p_path, ".bmp" ) || endsWithIgnoreCase( p_path, ".ktx" ) ||
-                 endsWithIgnoreCase( p_path, ".ktx2" ) )
+                 endsWithIgnoreCase( p_path, ".ktx2" ) || endsWithIgnoreCase( p_path, ".gif" ) || endsWithIgnoreCase( p_path, ".webp" ) ||
+                 endsWithIgnoreCase( p_path, ".mp4" ) || endsWithIgnoreCase( p_path, ".webm" ) || endsWithIgnoreCase( p_path, ".mov" ) ||
+                 endsWithIgnoreCase( p_path, ".mkv" ) || endsWithIgnoreCase( p_path, ".avi" ) )
                 return TAssetKind::Texture;
             return TAssetKind::Other;
         }
@@ -196,25 +198,37 @@ namespace Tomos
         {
             auto* gpu = TApplication::get().gpu();
             if ( p_ctx.m_bag == nullptr || gpu == nullptr ) return false;
-            TVkImage* image = p_ctx.m_bag->loadImage( *gpu, p_path );
+
+            TBagAnimatedTextureRef opts{ p_path };
+            TVkImage*              image = p_ctx.m_bag->resolveTexture( *gpu, p_path, opts );
 
             if ( auto* spr = p_node.findComponent<TSpriteComponent>() )
             {
                 spr->m_texture    = image;
                 spr->m_textureRef = TBagTextureRef{ p_path };
+                spr->m_animRef    = opts;
                 p_ctx.m_status    = "Assigned texture to sprite";
                 return true;
             }
             if ( auto* part = p_node.findComponent<TParticleEmitterComponent>() )
             {
                 part->m_texture = image;
+                part->m_animRef = opts;
                 p_ctx.m_status  = "Assigned texture to particles";
+                return true;
+            }
+            if ( auto* mesh = p_node.findComponent<TMeshComponent>() )
+            {
+                mesh->m_baseTextureOverride = opts;
+                mesh->rebindOverrides( *p_ctx.m_bag, *gpu );
+                p_ctx.m_status = "Assigned base texture override to mesh";
                 return true;
             }
 
             auto spr          = std::make_shared<TSpriteComponent>();
             spr->m_texture    = image;
             spr->m_textureRef = TBagTextureRef{ p_path };
+            spr->m_animRef    = opts;
             p_node.addComponent( std::move( spr ) );
             p_ctx.m_status = "Added sprite with texture";
             return true;
@@ -223,7 +237,10 @@ namespace Tomos
         void drawFileRow( const std::string& p_path )
         {
             const TAssetKind kind = classifyPath( p_path );
-            const char*      tag  = kind == TAssetKind::Mesh ? "[mesh]" : kind == TAssetKind::Audio ? "[audio]" : "[tex]";
+            const bool       anim = endsWithIgnoreCase( p_path, ".gif" ) || endsWithIgnoreCase( p_path, ".webp" ) || endsWithIgnoreCase( p_path, ".mp4" ) ||
+                              endsWithIgnoreCase( p_path, ".webm" ) || endsWithIgnoreCase( p_path, ".mov" ) || endsWithIgnoreCase( p_path, ".mkv" ) ||
+                              endsWithIgnoreCase( p_path, ".avi" );
+            const char* tag = kind == TAssetKind::Mesh ? "[mesh]" : kind == TAssetKind::Audio ? "[audio]" : ( anim ? "[anim]" : "[tex]" );
             ImGui::Selectable( ( std::string( tag ) + "  " + p_path ).c_str() );
             if ( kind == TAssetKind::Mesh )
                 beginDrag( TAssetBrowserPanel::g_kPayloadMesh, p_path, p_path.c_str() );

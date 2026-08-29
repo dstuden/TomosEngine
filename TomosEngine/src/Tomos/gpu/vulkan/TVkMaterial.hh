@@ -85,6 +85,32 @@ namespace Tomos
         [[nodiscard]] TMatAlpha        alphaMode() const { return m_alphaMode; }
         [[nodiscard]] TMeshTechniqueId technique() const { return m_technique; }
 
+        [[nodiscard]] const TVkImage* baseTexture() const { return m_baseTexture; }
+        [[nodiscard]] const TVkImage* metRghTexture() const { return m_metRghTexture; }
+        [[nodiscard]] const TVkImage* emissionTexture() const { return m_emissionTexture; }
+        [[nodiscard]] const TVkImage* normalTexture() const { return m_normalTexture; }
+
+        // Build a desc that recreates this material with optional texture swaps.
+        [[nodiscard]] TVkMaterialDesc makeDesc( const TVkImage* p_baseOverride = nullptr, const TVkImage* p_emissionOverride = nullptr ) const
+        {
+            TVkMaterialDesc d{};
+            d.m_baseColorFactor = m_ubo.m_baseFactor;
+            d.m_emissionFactor  = m_ubo.m_emissionFactor;
+            d.m_metallicFactor  = m_ubo.m_metalFactor;
+            d.m_roughnessFactor = m_ubo.m_roughFactor;
+            d.m_normalScale     = m_ubo.m_normalScale;
+            d.m_alphaCutoff     = m_ubo.m_alphaCutoff;
+            d.m_alphaMode       = m_alphaMode;
+            d.m_technique       = m_technique;
+            d.m_doubleSided     = m_doubleSided;
+            d.m_hasNormalMap    = m_hasNormalMap;
+            d.m_baseTexture     = p_baseOverride != nullptr ? p_baseOverride : m_baseTexture;
+            d.m_metRghTexture   = m_metRghTexture;
+            d.m_emissionTexture = p_emissionOverride != nullptr ? p_emissionOverride : m_emissionTexture;
+            d.m_normalTexture   = m_normalTexture;
+            return d;
+        }
+
     private:
         // Matches Material in shaders (std140).
         struct alignas( 16 ) TMaterialUBO
@@ -109,5 +135,10 @@ namespace Tomos
         bool             m_doubleSided  = false;
         TMatAlpha        m_alphaMode    = TMatAlpha::Opaque;
         TMeshTechniqueId m_technique    = TMeshTechniqueId::Forward;
+
+        const TVkImage* m_baseTexture     = nullptr;
+        const TVkImage* m_metRghTexture   = nullptr;
+        const TVkImage* m_emissionTexture = nullptr;
+        const TVkImage* m_normalTexture   = nullptr;
     };
 }  // namespace Tomos

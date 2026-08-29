@@ -21,6 +21,7 @@ namespace Tomos
 
         float     m_near = 0.1f;
         float     m_far  = 1000.0f;
+        glm::mat4 m_proj{ 1.0f };     // SAO position reconstruction (McGuire eq. 3)
         glm::mat4 m_projInv{ 1.0f };
         glm::mat4 m_viewInv{ 1.0f };
 
