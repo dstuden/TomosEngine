@@ -13,9 +13,9 @@ namespace Tomos::TScriptUtils
     [[nodiscard]] T* findScript( TSceneNode& p_node )
     {
         static_assert( std::is_base_of_v<TScript, T>, "T must derive from TScript" );
-        for ( auto& comp : p_node.getComponents() )
+        for ( TComponent* comp : p_node.getComponents() )
         {
-            if ( auto* sc = dynamic_cast<TScriptComponent*>( comp.get() ) )
+            if ( auto* sc = dynamic_cast<TScriptComponent*>( comp ) )
             {
                 if ( auto* script = dynamic_cast<T*>( &sc->script() ) ) return script;
             }

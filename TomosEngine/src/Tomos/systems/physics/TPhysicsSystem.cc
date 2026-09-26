@@ -11,6 +11,8 @@
 #include <vector>
 
 #include "Tomos/core/scene/TSceneNode.hh"
+#include "Tomos/util/memory/TArenaAllocator.hh"
+#include "Tomos/util/memory/TFrameAllocator.hh"
 #include "Tomos/util/time/TTime.hh"
 
 namespace Tomos
@@ -521,6 +523,7 @@ namespace Tomos
 
     void TPhysicsSystem::collideAndResolve()
     {
+        TOMOS_HEAP_PROBE( "physics.collideAndResolve" );
         m_lastContactCount = 0;
 
         struct TCollCached
@@ -532,7 +535,10 @@ namespace Tomos
             bool            m_dynamic = false;
         };
 
-        std::vector<TCollCached> colliders;
+        TFrameAllocator& frame = TFrameAllocator::get();
+        TArena&          arena = frame.arena();
+
+        TArenaVector<TCollCached> colliders{ TArenaAllocator<TCollCached>( arena ) };
         colliders.reserve( m_colliders.size() );
 
         for ( auto& [ col, entry ] : m_colliders )
@@ -572,8 +578,8 @@ namespace Tomos
                    ( static_cast<uint64_t>( uz ) * 83492791ull );
         };
 
-        std::unordered_map<uint64_t, std::vector<int>> cells;
-        cells.reserve( colliders.size() * 2 );
+        m_scratchCells.clear();
+        m_scratchCells.reserve( colliders.size() * 2 );
 
         for ( int i = 0; i < static_cast<int>( colliders.size() ); ++i )
         {
@@ -586,29 +592,30 @@ namespace Tomos
             const int         z1  = cellCoord( box.m_max.z );
             for ( int x = x0; x <= x1; ++x )
                 for ( int y = y0; y <= y1; ++y )
-                    for ( int z = z0; z <= z1; ++z ) cells[ cellKey( x, y, z ) ].push_back( i );
+                    for ( int z = z0; z <= z1; ++z ) m_scratchCells[ cellKey( x, y, z ) ].push_back( i );
         }
 
-        std::unordered_set<uint64_t> pairKeys;
-        pairKeys.reserve( colliders.size() * 4 );
+        m_scratchPairKeys.clear();
+        m_scratchPairKeys.reserve( colliders.size() * 4 );
         auto packPair = []( int p_a, int p_b ) -> uint64_t
         {
             if ( p_a > p_b ) std::swap( p_a, p_b );
             return ( static_cast<uint64_t>( static_cast<uint32_t>( p_a ) ) << 32 ) | static_cast<uint32_t>( p_b );
         };
 
-        for ( const auto& [ key, indices ] : cells )
+        for ( const auto& [ key, indices ] : m_scratchCells )
         {
             ( void ) key;
             for ( size_t ii = 0; ii < indices.size(); ++ii )
             {
-                for ( size_t jj = ii + 1; jj < indices.size(); ++jj ) pairKeys.insert( packPair( indices[ ii ], indices[ jj ] ) );
+                for ( size_t jj = ii + 1; jj < indices.size(); ++jj ) m_scratchPairKeys.insert( packPair( indices[ ii ], indices[ jj ] ) );
             }
         }
 
-        std::vector<std::pair<int, int>> pairs;
-        pairs.reserve( pairKeys.size() );
-        for ( uint64_t packed : pairKeys )
+        using TPair = std::pair<int, int>;
+        TArenaVector<TPair> pairs{ TArenaAllocator<TPair>( arena ) };
+        pairs.reserve( m_scratchPairKeys.size() );
+        for ( uint64_t packed : m_scratchPairKeys )
         {
             const int i = static_cast<int>( packed >> 32 );
             const int j = static_cast<int>( packed & 0xffffffffu );
@@ -616,7 +623,7 @@ namespace Tomos
         }
         std::sort( pairs.begin(), pairs.end() );
 
-        std::unordered_set<TOverlapKey, TOverlapKeyHash> currentOverlaps;
+        m_scratchOverlaps.clear();
 
         for ( const auto& [ i, j ] : pairs )
         {
@@ -637,7 +644,7 @@ namespace Tomos
             const bool triggerPair = colA.m_isTrigger || colB.m_isTrigger;
             if ( triggerPair )
             {
-                currentOverlaps.insert( makeOverlapKey( &colA, &colB ) );
+                m_scratchOverlaps.insert( makeOverlapKey( &colA, &colB ) );
                 continue;
             }
 
@@ -677,7 +684,7 @@ namespace Tomos
             }
         }
 
-        finishOverlapFrame( currentOverlaps );
+        finishOverlapFrame( m_scratchOverlaps );
     }
 
     void TPhysicsSystem::writeTransforms()

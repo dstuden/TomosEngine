@@ -152,8 +152,12 @@ namespace Tomos
         std::unordered_map<TRigidBodyComponent*, TBodyEntry>    m_bodies;
         std::unordered_map<TColliderComponent*, TColliderEntry> m_colliders;
         std::unordered_set<TOverlapKey, TOverlapKeyHash>        m_activeOverlaps;
-        TOverlapListener                                        m_overlapListener;
-        const TTime*                                            m_time = nullptr;
+        // Cleared each broadphase; capacity retained.
+        std::unordered_map<uint64_t, std::vector<int>>   m_scratchCells;
+        std::unordered_set<uint64_t>                     m_scratchPairKeys;
+        std::unordered_set<TOverlapKey, TOverlapKeyHash> m_scratchOverlaps;
+        TOverlapListener                                 m_overlapListener;
+        const TTime*                                     m_time = nullptr;
 
         float m_accumulator           = 0.0f;
         float m_alpha                 = 0.0f;

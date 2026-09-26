@@ -102,6 +102,8 @@ namespace Tomos
             m_sampleSets[ i ]    = PostUtil::allocSet( m_device, p_ctx.m_gpu->descPool(), m_samp1Layout );
             m_blurHSets[ i ]     = PostUtil::allocSet( m_device, p_ctx.m_gpu->descPool(), m_samp2Layout );
             m_blurVSets[ i ]     = PostUtil::allocSet( m_device, p_ctx.m_gpu->descPool(), m_samp2Layout );
+            m_blurHSets2[ i ]    = PostUtil::allocSet( m_device, p_ctx.m_gpu->descPool(), m_samp2Layout );
+            m_blurVSets2[ i ]    = PostUtil::allocSet( m_device, p_ctx.m_gpu->descPool(), m_samp2Layout );
             m_temporalSets[ i ]  = PostUtil::allocSet( m_device, p_ctx.m_gpu->descPool(), m_samp2Layout );
             m_compSets[ i ]      = PostUtil::allocSet( m_device, p_ctx.m_gpu->descPool(), m_samp2Layout );
         }
@@ -130,22 +132,6 @@ namespace Tomos
         m_aoBlurB  = TVkImage( p_ctx.m_gpu->device(), p_ctx.m_gpu->physDevice(), aoDesc );
         m_aoHist   = TVkImage( p_ctx.m_gpu->device(), p_ctx.m_gpu->physDevice(), aoDesc );
         m_histValid = false;
-    }
-
-    void TPostSAO::reloadShaders( const TPostContext& /*p_ctx*/ )
-    {
-        if ( m_device == VK_NULL_HANDLE || m_linLay == VK_NULL_HANDLE ) return;
-        const VkFormat aoFmt = VK_FORMAT_R32_SFLOAT;
-        if ( m_linPipe != VK_NULL_HANDLE ) vkDestroyPipeline( m_device, m_linPipe, nullptr );
-        if ( m_samplePipe != VK_NULL_HANDLE ) vkDestroyPipeline( m_device, m_samplePipe, nullptr );
-        if ( m_blurPipe != VK_NULL_HANDLE ) vkDestroyPipeline( m_device, m_blurPipe, nullptr );
-        if ( m_temporalPipe != VK_NULL_HANDLE ) vkDestroyPipeline( m_device, m_temporalPipe, nullptr );
-        if ( m_compPipe != VK_NULL_HANDLE ) vkDestroyPipeline( m_device, m_compPipe, nullptr );
-        m_linPipe      = PostUtil::createFullscreenPipeline( m_device, m_linLay, "sao_linearize.frag.spv", VK_FORMAT_R32_SFLOAT );
-        m_samplePipe   = PostUtil::createFullscreenPipeline( m_device, m_sampleLay, "sao_sample.frag.spv", aoFmt );
-        m_blurPipe     = PostUtil::createFullscreenPipeline( m_device, m_blurLay, "sao_blur.frag.spv", aoFmt );
-        m_temporalPipe = PostUtil::createFullscreenPipeline( m_device, m_temporalLay, "sao_temporal.frag.spv", aoFmt );
-        m_compPipe     = PostUtil::createFullscreenPipeline( m_device, m_compLay, "sao_compose.frag.spv", VK_FORMAT_R16G16B16A16_SFLOAT );
     }
 
     void TPostSAO::record( VkCommandBuffer p_cmd, TPostContext& p_ctx )
@@ -215,8 +201,8 @@ namespace Tomos
         };
         blurPass( m_aoPacked, m_aoBlurB, m_blurHSets[ fi ], 1.0f );
         blurPass( m_aoBlurB, m_aoBlurA, m_blurVSets[ fi ], 0.0f );
-        blurPass( m_aoBlurA, m_aoBlurB, m_blurHSets[ fi ], 1.0f );
-        blurPass( m_aoBlurB, m_aoBlurA, m_blurVSets[ fi ], 0.0f );
+        blurPass( m_aoBlurA, m_aoBlurB, m_blurHSets2[ fi ], 1.0f );
+        blurPass( m_aoBlurB, m_aoBlurA, m_blurVSets2[ fi ], 0.0f );
 
         // 5. Temporal blend with history (reduces per-frame noise when moving).
         barrierToColor( m_aoBlurB );

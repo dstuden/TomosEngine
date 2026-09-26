@@ -53,8 +53,27 @@ namespace Tomos
 
     struct TSkinJoint
     {
-        std::weak_ptr<TSceneNode> m_node;
-        glm::mat4                 m_inverseBindMtx;
+        TSceneNode* m_node = nullptr;
+        TNodeHandle m_handle{};
+        glm::mat4   m_inverseBindMtx;
+
+        void bind( TSceneNode* p_node )
+        {
+            m_node   = p_node;
+            m_handle = p_node != nullptr ? p_node->handle() : TNodeHandle{};
+        }
+
+        [[nodiscard]] TSceneNode* liveNode( const TLevelStore* p_store ) const
+        {
+            if ( m_node != nullptr && m_handle.valid() && p_store != nullptr && p_store->getNode( m_handle ) != m_node ) return nullptr;
+            return m_node;
+        }
+
+        TSceneNode* resolve( const TLevelStore* p_store )
+        {
+            m_node = liveNode( p_store );
+            return m_node;
+        }
     };
 
     // Bone matrices → TFrameState::m_bones via TMeshSystem::lateUpdate().

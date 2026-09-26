@@ -6,15 +6,19 @@
 #include <stdexcept>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "Tomos/core/ecs/TECS.hh"
 #include "Tomos/systems/TComponent.hh"
+#include "Tomos/util/memory/THandle.hh"
+#include "Tomos/util/memory/TLevelStore.hh"
 #include "Tomos/util/transform/TTransform.hh"
 
 namespace Tomos
 {
-    class TSceneNode : public std::enable_shared_from_this<TSceneNode>
+    // Pooled graph node, or the unpooled TScene root. Children/components are store-owned.
+    class TSceneNode
     {
     public:
         uint64_t    m_id   = 0;
@@ -26,22 +30,29 @@ namespace Tomos
         explicit TSceneNode( std::string p_name );
         virtual ~TSceneNode();
 
-        void addChild( std::shared_ptr<TSceneNode> p_child );
-        void removeChild( const TSceneNode* p_child );
+        TSceneNode( const TSceneNode& )            = delete;
+        TSceneNode& operator=( const TSceneNode& ) = delete;
+
+        void addChild( TSceneNode* p_child );
+
+        // Detach only — does not destroy. Use store()->destroyNode(handle()) to free.
+        void removeChild( TSceneNode* p_child );
+
         void clearChildren();
 
         // No-op if p_newParent is null, self, or a descendant.
-        void reparent( const std::shared_ptr<TSceneNode>& p_newParent );
+        void reparent( TSceneNode* p_newParent );
 
-        std::shared_ptr<TSceneNode>                     getParent() const { return m_parent.lock(); }
-        const std::vector<std::shared_ptr<TSceneNode>>& getChildren() const { return m_children; }
+        [[nodiscard]] TSceneNode*                     getParent() const { return m_parent; }
+        [[nodiscard]] const std::vector<TSceneNode*>& getChildren() const { return m_children; }
+        [[nodiscard]] TNodeHandle                     handle() const { return m_handle; }
+        [[nodiscard]] TLevelStore*                    store() const { return m_store; }
 
         // Prefer for physics/editor; getGlobalMatrix() only after computeTransforms.
         [[nodiscard]] glm::mat4 worldMatrix() const;
 
-        TSceneNode*                 findById( uint64_t p_id );
-        const TSceneNode*           findById( uint64_t p_id ) const;
-        std::shared_ptr<TSceneNode> findSharedById( uint64_t p_id );
+        TSceneNode*       findById( uint64_t p_id );
+        const TSceneNode* findById( uint64_t p_id ) const;
 
         TSceneNode*       findByName( const std::string& p_name );
         const TSceneNode* findByName( const std::string& p_name ) const;
@@ -51,12 +62,24 @@ namespace Tomos
         static uint64_t allocateId();
         static void     noteAllocatedId( uint64_t p_id );
 
-        template<typename T>
-        void addComponent( std::shared_ptr<T> p_component )
+        template<typename T, typename... Args>
+        T& emplaceComponent( Args&&... p_args )
         {
             static_assert( std::is_base_of_v<TComponent, T>, "T must derive from TComponent" );
-            if ( m_ecs != nullptr ) m_ecs->registerComponent( *this, *p_component );
-            m_components.push_back( std::move( p_component ) );
+            if ( m_store == nullptr ) throw std::runtime_error( "emplaceComponent requires a level store (use TScene::createNode)" );
+            T* comp = m_store->createComponent<T>( std::forward<Args>( p_args )... );
+            if ( m_ecs != nullptr ) m_ecs->registerComponent( *this, *comp );
+            m_components.push_back( comp );
+            return *comp;
+        }
+
+        void addComponent( std::unique_ptr<TComponent> p_component );
+
+        template<typename T>
+        void addComponent( std::unique_ptr<T> p_component )
+        {
+            static_assert( std::is_base_of_v<TComponent, T>, "T must derive from TComponent" );
+            addComponent( std::unique_ptr<TComponent>( std::move( p_component ) ) );
         }
 
         template<typename T>
@@ -64,17 +87,17 @@ namespace Tomos
         {
             static_assert( std::is_base_of_v<TComponent, T>, "T must derive from TComponent" );
             if ( m_ecs != nullptr ) m_ecs->destroyComponent( *this, *p_component );
-            m_components.erase(
-                    std::remove_if( m_components.begin(), m_components.end(), [ p_component ]( const auto& p_c ) { return p_c.get() == p_component; } ),
-                    m_components.end() );
+            m_components.erase( std::remove( m_components.begin(), m_components.end(), static_cast<TComponent*>( p_component ) ),
+                                m_components.end() );
+            if ( m_store != nullptr ) m_store->destroyComponent( p_component );
         }
 
         template<typename T>
         T& getComponent()
         {
-            for ( auto& c : m_components )
+            for ( TComponent* c : m_components )
             {
-                if ( auto* ptr = dynamic_cast<T*>( c.get() ) ) return *ptr;
+                if ( auto* ptr = dynamic_cast<T*>( c ) ) return *ptr;
             }
             throw std::runtime_error( "Component not found on node: " + m_name );
         }
@@ -82,14 +105,14 @@ namespace Tomos
         template<typename T>
         T* findComponent()
         {
-            for ( auto& c : m_components )
+            for ( TComponent* c : m_components )
             {
-                if ( auto* ptr = dynamic_cast<T*>( c.get() ) ) return ptr;
+                if ( auto* ptr = dynamic_cast<T*>( c ) ) return ptr;
             }
             return nullptr;
         }
 
-        const std::vector<std::shared_ptr<TComponent>>& getComponents() const { return m_components; }
+        [[nodiscard]] const std::vector<TComponent*>& getComponents() const { return m_components; }
 
         std::string tree() const;
 
@@ -97,13 +120,18 @@ namespace Tomos
         void attachComponents( TECS& p_ecs );
         void detachComponents();
 
+        TLevelStore* m_store = nullptr;
+
     private:
+        friend class TLevelStore;
+        friend class TScene;
+
         bool isDescendantOf( const TSceneNode* p_ancestor ) const;
 
-        TECS*                     m_ecs = nullptr;
-        std::weak_ptr<TSceneNode> m_parent;
-
-        std::vector<std::shared_ptr<TSceneNode>> m_children;
-        std::vector<std::shared_ptr<TComponent>> m_components;
+        TECS*                    m_ecs    = nullptr;
+        TSceneNode*              m_parent = nullptr;
+        TNodeHandle              m_handle{};
+        std::vector<TSceneNode*> m_children;
+        std::vector<TComponent*> m_components;
     };
 }  // namespace Tomos

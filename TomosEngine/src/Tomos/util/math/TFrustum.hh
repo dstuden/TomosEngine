@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <glm/glm.hpp>
 #include <limits>
 
@@ -14,17 +15,22 @@ namespace Tomos
 
         [[nodiscard]] glm::vec3 center() const { return 0.5f * ( m_min + m_max ); }
 
+        [[nodiscard]] std::array<glm::vec3, 8> corners() const
+        {
+            return {
+                    glm::vec3{ m_min.x, m_min.y, m_min.z }, glm::vec3{ m_max.x, m_min.y, m_min.z },
+                    glm::vec3{ m_min.x, m_max.y, m_min.z }, glm::vec3{ m_max.x, m_max.y, m_min.z },
+                    glm::vec3{ m_min.x, m_min.y, m_max.z }, glm::vec3{ m_max.x, m_min.y, m_max.z },
+                    glm::vec3{ m_min.x, m_max.y, m_max.z }, glm::vec3{ m_max.x, m_max.y, m_max.z },
+            };
+        }
+
         [[nodiscard]] TAABB transformed( const glm::mat4& p_m ) const
         {
-            const glm::vec3 corners[ 8 ] = {
-                    { m_min.x, m_min.y, m_min.z }, { m_max.x, m_min.y, m_min.z }, { m_min.x, m_max.y, m_min.z }, { m_max.x, m_max.y, m_min.z },
-                    { m_min.x, m_min.y, m_max.z }, { m_max.x, m_min.y, m_max.z }, { m_min.x, m_max.y, m_max.z }, { m_max.x, m_max.y, m_max.z },
-            };
-
             TAABB out;
             out.m_min = glm::vec3( std::numeric_limits<float>::max() );
             out.m_max = glm::vec3( std::numeric_limits<float>::lowest() );
-            for ( const glm::vec3& c : corners )
+            for ( const glm::vec3& c : corners() )
             {
                 const glm::vec3 w = glm::vec3( p_m * glm::vec4( c, 1.0f ) );
                 out.m_min         = glm::min( out.m_min, w );

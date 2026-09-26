@@ -20,6 +20,7 @@
 #include "Tomos/systems/animation/TAnimationClip.hh"
 #include "Tomos/systems/mesh/TMeshComponent.hh"
 #include "Tomos/util/logger/TLogger.hh"
+#include "Tomos/util/memory/TLevelStore.hh"
 #include "Tomos/util/path/TPath.hh"
 
 namespace Tomos
@@ -524,7 +525,7 @@ namespace Tomos
         return pkg;
     }
 
-    TLoadResult TGltfLoader::uploadGpu( TCpuGltfPackage&& p_package, TVkGpu& p_gpu )
+    TLoadResult TGltfLoader::uploadGpu( TCpuGltfPackage&& p_package, TVkGpu& p_gpu, TLevelStore& p_store )
     {
         if ( !p_package.m_ok )
             throw std::runtime_error( "[TGltfLoader] Failed to load '" + p_package.m_sourcePath + "': " + p_package.m_error );
@@ -585,14 +586,15 @@ namespace Tomos
 
         if ( p_package.m_nodes.empty() ) return { nullptr, std::move( asset ) };
 
-        std::vector<std::shared_ptr<TSceneNode>> nodes;
+        std::vector<TSceneNode*>                 nodes;
         nodes.reserve( p_package.m_nodes.size() );
-        std::unordered_map<std::string, std::shared_ptr<TSceneNode>> byName;
+        std::unordered_map<std::string, TSceneNode*> byName;
 
         for ( size_t i = 0; i < p_package.m_nodes.size(); ++i )
         {
             const TCpuNodeData& nd = p_package.m_nodes[ i ];
-            auto                n  = std::make_shared<TSceneNode>( nd.m_name );
+            TNodeHandle         h  = p_store.createNode( nd.m_name );
+            TSceneNode*         n  = p_store.getNode( h );
             n->m_transform.setLocalTRS( nd.m_translation, nd.m_rotation, nd.m_scale );
             nodes.push_back( n );
             if ( !byName.emplace( nd.m_name, n ).second )
@@ -602,14 +604,15 @@ namespace Tomos
         for ( size_t i = 0; i < p_package.m_nodes.size(); ++i )
         {
             const TCpuNodeData& nd = p_package.m_nodes[ i ];
-            if ( nd.m_parent >= 0 && static_cast<size_t>( nd.m_parent ) < nodes.size() ) nodes[ static_cast<size_t>( nd.m_parent ) ]->addChild( nodes[ i ] );
+            if ( nd.m_parent >= 0 && static_cast<size_t>( nd.m_parent ) < nodes.size() )
+                nodes[ static_cast<size_t>( nd.m_parent ) ]->addChild( nodes[ i ] );
         }
 
         const std::string& stem = asset->m_name;
         for ( size_t i = 0; i < p_package.m_nodes.size(); ++i )
         {
-            const TCpuNodeData& nd   = p_package.m_nodes[ i ];
-            auto&               tNode = nodes[ i ];
+            const TCpuNodeData& nd    = p_package.m_nodes[ i ];
+            TSceneNode*         tNode = nodes[ i ];
             for ( uint32_t meshIdx : nd.m_meshIndices )
             {
                 if ( meshIdx >= asset->m_meshes.size() ) continue;
@@ -629,16 +632,16 @@ namespace Tomos
                         j.m_inverseBindMtx = cpuMesh.m_inverseBindMatrices[ b ];
                         const auto it      = byName.find( cpuMesh.m_boneNames[ b ] );
                         if ( it != byName.end() )
-                            j.m_node = it->second;
+                            j.bind( it->second );
                         else
                             TLOG_WARN() << "[TGltfLoader] Bone node not found: " << cpuMesh.m_boneNames[ b ] << "\n";
                         joints.push_back( std::move( j ) );
                     }
-                    tNode->addComponent( std::make_shared<TSkinnedMeshComponent>( ref, mesh, mat, 0, std::move( joints ) ) );
+                    tNode->emplaceComponent<TSkinnedMeshComponent>( ref, mesh, mat, 0, std::move( joints ) );
                 }
                 else
                 {
-                    tNode->addComponent( std::make_shared<TMeshComponent>( ref, mesh, mat, 0 ) );
+                    tNode->emplaceComponent<TMeshComponent>( ref, mesh, mat, 0 );
                 }
             }
         }
@@ -646,5 +649,8 @@ namespace Tomos
         return { nodes.front(), std::move( asset ) };
     }
 
-    TLoadResult TGltfLoader::load( const std::string& p_path, TVkGpu& p_gpu ) { return uploadGpu( decodeCpu( p_path ), p_gpu ); }
+    TLoadResult TGltfLoader::load( const std::string& p_path, TVkGpu& p_gpu, TLevelStore& p_store )
+    {
+        return uploadGpu( decodeCpu( p_path ), p_gpu, p_store );
+    }
 }  // namespace Tomos

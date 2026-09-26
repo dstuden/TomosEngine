@@ -1,6 +1,9 @@
 #include "Tomos/core/ecs/TECS.hh"
 
+#include <typeinfo>
+
 #include "Tomos/util/logger/TLogger.hh"
+#include "Tomos/util/profile/TProfile.hh"
 
 namespace Tomos
 {
@@ -29,16 +32,31 @@ namespace Tomos
 
     void TECS::earlyUpdate( float p_dt )
     {
-        for ( auto& sys : m_systems ) sys->earlyUpdate( p_dt );
+        TOMOS_PROFILE_SCOPE( "ECS.Early" );
+        for ( auto& sys : m_systems )
+        {
+            TOMOS_PROFILE_SCOPE( typeid( *sys ).name() );
+            sys->earlyUpdate( p_dt );
+        }
     }
 
     void TECS::update( float p_dt )
     {
-        for ( auto& sys : m_systems ) sys->update( p_dt );
+        TOMOS_PROFILE_SCOPE( "ECS.Update" );
+        for ( auto& sys : m_systems )
+        {
+            TOMOS_PROFILE_SCOPE( typeid( *sys ).name() );
+            sys->update( p_dt );
+        }
     }
 
     void TECS::lateUpdate( float p_dt )
     {
-        for ( auto& sys : m_systems ) sys->lateUpdate( p_dt );
+        TOMOS_PROFILE_SCOPE( "ECS.Late" );
+        for ( auto& sys : m_systems )
+        {
+            TOMOS_PROFILE_SCOPE( typeid( *sys ).name() );
+            sys->lateUpdate( p_dt );
+        }
     }
 }  // namespace Tomos

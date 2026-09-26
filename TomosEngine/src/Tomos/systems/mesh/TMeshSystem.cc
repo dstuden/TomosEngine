@@ -16,6 +16,8 @@
 #include "Tomos/gpu/vulkan/TVkPass.hh"
 #include "Tomos/util/logger/TLogger.hh"
 #include "Tomos/util/math/TFrustum.hh"
+#include "Tomos/util/memory/TArenaAllocator.hh"
+#include "Tomos/util/memory/TFrameAllocator.hh"
 
 namespace Tomos
 {
@@ -88,19 +90,19 @@ namespace Tomos
 
         for ( auto* sk : m_skinned )
         {
-            if ( haveFrustum && !sk->m_castShadow )
-            {
-                const auto it = m_meshes.find( sk );
-                if ( it != m_meshes.end() && !meshIntersectsFrustum( *sk, *it->second, planes ) ) continue;
-            }
+            const auto  ownerIt = m_meshes.find( sk );
+            TSceneNode* owner   = ownerIt != m_meshes.end() ? ownerIt->second : nullptr;
 
+            if ( haveFrustum && !sk->m_castShadow && owner != nullptr && !meshIntersectsFrustum( *sk, *owner, planes ) ) continue;
+
+            TLevelStore* store = owner != nullptr ? owner->store() : nullptr;
             for ( uint32_t i = 0; i < static_cast<uint32_t>( sk->m_joints.size() ); ++i )
             {
-                const TSkinJoint& joint = sk->m_joints[ i ];
-                const auto        node  = joint.m_node.lock();
-                if ( node == nullptr ) continue;
+                TSkinJoint* joint     = &sk->m_joints[ i ];
+                TSceneNode* jointNode = joint->resolve( store );
+                if ( jointNode == nullptr ) continue;
 
-                sk->m_boneMatrices[ i ] = node->m_transform.getGlobalMatrix() * joint.m_inverseBindMtx;
+                sk->m_boneMatrices[ i ] = jointNode->m_transform.getGlobalMatrix() * joint->m_inverseBindMtx;
             }
         }
     }
@@ -126,6 +128,8 @@ namespace Tomos
 
     void TMeshSystem::populate( TFrameState& p_state ) const
     {
+        TOMOS_HEAP_PROBE( "mesh.populate" );
+
         p_state.m_drawCalls.clear();
         p_state.m_instances.clear();
         p_state.m_bones.clear();
@@ -135,7 +139,8 @@ namespace Tomos
         glm::vec4 planes[ 6 ];
         extractFrustumPlanes( p_state.m_viewProj, planes );
 
-        std::vector<TPendingDraw> pending;
+        TArena&                    arena = TFrameAllocator::get().arena();
+        TArenaVector<TPendingDraw> pending{ TArenaAllocator<TPendingDraw>( arena ) };
         pending.reserve( m_meshes.size() );
 
         bool truncatedInstances = false;

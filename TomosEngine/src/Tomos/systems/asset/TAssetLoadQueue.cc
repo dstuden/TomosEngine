@@ -110,12 +110,21 @@ namespace Tomos
         return it->second.m_error;
     }
 
-    std::shared_ptr<TSceneNode> TAssetLoadQueue::takeRoot( TAssetLoadHandle p_handle )
+    TSceneNode* TAssetLoadQueue::takeRoot( TAssetLoadHandle p_handle, TScene& p_scene )
     {
-        std::lock_guard lock( m_mutex );
-        const auto      it = m_entries.find( p_handle.m_id );
-        if ( it == m_entries.end() ) return nullptr;
-        return std::move( it->second.m_root );
+        TNodeHandle        h;
+        const TLevelStore* store = nullptr;
+        {
+            std::lock_guard lock( m_mutex );
+            const auto      it = m_entries.find( p_handle.m_id );
+            if ( it == m_entries.end() ) return nullptr;
+            h                       = it->second.m_root;
+            store                   = it->second.m_rootStore;
+            it->second.m_root       = {};
+            it->second.m_rootStore  = nullptr;
+        }
+        if ( !h.valid() || store != &p_scene.store() ) return nullptr;
+        return p_scene.store().getNode( h );
     }
 
     void TAssetLoadQueue::onComplete( TAssetLoadHandle p_handle, TCompleteFn p_fn )
@@ -172,18 +181,18 @@ namespace Tomos
         {
             TSceneNode* node = stack.back();
             stack.pop_back();
-            for ( const auto& child : node->getChildren() )
-                if ( child ) stack.push_back( child.get() );
+            for ( TSceneNode* child : node->getChildren() )
+                if ( child ) stack.push_back( child );
 
-            for ( const auto& comp : node->getComponents() )
+            for ( TComponent* comp : node->getComponents() )
             {
-                if ( auto* mesh = dynamic_cast<TMeshComponent*>( comp.get() ) ) mesh->rebind( m_assets );
-                if ( auto* anim = dynamic_cast<TAnimatorComponent*>( comp.get() ) ) anim->rebind( m_assets );
+                if ( auto* mesh = dynamic_cast<TMeshComponent*>( comp ) ) mesh->rebind( m_assets );
+                if ( auto* anim = dynamic_cast<TAnimatorComponent*>( comp ) ) anim->rebind( m_assets );
             }
         }
     }
 
-    void TAssetLoadQueue::tick( TScene* p_scene )
+    void TAssetLoadQueue::tick( TScene& p_scene )
     {
         if ( m_gpu == nullptr ) return;
 
@@ -233,7 +242,7 @@ namespace Tomos
             {
                 if ( !preferredName.empty() ) job.m_package.m_name = preferredName;
 
-                TLoadResult result = TGltfLoader::uploadGpu( std::move( job.m_package ), *m_gpu );
+                TLoadResult result = TGltfLoader::uploadGpu( std::move( job.m_package ), *m_gpu, p_scene.store() );
                 if ( result.m_asset == nullptr )
                 {
                     {
@@ -248,8 +257,8 @@ namespace Tomos
                     continue;
                 }
 
-                TGpuAsset*                  raw  = result.m_asset.get();
-                std::shared_ptr<TSceneNode> root = std::move( result.m_root );
+                TGpuAsset*        raw        = result.m_asset.get();
+                const TNodeHandle rootHandle = result.m_root != nullptr ? result.m_root->handle() : TNodeHandle{};
                 m_assets.registerAsset( std::move( result.m_asset ) );
                 registeredAny = true;
 
@@ -257,10 +266,11 @@ namespace Tomos
                     std::lock_guard lock( m_mutex );
                     auto            it = m_entries.find( job.m_id );
                     if ( it == m_entries.end() ) continue;
-                    it->second.m_asset = raw;
-                    it->second.m_root  = std::move( root );
-                    cbs                = takeCallbacks( it->second, TAssetLoadStatus::Ready );
-                    doneStatus         = TAssetLoadStatus::Ready;
+                    it->second.m_asset     = raw;
+                    it->second.m_root      = rootHandle;
+                    it->second.m_rootStore = &p_scene.store();
+                    cbs                    = takeCallbacks( it->second, TAssetLoadStatus::Ready );
+                    doneStatus             = TAssetLoadStatus::Ready;
                 }
                 runLoadCallbacks( cbs, doneStatus );
             }
@@ -279,10 +289,10 @@ namespace Tomos
             }
         }
 
-        if ( registeredAny && p_scene != nullptr ) rebindScene( *p_scene );
+        if ( registeredAny ) rebindScene( p_scene );
     }
 
-    void TAssetLoadQueue::waitUntilReady( TAssetLoadHandle p_handle, TScene* p_scene )
+    void TAssetLoadQueue::waitUntilReady( TAssetLoadHandle p_handle, TScene& p_scene )
     {
         waitUntil( [ this, p_handle ] {
             const TAssetLoadStatus st = status( p_handle );
@@ -290,7 +300,7 @@ namespace Tomos
         }, p_scene );
     }
 
-    void TAssetLoadQueue::waitUntil( const std::function<bool()>& p_pred, TScene* p_scene )
+    void TAssetLoadQueue::waitUntil( const std::function<bool()>& p_pred, TScene& p_scene )
     {
         while ( !p_pred() )
         {

@@ -81,6 +81,7 @@ namespace Tomos
 
         [[nodiscard]] VkDevice          device() const { return m_device; }
         [[nodiscard]] VkPhysicalDevice  physDevice() const { return m_physDevice; }
+        [[nodiscard]] float             timestampPeriod() const;
         [[nodiscard]] VkInstance        instance() const { return m_instance; }
         [[nodiscard]] VkQueue           graphicsQueue() const { return m_graphicsQueue; }
         [[nodiscard]] uint32_t          graphicsFamily() const { return m_graphicsFamily; }

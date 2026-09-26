@@ -17,7 +17,6 @@ namespace Tomos
         [[nodiscard]] const char* name() const override { return "SAO"; }
 
         void onResize( const TPostContext& p_ctx ) override;
-        void reloadShaders( const TPostContext& p_ctx ) override;
         void record( VkCommandBuffer p_cmd, TPostContext& p_ctx ) override;
         void destroy() override;
 
@@ -57,8 +56,11 @@ namespace Tomos
 
         std::array<VkDescriptorSet, g_kFrames> m_linSets{};
         std::array<VkDescriptorSet, g_kFrames> m_sampleSets{};
+        // Two H+V pairs: second blur iteration must not update sets already bound in this CB.
         std::array<VkDescriptorSet, g_kFrames> m_blurHSets{};
         std::array<VkDescriptorSet, g_kFrames> m_blurVSets{};
+        std::array<VkDescriptorSet, g_kFrames> m_blurHSets2{};
+        std::array<VkDescriptorSet, g_kFrames> m_blurVSets2{};
         std::array<VkDescriptorSet, g_kFrames> m_temporalSets{};
         std::array<VkDescriptorSet, g_kFrames> m_compSets{};
     };

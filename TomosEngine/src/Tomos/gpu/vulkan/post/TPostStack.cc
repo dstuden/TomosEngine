@@ -17,11 +17,6 @@ namespace Tomos
         for ( auto& e : m_effects ) e->onResize( p_ctx );
     }
 
-    void TPostStack::reloadShaders( const TPostContext& p_ctx )
-    {
-        for ( auto& e : m_effects ) e->reloadShaders( p_ctx );
-    }
-
     void TPostStack::execute( VkCommandBuffer p_cmd, TPostContext& p_ctx )
     {
         // Optional effects first; tonemap always last (even if somehow disabled).

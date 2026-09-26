@@ -2,36 +2,18 @@ cmake_minimum_required(VERSION 3.28)
 
 project(SandBox)
 
-set(CMAKE_CXX_STANDARD 23)
-
 add_executable(${PROJECT_NAME}
     main.cc
 )
 
 # The Tomos target exports its src/ directory as a PUBLIC include path, so
 # linking against it is sufficient — no manual target_include_directories needed.
-target_link_libraries(${PROJECT_NAME} PRIVATE Tomos)
+target_link_libraries(${PROJECT_NAME} PRIVATE Tomos tomos_build_flags)
 if(TARGET TomosEditor)
 	target_link_libraries(${PROJECT_NAME} PRIVATE TomosEditor)
 endif()
 
-# Match engine Release opts (LTO + section GC) on the executable.
-include(CheckIPOSupported)
-check_ipo_supported(RESULT TOMOS_IPO_SUPPORTED)
-if(TOMOS_IPO_SUPPORTED)
-	set_property(TARGET ${PROJECT_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
-endif()
-# GCC/Clang Release opts; --gc-sections is GNU ld / ELF-oriented (skip MSVC / Apple).
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-	target_compile_options(${PROJECT_NAME} PRIVATE
-		$<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>:-O3 -ffunction-sections -fdata-sections>
-	)
-	if(NOT APPLE)
-		target_link_options(${PROJECT_NAME} PRIVATE
-			$<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>:-Wl,--gc-sections>
-		)
-	endif()
-endif()
+tomos_enable_ipo(${PROJECT_NAME})
 
 # ---------------------------------------------------------------------------
 # Copy the assets/ directory next to the built binary so that paths like

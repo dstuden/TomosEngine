@@ -26,16 +26,10 @@ namespace Tomos
         destroy( m_skinnedShadowPipeline );
         destroy( m_cullPipeline );
         for ( auto& tech : m_meshTechniques ) tech.destroyAll( device );
-        destroy( m_spritePipeline );
+        destroy( m_spriteCutoutPipeline );
+        destroy( m_spriteBlendPipeline );
         destroy( m_particleSimPipeline );
         destroy( m_particlePipeline );
-    }
-
-    void TVkClusteredRenderer::reloadShaders()
-    {
-        destroyGraphicsPipelines();
-        createGraphicsPipelines();
-        m_post.reloadShaders( makePostContext() );
     }
 
     void TVkClusteredRenderer::createPipelines()
@@ -233,11 +227,15 @@ namespace Tomos
             raster.frontFace   = VK_FRONT_FACE_COUNTER_CLOCKWISE;
             raster.lineWidth   = 1.0f;
 
+            // Cutout: Mask-like (no blend, depth write). Blend: no depth write.
             VkPipelineDepthStencilStateCreateInfo spriteDepth{};
-            spriteDepth.sType            = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-            spriteDepth.depthTestEnable  = VK_TRUE;
-            spriteDepth.depthWriteEnable = VK_FALSE;
-            spriteDepth.depthCompareOp   = VK_COMPARE_OP_LESS;
+            spriteDepth.sType           = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+            spriteDepth.depthTestEnable = VK_TRUE;
+            spriteDepth.depthCompareOp  = VK_COMPARE_OP_LESS;
+
+            VkPipelineColorBlendAttachmentState opaqueAtt{};
+            opaqueAtt.blendEnable    = VK_FALSE;
+            opaqueAtt.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
             VkPipelineColorBlendAttachmentState blendAtt{};
             blendAtt.blendEnable         = VK_TRUE;
@@ -252,7 +250,7 @@ namespace Tomos
             VkPipelineColorBlendStateCreateInfo blend{};
             blend.sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
             blend.attachmentCount = 1;
-            blend.pAttachments    = &blendAtt;
+            blend.pAttachments    = &opaqueAtt;
 
             const VkFormat                hdrFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
             VkPipelineRenderingCreateInfo renderingInfo{};
@@ -276,8 +274,15 @@ namespace Tomos
             pi.pDynamicState       = &dynamicState;
             pi.layout              = m_spritePipeLayout;
 
-            if ( vkCreateGraphicsPipelines( device, VK_NULL_HANDLE, 1, &pi, nullptr, &m_spritePipeline ) != VK_SUCCESS )
-                throw std::runtime_error( "[TVkClusteredRenderer] Failed to create sprite pipeline" );
+            spriteDepth.depthWriteEnable = VK_TRUE;
+            blend.pAttachments           = &opaqueAtt;
+            if ( vkCreateGraphicsPipelines( device, VK_NULL_HANDLE, 1, &pi, nullptr, &m_spriteCutoutPipeline ) != VK_SUCCESS )
+                throw std::runtime_error( "[TVkClusteredRenderer] Failed to create sprite cutout pipeline" );
+
+            spriteDepth.depthWriteEnable = VK_FALSE;
+            blend.pAttachments           = &blendAtt;
+            if ( vkCreateGraphicsPipelines( device, VK_NULL_HANDLE, 1, &pi, nullptr, &m_spriteBlendPipeline ) != VK_SUCCESS )
+                throw std::runtime_error( "[TVkClusteredRenderer] Failed to create sprite blend pipeline" );
 
             vkDestroyShaderModule( device, vertMod, nullptr );
             vkDestroyShaderModule( device, fragMod, nullptr );

@@ -121,7 +121,7 @@ namespace Tomos
                 }
                 else
                 {
-                    p_node.addComponent( std::make_shared<TMeshComponent>( ref, mesh, mat, gen ) );
+                    p_node.addComponent( std::make_unique<TMeshComponent>( ref, mesh, mat, gen ) );
                 }
                 p_ctx.m_status = "Assigned mesh from " + asset->m_name;
                 return true;
@@ -138,7 +138,7 @@ namespace Tomos
             }
             else
             {
-                p_node.addComponent( std::make_shared<TMeshComponent>( ref, nullptr, nullptr, 0 ) );
+                p_node.addComponent( std::make_unique<TMeshComponent>( ref, nullptr, nullptr, 0 ) );
             }
 
             app.assetLoadQueue().onComplete( handle,
@@ -175,7 +175,7 @@ namespace Tomos
             }
             else
             {
-                p_node.addComponent( std::make_shared<TMeshComponent>( ref, mesh, mat, gen ) );
+                p_node.addComponent( std::make_unique<TMeshComponent>( ref, mesh, mat, gen ) );
             }
             p_ctx.m_status = "Assigned mesh from " + p_name;
             return true;
@@ -189,7 +189,7 @@ namespace Tomos
             if ( auto* existing = p_node.findComponent<TAudioComponent>() )
                 existing->m_clip = clip;
             else
-                p_node.addComponent( std::make_shared<TAudioComponent>( clip ) );
+                p_node.addComponent( std::make_unique<TAudioComponent>( clip ) );
             p_ctx.m_status = "Assigned audio " + p_path;
             return true;
         }
@@ -225,7 +225,7 @@ namespace Tomos
                 return true;
             }
 
-            auto spr          = std::make_shared<TSpriteComponent>();
+            auto spr          = std::make_unique<TSpriteComponent>();
             spr->m_texture    = image;
             spr->m_textureRef = TBagTextureRef{ p_path };
             spr->m_animRef    = opts;

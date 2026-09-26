@@ -11,6 +11,10 @@
 #include "Tomos/gpu/vulkan/TVkPass.hh"
 #include "Tomos/gpu/vulkan/post/TPostStack.hh"
 
+#if TOMOS_DEBUG
+#include "Tomos/util/profile/TGpuTimestamps.hh"
+#endif
+
 namespace Tomos
 {
     class TVkGpu;
@@ -28,9 +32,6 @@ namespace Tomos
         void onRenderExtentChanged( VkExtent2D p_extent );
         void render( VkCommandBuffer p_cmd, uint32_t p_frameIndex, const TFrameState& p_state );
 
-        // Caller must vkDeviceWaitIdle first (TShaderHotReload).
-        void reloadShaders();
-
         void uploadParticles( uint32_t p_frameIndex, const TFrameState& p_state );
 
         [[nodiscard]] TPostStack& postStack() { return m_post; }
@@ -41,6 +42,11 @@ namespace Tomos
         [[nodiscard]] bool        sceneColorReady() const { return m_sceneColor.valid(); }
         [[nodiscard]] uint32_t    sceneColorGeneration() const { return m_sceneColorGeneration; }
         [[nodiscard]] TVkImage&   sceneColor() { return m_sceneColor; }
+
+#if TOMOS_DEBUG
+        [[nodiscard]] const std::array<float, g_kGpuPassCount>& gpuPassMs() const { return m_gpuTimestamps.lastPassMs(); }
+        [[nodiscard]] bool                                      gpuPassMsValid() const { return m_gpuTimestamps.hasResults(); }
+#endif
 
     private:
         struct TFrameResources
@@ -74,7 +80,7 @@ namespace Tomos
         void recordShadowPasses( VkCommandBuffer p_cmd, const TFrameState& p_state, const TFrameResources& p_frame );
         void recordClusterCull( VkCommandBuffer p_cmd, const TFrameResources& p_frame );
         void recordForwardPass( VkCommandBuffer p_cmd, const TFrameState& p_state, const TFrameResources& p_frame );
-        void recordSprites( VkCommandBuffer p_cmd, const TFrameState& p_state, const TFrameResources& p_frame );
+        void recordSprites( VkCommandBuffer p_cmd, const TFrameState& p_state, const TFrameResources& p_frame, bool p_blend );
         void recordParticleSim( VkCommandBuffer p_cmd, const TFrameResources& p_frame, uint32_t p_emitterCount );
         void recordParticlePass( VkCommandBuffer p_cmd, const TFrameState& p_state, const TFrameResources& p_frame );
         void recordPost( VkCommandBuffer p_cmd, uint32_t p_frameIndex, const TFrameState& p_state );
@@ -125,13 +131,19 @@ namespace Tomos
         VkPipeline                                                                          m_skinnedShadowPipeline = VK_NULL_HANDLE;
         VkPipeline                                                                          m_cullPipeline          = VK_NULL_HANDLE;
         std::array<TMeshTechniquePipelines, static_cast<size_t>( TMeshTechniqueId::Count )> m_meshTechniques{};
-        VkPipeline                                                                          m_spritePipeline      = VK_NULL_HANDLE;
-        VkPipeline                                                                          m_particleSimPipeline = VK_NULL_HANDLE;
-        VkPipeline                                                                          m_particlePipeline    = VK_NULL_HANDLE;
+        VkPipeline                                                                          m_spriteCutoutPipeline = VK_NULL_HANDLE;
+        VkPipeline                                                                          m_spriteBlendPipeline  = VK_NULL_HANDLE;
+        VkPipeline                                                                          m_particleSimPipeline  = VK_NULL_HANDLE;
+        VkPipeline                                                                          m_particlePipeline     = VK_NULL_HANDLE;
 
         std::vector<TFrameResources>                         m_frames;
         std::unordered_map<const TVkImage*, VkDescriptorSet> m_spriteTexSets;
 
         TPostStack m_post;
+
+#if TOMOS_DEBUG
+        TGpuTimestamps m_gpuTimestamps;
+        uint32_t       m_tsFrameIndex = 0;
+#endif
     };
 }  // namespace Tomos

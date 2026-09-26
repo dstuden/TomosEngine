@@ -9,7 +9,7 @@
 #include "Tomos/systems/asset/TAssetLoadQueue.hh"
 #include "Tomos/systems/asset/TAssetSystem.hh"
 #include "Tomos/util/config/TConfig.hh"
-#include "Tomos/util/shader/TShaderHotReload.hh"
+#include "Tomos/util/memory/TFrameAllocator.hh"
 #include "Tomos/util/time/TTime.hh"
 
 namespace Tomos
@@ -51,7 +51,7 @@ namespace Tomos
         [[nodiscard]] TEngineConfig&    config() { return m_configManager.get<TEngineConfig>(); }
         [[nodiscard]] TTime&            time() { return m_time; }
         [[nodiscard]] const TTime&      time() const { return m_time; }
-        [[nodiscard]] TShaderHotReload& shaderHotReload() { return m_shaderHotReload; }
+        [[nodiscard]] TFrameAllocator&  frameAllocator() { return m_frameAllocator; }
 
         [[nodiscard]] TVkGpu* gpu() const { return m_gpu.get(); }
 
@@ -70,7 +70,7 @@ namespace Tomos
         TAssetLoadQueue          m_assetLoadQueue{ m_assetSystem };
         TLayerStack              m_layerStack;
         TTime                    m_time;
-        TShaderHotReload         m_shaderHotReload;
+        TFrameAllocator          m_frameAllocator;
         bool                     m_running = true;
 
         static TApplication* g_sInstance;

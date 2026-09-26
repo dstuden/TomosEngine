@@ -9,9 +9,42 @@
 #include "Tomos/gpu/vulkan/renderer/TVkClusteredRenderer.hh"
 #include "Tomos/util/logger/TLogger.hh"
 #include "Tomos/util/path/TPath.hh"
+#include "Tomos/util/profile/TProfile.hh"
+
+#if TOMOS_DEBUG
+#include <array>
+
+#include "Tomos/util/profile/TFrameAnalytics.hh"
+#endif
 
 namespace Tomos
 {
+    namespace
+    {
+#if TOMOS_DEBUG
+        TSceneCounts makeSceneCounts( const TFrameState& p_state )
+        {
+            TSceneCounts c;
+            for ( const auto& dc : p_state.m_drawCalls )
+            {
+                if ( dc.m_visible )
+                    ++c.drawCallsForward;
+                else
+                    ++c.drawCallsShadow;
+            }
+            c.instances     = p_state.m_instances.size();
+            c.lights        = p_state.m_lights.size();
+            c.sprites       = p_state.m_sprites.size();
+            c.spriteBatches = p_state.m_spriteBatches.size();
+            c.emitters      = p_state.m_emitters.size();
+            c.bones         = p_state.m_bones.size();
+            c.meshesTotal   = p_state.m_meshesTotal;
+            c.meshesCulled  = p_state.m_meshesCulled;
+            return c;
+        }
+#endif
+    }  // namespace
+
     TApplication* TApplication::g_sInstance = nullptr;
 
     TApplication::TApplication( const TWindowProps& p_props, const std::string& p_configPath )
@@ -19,6 +52,7 @@ namespace Tomos
         if ( g_sInstance != nullptr ) throw std::runtime_error( "[TApplication] Only one application instance is allowed" );
 
         g_sInstance = this;
+        TFrameAllocator::setCurrent( &m_frameAllocator );
 
         TPath::init( p_configPath );
         const std::string resolvedConfig = TPath::configPath().string();
@@ -55,6 +89,7 @@ namespace Tomos
         m_assetSystem.clear();
         m_assetLoadQueue.setGpu( nullptr );
         m_gpu.reset();
+        TFrameAllocator::setCurrent( nullptr );
         g_sInstance = nullptr;
     }
 
@@ -63,9 +98,6 @@ namespace Tomos
         m_gpu = std::make_unique<TVkGpu>( m_window->getNativeWindow(), p_validation );
         m_gpu->setSwapchainPresentPolicy( TVkGpu::presentPolicyFromString( static_cast<const std::string&>( config().m_presentMode ) ) );
         m_assetLoadQueue.setGpu( m_gpu.get() );
-#ifdef TOMOS_DEBUG
-        m_shaderHotReload.init();
-#endif
     }
 
     void TApplication::pushLayer( std::unique_ptr<TLayer> p_layer ) { m_layerStack.pushLayer( std::move( p_layer ) ); }
@@ -76,49 +108,103 @@ namespace Tomos
     {
         while ( m_running )
         {
-            m_time.tick();
-            const float dt = m_time.dt();
+            m_frameAllocator.beginFrame();
 
-#ifdef TOMOS_DEBUG
-            m_window->updatePerfStats( m_time.realDt() );
+#if TOMOS_DEBUG
+            TFrameProfiler::get().beginFrame();
+#endif
+            {
+                TOMOS_PROFILE_SCOPE( "Frame.Wall" );
+
+                m_time.tick();
+                const float dt = m_time.dt();
+
+#if TOMOS_DEBUG
+                m_window->updatePerfStats( m_time.realDt() );
 #endif
 
-            if ( m_window->flushPendingWindowMode() && m_gpu )
-            {
-                const auto& d = m_window->getData();
-                if ( d.m_fbWidth > 0 && d.m_fbHeight > 0 ) m_gpu->noteSurfaceResized();
-            }
-
-            m_sceneManager.switchPoint();
-
-            m_assetLoadQueue.tick( &m_sceneManager.scene() );
-
-            // Base layers before GPU frame open; overlays after so UI can
-            // resize/rebind destinations before render.
-            for ( auto it = m_layerStack.layersBegin(); it != m_layerStack.layersEnd(); ++it ) ( *it )->onUpdate( dt );
-
-            if ( m_gpu )
-            {
-#ifdef TOMOS_DEBUG
-                if ( m_shaderHotReload.tick( m_window->getNativeWindow() ) )
+                if ( m_window->flushPendingWindowMode() && m_gpu )
                 {
-                    m_gpu->waitIdle();
-                    if ( auto* renderer = m_gpu->renderer() ) renderer->reloadShaders();
+                    const auto& d = m_window->getData();
+                    if ( d.m_fbWidth > 0 && d.m_fbHeight > 0 ) m_gpu->noteSurfaceResized();
                 }
+
+                m_sceneManager.switchPoint();
+
+                {
+                    TOMOS_PROFILE_SCOPE( "App.AssetQueue" );
+                    m_assetLoadQueue.tick( m_sceneManager.scene() );
+                }
+
+                // Base layers before GPU frame open; overlays after so UI can
+                // resize/rebind destinations before render.
+                {
+                    TOMOS_PROFILE_SCOPE( "App.LayersUpdate" );
+                    for ( auto it = m_layerStack.layersBegin(); it != m_layerStack.layersEnd(); ++it )
+                    {
+                        TOMOS_PROFILE_SCOPE( ( *it )->name().c_str() );
+                        ( *it )->onUpdate( dt );
+                    }
+                }
+
+                {
+                    TOMOS_PROFILE_SCOPE( "GPU.StartFrame" );
+                    if ( m_gpu ) m_gpu->startFrame();
+                }
+
+                {
+                    TOMOS_PROFILE_SCOPE( "App.OverlaysUpdate" );
+                    for ( auto it = m_layerStack.overlaysBegin(); it != m_layerStack.overlaysEnd(); ++it )
+                    {
+                        TOMOS_PROFILE_SCOPE( ( *it )->name().c_str() );
+                        ( *it )->onUpdate( dt );
+                    }
+                }
+
+                if ( m_gpu )
+                {
+                    {
+                        TOMOS_PROFILE_SCOPE( "App.Render" );
+                        for ( auto& layer : m_layerStack )
+                        {
+                            TOMOS_PROFILE_SCOPE( layer->name().c_str() );
+                            layer->onRender();
+                        }
+                    }
+
+                    {
+                        TOMOS_PROFILE_SCOPE( "GPU.EndFrame" );
+                        m_gpu->endFrame();
+                    }
+                }
+
+                m_window->onUpdate();
+            }
+
+#if TOMOS_DEBUG
+            TFrameProfiler::get().endFrame();
 #endif
-                m_gpu->startFrame();
-            }
 
-            for ( auto it = m_layerStack.overlaysBegin(); it != m_layerStack.overlaysEnd(); ++it ) ( *it )->onUpdate( dt );
+            m_frameAllocator.endFrame();
 
-            if ( m_gpu )
+#if TOMOS_DEBUG
+            if ( TFrameProfiler::get().isCaptureEnabled() )
             {
-                for ( auto& layer : m_layerStack ) layer->onRender();
-
-                m_gpu->endFrame();
+                TSceneCounts sceneCounts{};
+                const std::array<float, g_kGpuPassCount>* gpuMs = nullptr;
+                bool                                      gpuOk = false;
+                if ( m_gpu )
+                {
+                    sceneCounts = makeSceneCounts( m_gpu->frameState() );
+                    if ( auto* r = m_gpu->renderer() )
+                    {
+                        gpuMs = &r->gpuPassMs();
+                        gpuOk = r->gpuPassMsValid();
+                    }
+                }
+                TFrameAnalytics::get().capture( m_time.realDt(), m_time.dt(), sceneCounts, m_frameAllocator.stats(), gpuMs, gpuOk );
             }
-
-            m_window->onUpdate();
+#endif
         }
     }
 

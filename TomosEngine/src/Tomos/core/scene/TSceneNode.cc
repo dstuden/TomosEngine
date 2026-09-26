@@ -4,6 +4,9 @@
 #include <ranges>
 #include <utility>
 
+#include "Tomos/util/memory/TArenaAllocator.hh"
+#include "Tomos/util/memory/TFrameAllocator.hh"
+
 namespace Tomos
 {
     namespace
@@ -38,112 +41,129 @@ namespace Tomos
 
     glm::mat4 TSceneNode::worldMatrix() const
     {
-        // Leaf → root: world = … * parentLocal * local (no heap).
         glm::mat4 world = m_transform.getLocalMatrix();
-        for ( auto parent = getParent(); parent; parent = parent->getParent() ) world = parent->m_transform.getLocalMatrix() * world;
+        for ( TSceneNode* parent = m_parent; parent != nullptr; parent = parent->m_parent )
+            world = parent->m_transform.getLocalMatrix() * world;
         return world;
     }
 
-    void TSceneNode::addChild( std::shared_ptr<TSceneNode> p_child )
+    void TSceneNode::addChild( TSceneNode* p_child )
     {
-        p_child->m_parent = this->weak_from_this();
+        if ( p_child == nullptr || p_child == this ) return;
+        if ( p_child->m_parent == this ) return;
+
+        if ( p_child->m_parent != nullptr ) p_child->m_parent->removeChild( p_child );
+
+        if ( p_child->m_store == nullptr && m_store != nullptr ) p_child->m_store = m_store;
+
+        p_child->m_parent = this;
         if ( m_ecs != nullptr ) p_child->attachComponents( *m_ecs );
-        m_children.push_back( std::move( p_child ) );
+        m_children.push_back( p_child );
+        if ( m_store != nullptr ) m_store->bumpTopology();
     }
 
-    void TSceneNode::removeChild( const TSceneNode* p_child )
+    void TSceneNode::removeChild( TSceneNode* p_child )
     {
-        auto it = std::find_if( m_children.begin(), m_children.end(), [ p_child ]( const auto& p_c ) { return p_c.get() == p_child; } );
-        if ( it != m_children.end() )
-        {
-            ( *it )->detachComponents();
-            ( *it )->m_parent.reset();
-            m_children.erase( it );
-        }
+        auto it = std::find( m_children.begin(), m_children.end(), p_child );
+        if ( it == m_children.end() ) return;
+        ( *it )->detachComponents();
+        ( *it )->m_parent = nullptr;
+        m_children.erase( it );
+        if ( m_store != nullptr ) m_store->bumpTopology();
     }
 
     void TSceneNode::clearChildren()
     {
-        while ( !m_children.empty() ) removeChild( m_children.back().get() );
+        if ( m_store != nullptr )
+        {
+            std::vector<TSceneNode*> kids = m_children;
+            m_children.clear();
+            for ( TSceneNode* child : kids )
+            {
+                if ( child != nullptr && child->m_handle.valid() )
+                    m_store->destroyNode( child->m_handle );
+                else if ( child != nullptr )
+                {
+                    child->m_parent = nullptr;
+                    child->detachComponents();
+                }
+            }
+            return;
+        }
+
+        while ( !m_children.empty() ) removeChild( m_children.back() );
     }
 
     bool TSceneNode::isDescendantOf( const TSceneNode* p_ancestor ) const
     {
-        for ( const TSceneNode* n = this; n != nullptr; )
+        for ( const TSceneNode* n = this; n != nullptr; n = n->m_parent )
         {
             if ( n == p_ancestor ) return true;
-            auto parent = n->m_parent.lock();
-            n           = parent.get();
         }
         return false;
     }
 
-    void TSceneNode::reparent( const std::shared_ptr<TSceneNode>& p_newParent )
+    void TSceneNode::reparent( TSceneNode* p_newParent )
     {
-        if ( p_newParent == nullptr || p_newParent.get() == this ) return;
-        if ( p_newParent->isDescendantOf( this ) ) return;  // would create a cycle
+        if ( p_newParent == nullptr || p_newParent == this ) return;
+        if ( p_newParent->isDescendantOf( this ) ) return;
 
-        auto self = shared_from_this();
-        if ( auto old = getParent() ) old->removeChild( this );
-        p_newParent->addChild( std::move( self ) );
+        if ( m_parent != nullptr ) m_parent->removeChild( this );
+        p_newParent->addChild( this );
     }
+
+    namespace
+    {
+        // Iterative DFS; frame-arena stack when available, else heap.
+        template<typename Pred>
+        TSceneNode* findIf( TSceneNode* p_root, Pred&& p_pred )
+        {
+            auto search = [ & ]( auto& stack ) -> TSceneNode*
+            {
+                stack.push_back( p_root );
+                while ( !stack.empty() )
+                {
+                    TSceneNode* node = stack.back();
+                    stack.pop_back();
+                    if ( p_pred( *node ) ) return node;
+                    for ( TSceneNode* child : node->getChildren() ) stack.push_back( child );
+                }
+                return nullptr;
+            };
+
+            if ( TFrameAllocator* fa = TFrameAllocator::current() )
+            {
+                TArenaVector<TSceneNode*> stack( TArenaAllocator<TSceneNode*>( fa->arena() ) );
+                return search( stack );
+            }
+            std::vector<TSceneNode*> stack;
+            return search( stack );
+        }
+    }  // namespace
 
     TSceneNode* TSceneNode::findById( uint64_t p_id )
     {
-        std::vector<TSceneNode*> stack = { this };
-        while ( !stack.empty() )
-        {
-            TSceneNode* node = stack.back();
-            stack.pop_back();
-            if ( node->m_id == p_id ) return node;
-            for ( auto& child : node->m_children ) stack.push_back( child.get() );
-        }
-        return nullptr;
+        return findIf( this, [ p_id ]( const TSceneNode& p_n ) { return p_n.m_id == p_id; } );
     }
 
     const TSceneNode* TSceneNode::findById( uint64_t p_id ) const { return const_cast<TSceneNode*>( this )->findById( p_id ); }
 
-    std::shared_ptr<TSceneNode> TSceneNode::findSharedById( uint64_t p_id )
-    {
-        if ( m_id == p_id )
-        {
-            try
-            {
-                return shared_from_this();
-            }
-            catch ( const std::bad_weak_ptr& )
-            {
-                return nullptr;  // not owned by shared_ptr (e.g. TScene by value)
-            }
-        }
-
-        std::vector<std::shared_ptr<TSceneNode>> stack( m_children.begin(), m_children.end() );
-        while ( !stack.empty() )
-        {
-            auto node = stack.back();
-            stack.pop_back();
-            if ( node->m_id == p_id ) return node;
-            for ( auto& child : node->m_children ) stack.push_back( child );
-        }
-        return nullptr;
-    }
-
     TSceneNode* TSceneNode::findByName( const std::string& p_name )
     {
-        std::vector<TSceneNode*> stack = { this };
-        while ( !stack.empty() )
-        {
-            TSceneNode* node = stack.back();
-            stack.pop_back();
-            if ( node->m_name == p_name ) return node;
-            for ( auto& child : node->m_children ) stack.push_back( child.get() );
-        }
-        return nullptr;
+        return findIf( this, [ &p_name ]( const TSceneNode& p_n ) { return p_n.m_name == p_name; } );
     }
 
     const TSceneNode* TSceneNode::findByName( const std::string& p_name ) const { return const_cast<TSceneNode*>( this )->findByName( p_name ); }
 
-    // Iterative DFS to avoid recursion (satisfies misc-no-recursion)
+    void TSceneNode::addComponent( std::unique_ptr<TComponent> p_component )
+    {
+        if ( !p_component ) return;
+        if ( m_store == nullptr ) throw std::runtime_error( "addComponent requires a level store (use TScene::createNode)" );
+        TComponent* raw = m_store->adoptComponent( std::move( p_component ) );
+        if ( m_ecs != nullptr ) m_ecs->registerComponent( *this, *raw );
+        m_components.push_back( raw );
+    }
+
     void TSceneNode::attachComponents( TECS& p_ecs )
     {
         std::vector<TSceneNode*> stack = { this };
@@ -152,8 +172,8 @@ namespace Tomos
             TSceneNode* node = stack.back();
             stack.pop_back();
             node->m_ecs = &p_ecs;
-            for ( auto& c : node->m_components ) p_ecs.registerComponent( *node, *c );
-            for ( auto& child : node->m_children ) stack.push_back( child.get() );
+            for ( TComponent* c : node->m_components ) p_ecs.registerComponent( *node, *c );
+            for ( TSceneNode* child : node->m_children ) stack.push_back( child );
         }
     }
 
@@ -166,10 +186,10 @@ namespace Tomos
             stack.pop_back();
             if ( node->m_ecs != nullptr )
             {
-                for ( auto& c : node->m_components ) node->m_ecs->destroyComponent( *node, *c );
+                for ( TComponent* c : node->m_components ) node->m_ecs->destroyComponent( *node, *c );
                 node->m_ecs = nullptr;
             }
-            for ( auto& child : node->m_children ) stack.push_back( child.get() );
+            for ( TSceneNode* child : node->m_children ) stack.push_back( child );
         }
     }
 
@@ -182,7 +202,7 @@ namespace Tomos
             auto [ node, depth ] = stack.back();
             stack.pop_back();
             result += std::string( static_cast<size_t>( depth * 2 ), ' ' ) + node->m_name + "\n";
-            for ( const auto& it : std::views::reverse( node->m_children ) ) stack.emplace_back( it.get(), depth + 1 );
+            for ( const auto& it : std::views::reverse( node->m_children ) ) stack.emplace_back( it, depth + 1 );
         }
         return result;
     }

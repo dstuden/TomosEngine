@@ -11,22 +11,52 @@
 #include "Tomos/gpu/vulkan/TVkUtil.hh"
 #include "Tomos/util/math/TFrustum.hh"
 #include "Tomos/util/math/TPointShadow.hh"
+#include "Tomos/util/memory/TArenaAllocator.hh"
+#include "Tomos/util/memory/TFrameAllocator.hh"
+#include "Tomos/util/profile/TProfile.hh"
 
 namespace Tomos
 {
     void TVkClusteredRenderer::render( VkCommandBuffer p_cmd, uint32_t p_frameIndex, const TFrameState& p_state )
     {
+        TOMOS_PROFILE_SCOPE( "GPU.Record" );
+
         TFrameResources& frame = m_frames[ p_frameIndex ];
+
+#if TOMOS_DEBUG
+        m_tsFrameIndex = p_frameIndex;
+        if ( TFrameProfiler::get().isCaptureEnabled() )
+        {
+            m_gpuTimestamps.ensureCreated( m_gpu.device(), g_kFramesInFlight );
+            m_gpuTimestamps.resolvePrevious( m_gpu.device(), p_frameIndex, m_gpu.timestampPeriod() );
+            m_gpuTimestamps.beginRecord( p_cmd, p_frameIndex );
+        }
+#endif
 
         const uint32_t zero = 0;
         frame.m_counter.upload( &zero, 0, sizeof( zero ) );
 
+        TOMOS_PROFILE_GPU_BEGIN( m_gpuTimestamps, p_cmd, p_frameIndex, Shadows );
         recordShadowPasses( p_cmd, p_state, frame );
+        TOMOS_PROFILE_GPU_END( m_gpuTimestamps, p_cmd, p_frameIndex, Shadows );
+
+        TOMOS_PROFILE_GPU_BEGIN( m_gpuTimestamps, p_cmd, p_frameIndex, ClusterCull );
         recordClusterCull( p_cmd, frame );
+        TOMOS_PROFILE_GPU_END( m_gpuTimestamps, p_cmd, p_frameIndex, ClusterCull );
+
         recordForwardPass( p_cmd, p_state, frame );
+
+        TOMOS_PROFILE_GPU_BEGIN( m_gpuTimestamps, p_cmd, p_frameIndex, ParticleSim );
         recordParticleSim( p_cmd, frame, static_cast<uint32_t>( p_state.m_emitters.size() ) );
+        TOMOS_PROFILE_GPU_END( m_gpuTimestamps, p_cmd, p_frameIndex, ParticleSim );
+
+        TOMOS_PROFILE_GPU_BEGIN( m_gpuTimestamps, p_cmd, p_frameIndex, ParticleDraw );
         recordParticlePass( p_cmd, p_state, frame );
+        TOMOS_PROFILE_GPU_END( m_gpuTimestamps, p_cmd, p_frameIndex, ParticleDraw );
+
+        TOMOS_PROFILE_GPU_BEGIN( m_gpuTimestamps, p_cmd, p_frameIndex, Post );
         recordPost( p_cmd, p_frameIndex, p_state );
+        TOMOS_PROFILE_GPU_END( m_gpuTimestamps, p_cmd, p_frameIndex, Post );
     }
 
     void TVkClusteredRenderer::uploadParticles( uint32_t p_frameIndex, const TFrameState& p_state )
@@ -165,6 +195,8 @@ namespace Tomos
 
     void TVkClusteredRenderer::recordForwardPass( VkCommandBuffer p_cmd, const TFrameState& p_state, const TFrameResources& p_frame )
     {
+        TOMOS_PROFILE_GPU_BEGIN( m_gpuTimestamps, p_cmd, m_tsFrameIndex, ForwardOpaque );
+
         const VkExtent2D extent = m_renderExtent;
 
         VkUtil::imageBarrier( p_cmd, m_hdrA.handle(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
@@ -271,50 +303,61 @@ namespace Tomos
             drawMesh( dc, false );
         }
 
-        std::vector<const TDrawCall*> blendDraws;
+        // Cutout sprites with opaque; rebind scene set (sprite layout ≠ forward set 0).
+        recordSprites( p_cmd, p_state, p_frame, false );
+        vkCmdBindDescriptorSets( p_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_forwardPipeLayout, 0, 1, &p_frame.m_sceneSet, 0, nullptr );
+
+        TOMOS_PROFILE_GPU_END( m_gpuTimestamps, p_cmd, m_tsFrameIndex, ForwardOpaque );
+        TOMOS_PROFILE_GPU_BEGIN( m_gpuTimestamps, p_cmd, m_tsFrameIndex, ForwardBlend );
+
+        struct TBlendEntry
+        {
+            const TDrawCall* m_dc;
+            float            m_distSq;
+        };
+
+        TArena&                   arena = TFrameAllocator::get().arena();
+        TArenaVector<TBlendEntry> blendDraws{ TArenaAllocator<TBlendEntry>( arena ) };
         blendDraws.reserve( p_state.m_drawCalls.size() );
+
+        const glm::vec3 camPos = glm::vec3( p_state.m_viewInv[ 3 ] );
         for ( const TDrawCall& dc : p_state.m_drawCalls )
         {
             if ( !dc.m_visible || dc.m_material == nullptr ) continue;
             if ( dc.m_material->alphaMode() != TMatAlpha::Blend ) continue;
-            blendDraws.push_back( &dc );
-        }
 
-        const glm::vec3 camPos       = glm::vec3( p_state.m_viewInv[ 3 ] );
-        auto            blendSortKey = [ & ]( const TDrawCall* p_dc ) -> float
-        {
-            const TInstanceData& inst = p_state.m_instances[ p_dc->m_instanceOffset ];
-            if ( p_dc->m_mesh != nullptr && p_dc->m_mesh->m_aabb.valid() )
+            const TInstanceData& inst = p_state.m_instances[ dc.m_instanceOffset ];
+            float                distSq;
+            if ( dc.m_mesh != nullptr && dc.m_mesh->m_aabb.valid() )
             {
-                const TAABB     worldAabb    = p_dc->m_mesh->m_aabb.transformed( inst.m_transform );
-                const glm::vec3 corners[ 8 ] = {
-                        { worldAabb.m_min.x, worldAabb.m_min.y, worldAabb.m_min.z }, { worldAabb.m_max.x, worldAabb.m_min.y, worldAabb.m_min.z },
-                        { worldAabb.m_min.x, worldAabb.m_max.y, worldAabb.m_min.z }, { worldAabb.m_max.x, worldAabb.m_max.y, worldAabb.m_min.z },
-                        { worldAabb.m_min.x, worldAabb.m_min.y, worldAabb.m_max.z }, { worldAabb.m_max.x, worldAabb.m_min.y, worldAabb.m_max.z },
-                        { worldAabb.m_min.x, worldAabb.m_max.y, worldAabb.m_max.z }, { worldAabb.m_max.x, worldAabb.m_max.y, worldAabb.m_max.z },
-                };
-                float maxD2 = 0.0f;
-                for ( const glm::vec3& c : corners )
+                const TAABB worldAabb = dc.m_mesh->m_aabb.transformed( inst.m_transform );
+                distSq                = 0.0f;
+                for ( const glm::vec3& c : worldAabb.corners() )
                 {
                     const glm::vec3 d = c - camPos;
-                    maxD2             = glm::max( maxD2, glm::dot( d, d ) );
+                    distSq            = glm::max( distSq, glm::dot( d, d ) );
                 }
-                return maxD2;
+            }
+            else
+            {
+                const glm::vec3 p = glm::vec3( inst.m_transform[ 3 ] );
+                const glm::vec3 d = p - camPos;
+                distSq            = glm::dot( d, d );
             }
 
-            const glm::vec3 p = glm::vec3( inst.m_transform[ 3 ] );
-            const glm::vec3 d = p - camPos;
-            return glm::dot( d, d );
-        };
+            blendDraws.push_back( { &dc, distSq } );
+        }
 
-        std::sort( blendDraws.begin(), blendDraws.end(),
-                   [ & ]( const TDrawCall* p_a, const TDrawCall* p_b ) { return blendSortKey( p_a ) > blendSortKey( p_b ); } );
+        std::sort( blendDraws.begin(), blendDraws.end(), []( const TBlendEntry& p_a, const TBlendEntry& p_b ) { return p_a.m_distSq > p_b.m_distSq; } );
 
-        for ( const TDrawCall* dc : blendDraws ) drawMesh( *dc, true );
+        for ( const TBlendEntry& e : blendDraws ) drawMesh( *e.m_dc, true );
 
-        recordSprites( p_cmd, p_state, p_frame );
+        // Blend sprites after blend meshes (not interleaved).
+        recordSprites( p_cmd, p_state, p_frame, true );
 
         vkCmdEndRendering( p_cmd );
+
+        TOMOS_PROFILE_GPU_END( m_gpuTimestamps, p_cmd, m_tsFrameIndex, ForwardBlend );
     }
 
     void TVkClusteredRenderer::recordPost( VkCommandBuffer p_cmd, uint32_t p_frameIndex, const TFrameState& p_state )
@@ -355,17 +398,20 @@ namespace Tomos
         }
     }
 
-    void TVkClusteredRenderer::recordSprites( VkCommandBuffer p_cmd, const TFrameState& p_state, const TFrameResources& p_frame )
+    void TVkClusteredRenderer::recordSprites( VkCommandBuffer p_cmd, const TFrameState& p_state, const TFrameResources& p_frame, bool p_blend )
     {
-        if ( p_state.m_spriteBatches.empty() ) return;
+        bool any = false;
+        for ( const TSpriteBatch& batch : p_state.m_spriteBatches )
+            if ( batch.m_blend == p_blend && batch.m_count > 0 ) any = true;
+        if ( !any ) return;
 
-        vkCmdBindPipeline( p_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_spritePipeline );
+        vkCmdBindPipeline( p_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, p_blend ? m_spriteBlendPipeline : m_spriteCutoutPipeline );
         vkCmdSetCullMode( p_cmd, VK_CULL_MODE_NONE );
         vkCmdBindDescriptorSets( p_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_spritePipeLayout, 0, 1, &p_frame.m_spriteSet, 0, nullptr );
 
         for ( const TSpriteBatch& batch : p_state.m_spriteBatches )
         {
-            if ( batch.m_count == 0 ) continue;
+            if ( batch.m_blend != p_blend || batch.m_count == 0 ) continue;
 
             const VkDescriptorSet texSet = spriteTextureSet( batch.m_texture );
             vkCmdBindDescriptorSets( p_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_spritePipeLayout, 1, 1, &texSet, 0, nullptr );
@@ -494,7 +540,7 @@ namespace Tomos
 
         VkDescriptorImageInfo imgInfo{ texture->sampler(), texture->view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
         VkWriteDescriptorSet  write{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,    nullptr,  set,     0,      0, 1,
-                                     VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &imgInfo, nullptr, nullptr };
+                                    VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &imgInfo, nullptr, nullptr };
         vkUpdateDescriptorSets( m_gpu.device(), 1, &write, 0, nullptr );
 
         m_spriteTexSets.emplace( texture, set );

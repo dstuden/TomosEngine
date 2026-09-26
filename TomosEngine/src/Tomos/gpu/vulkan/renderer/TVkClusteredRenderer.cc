@@ -32,6 +32,10 @@ namespace Tomos
         const VkDevice device = m_gpu.device();
         if ( device == VK_NULL_HANDLE ) return;
 
+#if TOMOS_DEBUG
+        m_gpuTimestamps.destroy( device );
+#endif
+
         for ( auto& e : m_post.effects() ) e->destroy();
         m_post.effects().clear();
 

@@ -2,6 +2,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <memory>
+#include <string>
+#include <unordered_map>
 
 #include "Tomos/systems/TComponent.hh"
 #include "Tomos/systems/animation/TAnimStateMachine.hh"
@@ -11,6 +14,7 @@
 namespace Tomos
 {
     class TAssetSystem;
+    class TSceneNode;
 
     // Clip borrowed from TAssetSystem (see TAssetHandles.hh).
     class TAnimatorComponent : public TComponent
@@ -23,6 +27,18 @@ namespace Tomos
         float                 m_speed           = 1.0f;
         bool                  m_looping         = true;
         bool                  m_playing         = true;
+
+        std::unordered_map<std::string, TSceneNode*> m_jointCache;
+        uint64_t                                     m_jointCacheTopology = 0;  // 0 = never built
+        const TAnimationClip* m_jointsBoundClip     = nullptr;
+        const TAnimationClip* m_jointsBoundFadeClip = nullptr;
+
+        void invalidateJointCache()
+        {
+            m_jointCacheTopology  = 0;
+            m_jointsBoundClip     = nullptr;
+            m_jointsBoundFadeClip = nullptr;
+        }
 
         // Weight 0 = fully from, 1 = fully current.
         const TAnimationClip* m_fadeFromClip      = nullptr;

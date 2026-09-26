@@ -17,7 +17,7 @@ struct Sprite
     vec2  uvMin;
     vec2  uvMax;
     uint  mode;  // 0 spherical, 1 cylindrical, 2 fixed
-    uint  _pad0;
+    float alphaCutoff;
     vec4  color;
 };
 
@@ -28,6 +28,7 @@ layout( set = 0, binding = 1 ) readonly buffer SpriteSSBO
 
 layout( location = 0 ) out vec2 vUV;
 layout( location = 1 ) out vec4 vColor;
+layout( location = 2 ) flat out float vAlphaCutoff;
 
 #include "common/quad.glsl"
 
@@ -66,6 +67,7 @@ void main()
     const vec2 t = k_corners[ gl_VertexIndex ] + 0.5;
     vUV          = mix( spr.uvMin, spr.uvMax, vec2( t.x, 1.0 - t.y ) );
     vColor       = spr.color;
+    vAlphaCutoff = spr.alphaCutoff;
 
     gl_Position = scene.viewProj * vec4( worldPos, 1.0 );
 }

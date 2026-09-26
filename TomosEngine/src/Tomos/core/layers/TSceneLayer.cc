@@ -12,6 +12,7 @@
 #include "Tomos/systems/script/TScriptSystem.hh"
 #include "Tomos/systems/sprite/TSpriteSystem.hh"
 #include "Tomos/systems/texture/TAnimatedTextureSystem.hh"
+#include "Tomos/util/profile/TProfile.hh"
 
 namespace Tomos
 {
@@ -103,12 +104,27 @@ namespace Tomos
         const float aspect     = gpu->renderAspectRatio();
         const bool  simulating = TApplication::get().sceneManager().isSimulationPlaying();
         state.m_time           = TApplication::get().time().elapsed();
-        ecs.getSystem<TCameraSystem>().populate( state, aspect );
-        ecs.getSystem<TMeshSystem>().populate( state );
-        ecs.getSystem<TLightSystem>().populate( state );
-        ecs.getSystem<TSpriteSystem>().populate( state );
-        // Particles still advance when paused would freeze GPU sim oddly — skip dt.
-        ecs.getSystem<TParticleSystem>().populate( state, simulating ? m_lastDt : 0.0f );
+        {
+            TOMOS_PROFILE_SCOPE( "Populate.Camera" );
+            ecs.getSystem<TCameraSystem>().populate( state, aspect );
+        }
+        {
+            TOMOS_PROFILE_SCOPE( "Populate.Mesh" );
+            ecs.getSystem<TMeshSystem>().populate( state );
+        }
+        {
+            TOMOS_PROFILE_SCOPE( "Populate.Light" );
+            ecs.getSystem<TLightSystem>().populate( state );
+        }
+        {
+            TOMOS_PROFILE_SCOPE( "Populate.Sprite" );
+            ecs.getSystem<TSpriteSystem>().populate( state );
+        }
+        {
+            TOMOS_PROFILE_SCOPE( "Populate.Particle" );
+            // Particles still advance when paused would freeze GPU sim oddly — skip dt.
+            ecs.getSystem<TParticleSystem>().populate( state, simulating ? m_lastDt : 0.0f );
+        }
 
         gpu->render();
     }

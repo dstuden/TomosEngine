@@ -290,6 +290,10 @@ namespace Tomos
             ImGui::ColorEdit4( "Color", &p_spr.m_color.x );
             int mode = static_cast<int>( p_spr.m_mode );
             if ( ImGui::Combo( "Billboard", &mode, "Spherical\0Cylindrical\0Fixed\0" ) ) p_spr.m_mode = static_cast<TBillboardMode>( mode );
+            int alphaMode = static_cast<int>( p_spr.m_alphaMode );
+            if ( ImGui::Combo( "Alpha", &alphaMode, "Cutout (writes depth)\0Blend (sorted, no depth)\0" ) )
+                p_spr.m_alphaMode = static_cast<TSpriteAlphaMode>( alphaMode );
+            if ( p_spr.m_alphaMode == TSpriteAlphaMode::Cutout ) ImGui::SliderFloat( "Alpha cutoff", &p_spr.m_alphaCutoff, 0.01f, 1.0f );
             float rotDeg = glm::degrees( p_spr.m_rotation );
             if ( ImGui::DragFloat( "Rotation (deg)", &rotDeg, 0.5f ) ) p_spr.m_rotation = glm::radians( rotDeg );
             ImGui::DragFloat2( "UV min", &p_spr.m_uvMin.x, 0.01f );
@@ -435,12 +439,12 @@ namespace Tomos
         ImGui::Separator();
         ImGui::Text( "Components (%zu)", node->getComponents().size() );
 
-        std::vector<TComponent*> comps;
-        for ( const auto& c : node->getComponents() ) comps.push_back( c.get() );
+        const std::vector<TComponent*>& comps = node->getComponents();
 
         for ( size_t i = 0; i < comps.size(); ++i )
         {
-            TComponent* c        = comps[ i ];
+            TComponent* c = comps[ i ];
+            if ( c == nullptr ) continue;
             std::string typeName = TComponentRegistry::get().typeOf( *c );
             if ( typeName.empty() )
             {

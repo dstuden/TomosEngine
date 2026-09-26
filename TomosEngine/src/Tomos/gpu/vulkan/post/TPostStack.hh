@@ -31,7 +31,6 @@ namespace Tomos
 
         void onResize( const TPostContext& p_ctx );
         void execute( VkCommandBuffer p_cmd, TPostContext& p_ctx );
-        void reloadShaders( const TPostContext& p_ctx );
 
     private:
         std::vector<std::unique_ptr<TPostEffect>> m_effects;

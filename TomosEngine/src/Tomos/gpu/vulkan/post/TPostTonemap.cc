@@ -40,13 +40,6 @@ namespace Tomos
         }
     }
 
-    void TPostTonemap::reloadShaders( const TPostContext& p_ctx )
-    {
-        if ( m_device == VK_NULL_HANDLE || m_pipeLay == VK_NULL_HANDLE ) return;
-        if ( m_pipe != VK_NULL_HANDLE ) vkDestroyPipeline( m_device, m_pipe, nullptr );
-        m_pipe = PostUtil::createFullscreenPipeline( m_device, m_pipeLay, "tonemap.frag.spv", p_ctx.m_outputFormat );
-    }
-
     void TPostTonemap::record( VkCommandBuffer p_cmd, TPostContext& p_ctx )
     {
         const uint32_t fi = p_ctx.m_frameIndex % g_kFrames;

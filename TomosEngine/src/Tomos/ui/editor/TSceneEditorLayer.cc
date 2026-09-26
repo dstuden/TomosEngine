@@ -12,11 +12,13 @@
 #include "Tomos/ui/TImGuiBackend.hh"
 #include "Tomos/ui/editor/TAssetBrowserPanel.hh"
 #include "Tomos/ui/editor/TConsolePanel.hh"
+#include "Tomos/ui/editor/TPerformancePanel.hh"
 #include "Tomos/ui/editor/TPhysicsDebugPanel.hh"
 #include "Tomos/ui/editor/TRendererDebugPanel.hh"
 #include "Tomos/ui/editor/TSceneHierarchyPanel.hh"
 #include "Tomos/ui/editor/TSceneInspectorPanel.hh"
 #include "Tomos/ui/editor/TSceneViewportPanel.hh"
+#include "Tomos/util/profile/TFrameProfiler.hh"
 
 namespace Tomos
 {
@@ -121,6 +123,7 @@ namespace Tomos
                 ImGui::MenuItem( "Assets", nullptr, &m_ctx.m_showAssets );
                 ImGui::MenuItem( "Scene", nullptr, &m_ctx.m_showViewport );
                 ImGui::MenuItem( "Renderer", nullptr, &m_ctx.m_showRenderer );
+                ImGui::MenuItem( "Performance", nullptr, &m_ctx.m_showPerformance );
                 ImGui::MenuItem( "Physics", nullptr, &m_ctx.m_showPhysics );
                 ImGui::MenuItem( "Console", nullptr, &m_ctx.m_showConsole );
                 ImGui::EndMenu();
@@ -290,6 +293,16 @@ namespace Tomos
         if ( m_ctx.m_showAssets ) TAssetBrowserPanel::draw( m_ctx );
         if ( m_ctx.m_showViewport ) TSceneViewportPanel::draw( m_ctx );
         if ( m_ctx.m_showRenderer ) TRendererDebugPanel::draw( m_ctx, p_dt );
+        if ( m_ctx.m_showPerformance )
+            TPerformancePanel::draw( m_ctx );
+#if TOMOS_DEBUG
+        else if ( m_ctx.m_perfCapture )
+        {
+            m_ctx.m_perfCapture            = false;
+            m_ctx.m_perfCaptureInitialized = false;
+            TFrameProfiler::get().setCaptureEnabled( false );
+        }
+#endif
         if ( m_ctx.m_showPhysics ) TPhysicsDebugPanel::draw( m_ctx );
         if ( m_ctx.m_showConsole ) TConsolePanel::draw( m_ctx );
     }

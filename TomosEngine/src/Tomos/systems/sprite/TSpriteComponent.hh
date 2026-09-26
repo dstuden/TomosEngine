@@ -4,6 +4,7 @@
 #include <string>
 
 #include "Tomos/gpu/TBillboardMode.hh"
+#include "Tomos/gpu/TSpriteAlphaMode.hh"
 #include "Tomos/systems/TComponent.hh"
 #include "Tomos/systems/asset/TAssetHandles.hh"
 
@@ -28,5 +29,8 @@ namespace Tomos
         float          m_rotation = 0.0f;
         TBillboardMode m_mode     = TBillboardMode::Spherical;
         bool           m_visible  = true;
+
+        TSpriteAlphaMode m_alphaMode   = TSpriteAlphaMode::Cutout;
+        float            m_alphaCutoff = 0.5f;
     };
 }  // namespace Tomos

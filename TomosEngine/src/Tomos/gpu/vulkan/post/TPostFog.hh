@@ -16,7 +16,6 @@ namespace Tomos
         [[nodiscard]] const char* name() const override { return "Fog"; }
 
         void onResize( const TPostContext& p_ctx ) override;
-        void reloadShaders( const TPostContext& p_ctx ) override;
         void record( VkCommandBuffer p_cmd, TPostContext& p_ctx ) override;
         void destroy() override;
 

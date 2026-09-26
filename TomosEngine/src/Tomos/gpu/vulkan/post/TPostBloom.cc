@@ -97,18 +97,6 @@ namespace Tomos
         m_brightB = TVkImage( p_ctx.m_gpu->device(), p_ctx.m_gpu->physDevice(), desc );
     }
 
-    void TPostBloom::reloadShaders( const TPostContext& /*p_ctx*/ )
-    {
-        if ( m_device == VK_NULL_HANDLE || m_extractLay == VK_NULL_HANDLE ) return;
-        const VkFormat hdrFmt = VK_FORMAT_R16G16B16A16_SFLOAT;
-        if ( m_extractPipe != VK_NULL_HANDLE ) vkDestroyPipeline( m_device, m_extractPipe, nullptr );
-        if ( m_blurPipe != VK_NULL_HANDLE ) vkDestroyPipeline( m_device, m_blurPipe, nullptr );
-        if ( m_compPipe != VK_NULL_HANDLE ) vkDestroyPipeline( m_device, m_compPipe, nullptr );
-        m_extractPipe = PostUtil::createFullscreenPipeline( m_device, m_extractLay, "bloom_extract.frag.spv", hdrFmt );
-        m_blurPipe    = PostUtil::createFullscreenPipeline( m_device, m_blurLay, "bloom_blur.frag.spv", hdrFmt );
-        m_compPipe    = PostUtil::createFullscreenPipeline( m_device, m_compLay, "bloom_composite.frag.spv", hdrFmt );
-    }
-
     void TPostBloom::record( VkCommandBuffer p_cmd, TPostContext& p_ctx )
     {
         const uint32_t   fi   = p_ctx.m_frameIndex % g_kFrames;

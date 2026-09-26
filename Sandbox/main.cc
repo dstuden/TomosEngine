@@ -49,18 +49,7 @@ static TAudioComponent* g_beepEmitter = nullptr;
 
 namespace
 {
-    TSceneNode* findNamedNode( TSceneNode& p_root, const std::string& p_name )
-    {
-        std::vector<TSceneNode*> stack = { &p_root };
-        while ( !stack.empty() )
-        {
-            TSceneNode* node = stack.back();
-            stack.pop_back();
-            if ( node->m_name == p_name ) return node;
-            for ( auto& child : node->getChildren() ) stack.push_back( child.get() );
-        }
-        return nullptr;
-    }
+    TSceneNode* findNamedNode( TSceneNode& p_root, const std::string& p_name ) { return p_root.findByName( p_name ); }
 
     const TAnimationClip* findClipQuiet( const TGpuAsset& p_asset, const std::string& p_name )
     {
@@ -351,70 +340,66 @@ private:
 
         {
             constexpr glm::vec3 size{ 4.0f, 0.3f, 4.0f };
-            auto                floor = std::make_shared<TSceneNode>( "PhysicsFloor" );
-            floor->m_transform.setTranslation( { -1.5f, size.y * 0.5f, 1.5f } );
-            floor->m_transform.setScale( size );
+            TSceneNode&         floor = scene().createNode( "PhysicsFloor" );
+            floor.m_transform.setTranslation( { -1.5f, size.y * 0.5f, 1.5f } );
+            floor.m_transform.setScale( size );
 
-            auto col           = std::make_shared<TColliderComponent>();
-            col->m_shape       = TColliderShape::Box;
-            col->m_halfExtents = { 0.5f, 0.5f, 0.5f };
-            col->m_layer       = TPhysicsLayer::g_static;
-            col->m_mask        = TPhysicsLayer::g_dynamic;
-            floor->addComponent( col );
-            floor->addComponent( std::make_shared<TMeshComponent>( boxMesh, floorMat, true ) );
+            auto& col           = floor.emplaceComponent<TColliderComponent>();
+            col.m_shape         = TColliderShape::Box;
+            col.m_halfExtents   = { 0.5f, 0.5f, 0.5f };
+            col.m_layer         = TPhysicsLayer::g_static;
+            col.m_mask          = TPhysicsLayer::g_dynamic;
+            floor.emplaceComponent<TMeshComponent>( boxMesh, floorMat, true );
 
-            scene().addChild( floor );
+            scene().addChild( &floor );
         }
 
         auto spawnPhysicsBall = [ & ]( const char* p_name, const glm::vec3& p_pos, float p_restitution, const glm::vec3& p_velocity )
         {
             constexpr float radius = 0.25f;
-            auto            ball   = std::make_shared<TSceneNode>( p_name );
-            ball->m_transform.setTranslation( p_pos );
-            ball->m_transform.setScale( glm::vec3( radius * 2.0f ) );
+            TSceneNode&     ball   = scene().createNode( p_name );
+            ball.m_transform.setTranslation( p_pos );
+            ball.m_transform.setScale( glm::vec3( radius * 2.0f ) );
 
-            auto body = std::make_shared<TRigidBodyComponent>();
-            body->setMass( 1.0f );
-            body->m_restitution    = p_restitution;
-            body->m_linearDamping  = 0.02f;
-            body->m_linearVelocity = p_velocity;
-            ball->addComponent( body );
+            auto& body             = ball.emplaceComponent<TRigidBodyComponent>();
+            body.setMass( 1.0f );
+            body.m_restitution     = p_restitution;
+            body.m_linearDamping   = 0.02f;
+            body.m_linearVelocity  = p_velocity;
 
-            auto col      = std::make_shared<TColliderComponent>();
-            col->m_shape  = TColliderShape::Sphere;
-            col->m_radius = 0.5f;
-            col->m_layer  = TPhysicsLayer::g_dynamic;
-            col->m_mask   = TPhysicsLayer::g_static | TPhysicsLayer::g_dynamic | TPhysicsLayer::g_trigger;
-            ball->addComponent( col );
-            ball->addComponent( std::make_shared<TMeshComponent>( sphereMesh, ballMat, true ) );
+            auto& col     = ball.emplaceComponent<TColliderComponent>();
+            col.m_shape   = TColliderShape::Sphere;
+            col.m_radius  = 0.5f;
+            col.m_layer   = TPhysicsLayer::g_dynamic;
+            col.m_mask    = TPhysicsLayer::g_static | TPhysicsLayer::g_dynamic | TPhysicsLayer::g_trigger;
+            ball.emplaceComponent<TMeshComponent>( sphereMesh, ballMat, true );
 
-            scene().addChild( ball );
+            scene().addChild( &ball );
         };
 
         spawnPhysicsBall( "PhysicsBall", { -1.5f, 4.0f, 1.5f }, 0.35f, {} );
         spawnPhysicsBall( "PhysicsBallB", { -2.4f, 4.2f, 1.5f }, 0.2f, { 2.5f, 0.0f, 0.0f } );
 
         {
-            auto zone = std::make_shared<TSceneNode>( "PhysicsTriggerZone" );
-            zone->m_transform.setTranslation( { -1.5f, 1.4f, 1.5f } );
-            zone->m_transform.setScale( { 2.0f, 1.2f, 2.0f } );
+            TSceneNode& zone = scene().createNode( "PhysicsTriggerZone" );
+            zone.m_transform.setTranslation( { -1.5f, 1.4f, 1.5f } );
+            zone.m_transform.setScale( { 2.0f, 1.2f, 2.0f } );
 
-            auto col           = std::make_shared<TColliderComponent>();
-            col->m_shape       = TColliderShape::Box;
-            col->m_halfExtents = { 0.5f, 0.5f, 0.5f };
-            col->m_isTrigger   = true;
-            col->m_layer       = TPhysicsLayer::g_trigger;
-            col->m_mask        = TPhysicsLayer::g_dynamic;
-            col->m_onOverlap   = []( TSceneNode& /*self*/, TSceneNode& p_other, TOverlapPhase p_phase )
+            auto& col           = zone.emplaceComponent<TColliderComponent>();
+            col.m_shape         = TColliderShape::Box;
+            col.m_halfExtents   = { 0.5f, 0.5f, 0.5f };
+            col.m_isTrigger     = true;
+            col.m_layer         = TPhysicsLayer::g_trigger;
+            col.m_mask          = TPhysicsLayer::g_dynamic;
+            col.m_onOverlap     = []( TSceneNode& /*self*/, TSceneNode& p_other, TOverlapPhase p_phase )
             {
                 if ( p_phase == TOverlapPhase::Stay ) return;
                 const char* label = ( p_phase == TOverlapPhase::Enter ) ? "enter" : "exit";
                 TLOG_INFO() << "[Sandbox] Trigger zone " << label << ": " << p_other.m_name;
             };
-            zone->addComponent( col );
-            zone->addComponent( std::make_shared<TMeshComponent>( boxMesh, floorMat, true ) );
+            zone.emplaceComponent<TMeshComponent>( boxMesh, floorMat, true );
 
-            scene().addChild( zone );
+            scene().addChild( &zone );
         }
 
         TLOG_INFO() << "[Sandbox] Physics demo: balls drop / collide; trigger zone logs enter/exit";
@@ -427,9 +412,9 @@ private:
 
         TLOG_INFO() << "[Sandbox] Loading model: " << m_modelPath;
         const TAssetLoadHandle modelHandle = loads.requestLoad( m_modelPath );
-        loads.waitUntilReady( modelHandle, &scene() );
-        TGpuAsset* modelAsset = loads.asset( modelHandle );
-        auto       modelRoot  = loads.takeRoot( modelHandle );
+        loads.waitUntilReady( modelHandle, scene() );
+        TGpuAsset*  modelAsset = loads.asset( modelHandle );
+        TSceneNode* modelRoot  = loads.takeRoot( modelHandle, scene() );
         if ( modelAsset == nullptr || modelRoot == nullptr )
         {
             TLOG_ERROR() << "[Sandbox] Failed to load model: " << m_modelPath << " (" << loads.error( modelHandle ) << ")";
@@ -437,13 +422,13 @@ private:
         }
         TLOG_INFO() << "[Sandbox] Loaded '" << modelAsset->m_name << "' (" << modelAsset->m_meshes.size() << " meshes, " << modelAsset->m_materials.size()
                     << " materials)";
-        scene().addChild( std::move( modelRoot ) );
+        scene().addChild( modelRoot );
 
         {
             const TAssetLoadHandle animHandle = loads.requestLoad( "assets/CesiumMan.glb" );
-            loads.waitUntilReady( animHandle, &scene() );
-            TGpuAsset* animAsset = loads.asset( animHandle );
-            auto       animRoot  = loads.takeRoot( animHandle );
+            loads.waitUntilReady( animHandle, scene() );
+            TGpuAsset*  animAsset = loads.asset( animHandle );
+            TSceneNode* animRoot  = loads.takeRoot( animHandle, scene() );
             if ( animAsset == nullptr || animRoot == nullptr )
             {
                 TLOG_ERROR() << "[Sandbox] Failed to load CesiumMan (" << loads.error( animHandle ) << ")";
@@ -453,20 +438,19 @@ private:
                 TLOG_INFO() << "[Sandbox] Loaded '" << animAsset->m_name << "' (" << animAsset->m_meshes.size() << " meshes, " << animAsset->m_clips.size()
                             << " clips)";
 
-                auto wrapper = std::make_shared<TSceneNode>( "CesiumManRoot" );
-                wrapper->m_transform.setTranslation( { 2.0f, 0.0f, 0.0f } );
+                TSceneNode& wrapper = scene().createNode( "CesiumManRoot" );
+                wrapper.m_transform.setTranslation( { 2.0f, 0.0f, 0.0f } );
 
-                auto animator = std::make_shared<TAnimatorComponent>();
+                auto& animator = wrapper.emplaceComponent<TAnimatorComponent>();
                 if ( !animAsset->m_clips.empty() )
                 {
-                    setupIdleWalkBlend( *animator, *animAsset );
+                    setupIdleWalkBlend( animator, *animAsset );
                     TLOG_INFO() << "[Sandbox] CesiumMan Idle↔Walk crossfade (auto-toggle / G key)";
                 }
-                wrapper->addComponent( animator );
-                wrapper->addComponent( TScriptComponent::make<AnimBlendDemoScript>() );
+                wrapper.addComponent( TScriptComponent::make<AnimBlendDemoScript>() );
 
-                wrapper->addChild( std::move( animRoot ) );
-                scene().addChild( wrapper );
+                wrapper.addChild( animRoot );
+                scene().addChild( &wrapper );
             }
         }
 
@@ -474,104 +458,97 @@ private:
             TAudioClip* beepClip = scene().resources().getOrCreateClip( "assets/beep.wav", "Beep" );
             scene().ecs().getSystem<TAudioSystem>().preload( beepClip );
 
-            auto node = std::make_shared<TSceneNode>( "BeepEmitter" );
-            node->m_transform.setTranslation( { 2.0f, 1.5f, 0.0f } );
+            TSceneNode& node = scene().createNode( "BeepEmitter" );
+            node.m_transform.setTranslation( { 2.0f, 1.5f, 0.0f } );
 
-            auto audio           = std::make_shared<TAudioComponent>( beepClip );
-            audio->m_spatial     = true;
-            audio->m_looping     = false;
-            audio->m_volume      = 1.0f;
-            audio->m_minDistance = 1.0f;
-            audio->m_maxDistance = 25.0f;
-            node->addComponent( audio );
+            auto& audio           = node.emplaceComponent<TAudioComponent>( beepClip );
+            audio.m_spatial       = true;
+            audio.m_looping       = false;
+            audio.m_volume        = 1.0f;
+            audio.m_minDistance   = 1.0f;
+            audio.m_maxDistance   = 25.0f;
 
-            auto sprite     = std::make_shared<TSpriteComponent>();
-            sprite->m_size  = { 0.25f, 0.25f };
-            sprite->m_color = { 0.2f, 0.9f, 0.4f, 1.0f };
-            sprite->m_mode  = TBillboardMode::Spherical;
-            node->addComponent( sprite );
+            auto& sprite    = node.emplaceComponent<TSpriteComponent>();
+            sprite.m_size   = { 0.25f, 0.25f };
+            sprite.m_color  = { 0.2f, 0.9f, 0.4f, 1.0f };
+            sprite.m_mode   = TBillboardMode::Spherical;
 
-            scene().addChild( node );
+            scene().addChild( &node );
         }
 
         {
             TVkImage* sparkTex = scene().resources().loadImage( *app.gpu(), "assets/particle_soft.png" );
 
-            auto node = std::make_shared<TSceneNode>( "SparkEmitter" );
-            node->m_transform.setTranslation( { 2.0f, 0.6f, 0.4f } );
+            TSceneNode& node = scene().createNode( "SparkEmitter" );
+            node.m_transform.setTranslation( { 2.0f, 0.6f, 0.4f } );
 
-            auto sparks           = std::make_shared<TParticleEmitterComponent>();
-            sparks->m_emitting    = true;
-            sparks->m_rate        = 80.0f;
-            sparks->m_lifetimeMin = 0.35f;
-            sparks->m_lifetimeMax = 0.9f;
-            sparks->m_velocityMin = { -0.8f, 1.5f, -0.8f };
-            sparks->m_velocityMax = { 0.8f, 4.0f, 0.8f };
-            sparks->m_sizeStart   = { 0.28f, 0.28f };
-            sparks->m_sizeEnd     = { 0.06f, 0.06f };
-            sparks->m_colorStart  = { 1.0f, 1.0f, 1.0f, 1.0f };
-            sparks->m_colorEnd    = { 1.0f, 0.55f, 0.2f, 0.0f };
-            sparks->m_gravity     = -3.5f;
-            sparks->m_texture     = sparkTex;
-            node->addComponent( sparks );
+            auto& sparks           = node.emplaceComponent<TParticleEmitterComponent>();
+            sparks.m_emitting      = true;
+            sparks.m_rate          = 80.0f;
+            sparks.m_lifetimeMin   = 0.35f;
+            sparks.m_lifetimeMax   = 0.9f;
+            sparks.m_velocityMin   = { -0.8f, 1.5f, -0.8f };
+            sparks.m_velocityMax   = { 0.8f, 4.0f, 0.8f };
+            sparks.m_sizeStart     = { 0.28f, 0.28f };
+            sparks.m_sizeEnd       = { 0.06f, 0.06f };
+            sparks.m_colorStart    = { 1.0f, 1.0f, 1.0f, 1.0f };
+            sparks.m_colorEnd      = { 1.0f, 0.55f, 0.2f, 0.0f };
+            sparks.m_gravity       = -3.5f;
+            sparks.m_texture       = sparkTex;
 
-            scene().addChild( node );
+            scene().addChild( &node );
         }
 
         {
-            auto node = std::make_shared<TSceneNode>( "Sun" );
-            node->m_transform.setLocalTRS( { 0.0f, 20.0f, 8.0f }, glm::angleAxis( glm::radians( -50.0f ), glm::vec3( 1.0f, 0.0f, 0.0f ) ), glm::vec3( 1.0f ) );
+            TSceneNode& node = scene().createNode( "Sun" );
+            node.m_transform.setLocalTRS( { 0.0f, 20.0f, 8.0f }, glm::angleAxis( glm::radians( -50.0f ), glm::vec3( 1.0f, 0.0f, 0.0f ) ), glm::vec3( 1.0f ) );
 
-            auto light          = std::make_shared<TLightComponent>();
-            light->m_type       = TLightType::Directional;
-            light->m_color      = { 1.0f, 0.9f, 0.75f };
-            light->m_intensity  = 3.0f;
-            light->m_castShadow = true;
-            node->addComponent( light );
-            scene().addChild( node );
+            auto& light          = node.emplaceComponent<TLightComponent>();
+            light.m_type         = TLightType::Directional;
+            light.m_color        = { 1.0f, 0.9f, 0.75f };
+            light.m_intensity    = 3.0f;
+            light.m_castShadow   = true;
+            scene().addChild( &node );
         }
 
         {
             // Warm fill with cubemap shadows (6 array layers).
-            auto node = std::make_shared<TSceneNode>( "FillPoint" );
-            node->m_transform.setTranslation( { -1.5f, 2.5f, 0.5f } );
+            TSceneNode& node = scene().createNode( "FillPoint" );
+            node.m_transform.setTranslation( { -1.5f, 2.5f, 0.5f } );
 
-            auto light          = std::make_shared<TLightComponent>();
-            light->m_type       = TLightType::Point;
-            light->m_color      = { 1.0f, 0.85f, 0.65f };
-            light->m_intensity  = 40.0f;
-            light->m_maxRange   = 18.0f;
-            light->m_castShadow = true;
-            node->addComponent( light );
-            scene().addChild( node );
+            auto& light          = node.emplaceComponent<TLightComponent>();
+            light.m_type         = TLightType::Point;
+            light.m_color        = { 1.0f, 0.85f, 0.65f };
+            light.m_intensity    = 40.0f;
+            light.m_maxRange     = 18.0f;
+            light.m_castShadow   = true;
+            scene().addChild( &node );
         }
 
         {
-            auto node = std::make_shared<TSceneNode>( "Camera" );
-            node->m_transform.setTranslation( { 0.0f, 1.8f, 3.0f } );
+            TSceneNode& node = scene().createNode( "Camera" );
+            node.m_transform.setTranslation( { 0.0f, 1.8f, 3.0f } );
 
-            auto cam    = std::make_shared<TCameraComponent>();
-            cam->m_fov  = glm::radians( 65.0f );
-            cam->m_near = 0.05f;
-            cam->m_far  = 500.0f;
-            node->addComponent( cam );
-            node->addComponent( TScriptComponent::make<FlyCameraScript>() );
-            scene().addChild( node );
+            auto& cam    = node.emplaceComponent<TCameraComponent>();
+            cam.m_fov    = glm::radians( 65.0f );
+            cam.m_near   = 0.05f;
+            cam.m_far    = 500.0f;
+            node.addComponent( TScriptComponent::make<FlyCameraScript>() );
+            scene().addChild( &node );
 
-            auto light          = std::make_shared<TLightComponent>();
-            light->m_type       = TLightType::Spot;
-            light->m_color      = { 1.0f, 0.95f, 0.8f };
-            light->m_intensity  = 25.0f;
-            light->m_maxRange   = 20.0f;
-            light->m_innerCone  = glm::radians( 12.5f );
-            light->m_outerCone  = glm::radians( 17.5f );
-            light->m_castShadow = true;
+            TSceneNode& spotNode = scene().createNode( "CameraSpotlight" );
+            spotNode.m_transform.setTranslation( { 0.2f, -0.2f, 0.0f } );
 
-            auto spotNode = std::make_shared<TSceneNode>( "CameraSpotlight" );
-            spotNode->m_transform.setTranslation( { 0.2f, -0.2f, 0.0f } );
-            spotNode->addComponent( light );
+            auto& light          = spotNode.emplaceComponent<TLightComponent>();
+            light.m_type         = TLightType::Spot;
+            light.m_color        = { 1.0f, 0.95f, 0.8f };
+            light.m_intensity    = 25.0f;
+            light.m_maxRange     = 20.0f;
+            light.m_innerCone    = glm::radians( 12.5f );
+            light.m_outerCone    = glm::radians( 17.5f );
+            light.m_castShadow   = true;
 
-            node->addChild( spotNode );
+            node.addChild( &spotNode );
         }
 
         spawnWaterDemo();
@@ -589,17 +566,16 @@ private:
             TBagAnimatedTextureRef opts{ "assets/textures/demo.gif" };
             TVkImage*              gif = scene().resources().resolveTexture( *gpu, opts.m_path, opts );
 
-            auto node = std::make_shared<TSceneNode>( "AnimGifSprite" );
-            node->m_transform.setTranslation( { 1.5f, 1.2f, 1.0f } );
+            TSceneNode& node = scene().createNode( "AnimGifSprite" );
+            node.m_transform.setTranslation( { 1.5f, 1.2f, 1.0f } );
 
-            auto sprite       = std::make_shared<TSpriteComponent>( gif );
-            sprite->m_size    = { 0.6f, 0.6f };
-            sprite->m_color   = { 1.0f, 1.0f, 1.0f, 1.0f };
-            sprite->m_mode    = TBillboardMode::Spherical;
-            sprite->m_animRef = opts;
-            sprite->m_textureRef = TBagTextureRef{ opts.m_path };
-            node->addComponent( sprite );
-            scene().addChild( node );
+            auto& sprite         = node.emplaceComponent<TSpriteComponent>( gif );
+            sprite.m_size        = { 0.6f, 0.6f };
+            sprite.m_color       = { 1.0f, 1.0f, 1.0f, 1.0f };
+            sprite.m_mode        = TBillboardMode::Spherical;
+            sprite.m_animRef     = opts;
+            sprite.m_textureRef  = TBagTextureRef{ opts.m_path };
+            scene().addChild( &node );
         }
 
         TGpuAsset* screenAsset = app.assetSystem().maybeGetAsset( "VideoScreen" );
@@ -624,15 +600,14 @@ private:
         }
         if ( screenAsset == nullptr || screenAsset->m_meshes.empty() || screenAsset->m_materials.empty() ) return;
 
-        auto node = std::make_shared<TSceneNode>( "VideoScreen" );
-        node->m_transform.setLocalTRS( { -2.5f, 1.5f, 0.0f }, glm::angleAxis( glm::radians( 90.0f ), glm::vec3( 1.0f, 0.0f, 0.0f ) ),
-                                       glm::vec3( 1.2f, 1.0f, 0.8f ) );
+        TSceneNode& node = scene().createNode( "VideoScreen" );
+        node.m_transform.setLocalTRS( { -2.5f, 1.5f, 0.0f }, glm::angleAxis( glm::radians( 90.0f ), glm::vec3( 1.0f, 0.0f, 0.0f ) ),
+                                      glm::vec3( 1.2f, 1.0f, 0.8f ) );
 
-        auto mesh                     = std::make_shared<TMeshComponent>( screenAsset->m_meshes[ 0 ].get(), screenAsset->m_materials[ 0 ].get(), false );
-        mesh->m_baseTextureOverride   = TBagAnimatedTextureRef{ "assets/textures/screen.mp4" };
-        mesh->rebindOverrides( scene().resources(), *gpu );
-        node->addComponent( mesh );
-        scene().addChild( node );
+        auto& mesh                   = node.emplaceComponent<TMeshComponent>( screenAsset->m_meshes[ 0 ].get(), screenAsset->m_materials[ 0 ].get(), false );
+        mesh.m_baseTextureOverride   = TBagAnimatedTextureRef{ "assets/textures/screen.mp4" };
+        mesh.rebindOverrides( scene().resources(), *gpu );
+        scene().addChild( &node );
     }
 
     void spawnWaterDemo()
@@ -667,11 +642,11 @@ private:
         }
         if ( waterAsset == nullptr || waterAsset->m_meshes.empty() || waterAsset->m_materials.empty() ) return;
 
-        auto node = std::make_shared<TSceneNode>( "WaterPlane" );
-        node->m_transform.setTranslation( { 0.0f, 0.15f, -2.5f } );
-        node->m_transform.setScale( { 8.0f, 1.0f, 8.0f } );
-        node->addComponent( std::make_shared<TMeshComponent>( waterAsset->m_meshes[ 0 ].get(), waterAsset->m_materials[ 0 ].get(), false ) );
-        scene().addChild( node );
+        TSceneNode& node = scene().createNode( "WaterPlane" );
+        node.m_transform.setTranslation( { 0.0f, 0.15f, -2.5f } );
+        node.m_transform.setScale( { 8.0f, 1.0f, 8.0f } );
+        node.emplaceComponent<TMeshComponent>( waterAsset->m_meshes[ 0 ].get(), waterAsset->m_materials[ 0 ].get(), false );
+        scene().addChild( &node );
 
         TLOG_INFO() << "[Sandbox] Water demo: WaterPlane";
     }
@@ -687,7 +662,7 @@ public:
     {
         // Validation is ~2/3 of CPU in Release profiles — keep it for Debug only.
         initGpu(
-#ifdef TOMOS_DEBUG
+#if TOMOS_DEBUG
                 true
 #else
                 false

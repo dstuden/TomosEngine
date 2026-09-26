@@ -72,6 +72,14 @@ namespace Tomos
         m_renderer = std::make_unique<TVkClusteredRenderer>( *this );
     }
 
+    float TVkGpu::timestampPeriod() const
+    {
+        if ( m_physDevice == VK_NULL_HANDLE ) return 1.0f;
+        VkPhysicalDeviceProperties props{};
+        vkGetPhysicalDeviceProperties( m_physDevice, &props );
+        return props.limits.timestampPeriod;
+    }
+
     TVkGpu::~TVkGpu()
     {
         if ( m_device != VK_NULL_HANDLE ) vkDeviceWaitIdle( m_device );

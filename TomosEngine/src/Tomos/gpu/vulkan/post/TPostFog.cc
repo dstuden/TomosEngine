@@ -50,13 +50,6 @@ namespace Tomos
         }
     }
 
-    void TPostFog::reloadShaders( const TPostContext& /*p_ctx*/ )
-    {
-        if ( m_device == VK_NULL_HANDLE || m_pipeLay == VK_NULL_HANDLE ) return;
-        if ( m_pipe != VK_NULL_HANDLE ) vkDestroyPipeline( m_device, m_pipe, nullptr );
-        m_pipe = PostUtil::createFullscreenPipeline( m_device, m_pipeLay, "fog.frag.spv", VK_FORMAT_R16G16B16A16_SFLOAT );
-    }
-
     void TPostFog::record( VkCommandBuffer p_cmd, TPostContext& p_ctx )
     {
         const uint32_t fi = p_ctx.m_frameIndex % g_kFrames;

@@ -12,7 +12,7 @@ namespace Tomos
     {
         if ( !m_switchToScene ) return;
 
-        m_scene->deactivate();
+        m_scene->clearLevel();
         m_scene         = m_switchToScene();
         m_switchToScene = nullptr;
         m_scene->activate();
@@ -22,8 +22,7 @@ namespace Tomos
     {
         m_switchToScene = nullptr;
         if ( m_scene == nullptr ) return;
-        if ( m_scene->isActive() ) m_scene->deactivate();
-        m_scene->clearChildren();
+        m_scene->clearLevel();
         m_scene->resources().clear();
         // Drop ECS (mesh override materials, etc.) before TVkGpu teardown.
         m_scene.reset();

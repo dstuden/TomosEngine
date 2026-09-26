@@ -94,15 +94,17 @@ namespace Tomos
         glm::vec2 m_uvMin;
         glm::vec2 m_uvMax;
         uint32_t  m_mode;  // TBillboardMode
-        uint32_t  m_pad0{ 0 };
+        float     m_alphaCutoff;
         glm::vec4 m_color;
     };
 
+    // Same-texture run in m_sprites (cutout batches first, then blend).
     struct TSpriteBatch
     {
         const TVkImage* m_texture;
         uint32_t        m_offset;
         uint32_t        m_count;
+        bool            m_blend;
     };
 
     // GPU particle (persistent pool; written by particle_sim.comp, read by particle.vert).

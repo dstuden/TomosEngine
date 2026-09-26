@@ -19,16 +19,11 @@ namespace Tomos
     {
         if ( p_dl == nullptr || !p_box.valid() ) return;
 
-        const glm::vec3 corners[ 8 ] = {
-                { p_box.m_min.x, p_box.m_min.y, p_box.m_min.z }, { p_box.m_max.x, p_box.m_min.y, p_box.m_min.z },
-                { p_box.m_min.x, p_box.m_max.y, p_box.m_min.z }, { p_box.m_max.x, p_box.m_max.y, p_box.m_min.z },
-                { p_box.m_min.x, p_box.m_min.y, p_box.m_max.z }, { p_box.m_max.x, p_box.m_min.y, p_box.m_max.z },
-                { p_box.m_min.x, p_box.m_max.y, p_box.m_max.z }, { p_box.m_max.x, p_box.m_max.y, p_box.m_max.z },
-        };
+        const std::array<glm::vec3, 8> corners = p_box.corners();
 
         ImVec2 screen[ 8 ];
         bool   ok[ 8 ];
-        for ( int i = 0; i < 8; ++i ) ok[ i ] = project( p_viewProj, p_panelPos, p_panelSize, corners[ i ], screen[ i ] );
+        for ( int i = 0; i < 8; ++i ) ok[ i ] = project( p_viewProj, p_panelPos, p_panelSize, corners[ static_cast<size_t>( i ) ], screen[ i ] );
 
         static constexpr int kEdges[ 12 ][ 2 ] = {
                 { 0, 1 }, { 1, 3 }, { 3, 2 }, { 2, 0 }, { 4, 5 }, { 5, 7 }, { 7, 6 }, { 6, 4 }, { 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 },

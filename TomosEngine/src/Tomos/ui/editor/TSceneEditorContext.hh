@@ -33,6 +33,11 @@ namespace Tomos
         bool m_showRenderer  = true;
         bool m_showPhysics   = true;
         bool m_showConsole   = true;
+        bool m_showPerformance = false;
+
+        bool m_perfCapture            = false;
+        bool m_perfCaptureInitialized = false;
+        bool m_perfFreeze             = false;
 
         bool m_playing = true;
 

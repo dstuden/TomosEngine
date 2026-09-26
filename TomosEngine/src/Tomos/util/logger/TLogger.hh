@@ -144,7 +144,11 @@ namespace Tomos
 #define TLOG_WARN() Tomos::TLogLine( Tomos::TLogLevel::WARN )
 #define TLOG_ERROR() Tomos::TLogLine( Tomos::TLogLevel::ERROR )
 
-#ifndef NDEBUG
+#ifndef TOMOS_DEBUG
+#define TOMOS_DEBUG 0
+#endif
+
+#if TOMOS_DEBUG
 #define TLOG_DEBUG() Tomos::TLogLine( Tomos::TLogLevel::DEBUG )
 #else
 #define TLOG_DEBUG() \

@@ -16,11 +16,12 @@
 namespace Tomos
 {
     class TVkGpu;
+    class TLevelStore;
 
     struct TLoadResult
     {
-        std::shared_ptr<TSceneNode> m_root;
-        std::unique_ptr<TGpuAsset>  m_asset;
+        TSceneNode*                m_root = nullptr;
+        std::unique_ptr<TGpuAsset> m_asset;
     };
 
     // Host-only glTF package — no Vulkan. Safe to build on a worker thread.
@@ -96,13 +97,12 @@ namespace Tomos
     class TGltfLoader
     {
     public:
-        // Assimp + stb only — thread-safe w.r.t. Vulkan / TAssetSystem.
+        // Assimp + stb only — safe off the main thread.
         static TCpuGltfPackage decodeCpu( const std::string& p_path );
 
-        // Main-thread: create GPU resources (batched uploads) + scene root.
-        static TLoadResult uploadGpu( TCpuGltfPackage&& p_package, TVkGpu& p_gpu );
+        // Main thread: GPU upload + nodes into p_store.
+        static TLoadResult uploadGpu( TCpuGltfPackage&& p_package, TVkGpu& p_gpu, TLevelStore& p_store );
 
-        // Sync convenience: uploadGpu(decodeCpu(path), gpu).
-        static TLoadResult load( const std::string& p_path, TVkGpu& p_gpu );
+        static TLoadResult load( const std::string& p_path, TVkGpu& p_gpu, TLevelStore& p_store );
     };
 }  // namespace Tomos

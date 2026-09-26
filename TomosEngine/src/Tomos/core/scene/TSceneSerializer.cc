@@ -51,51 +51,59 @@ namespace Tomos
             j[ "transform" ] = transformToJson( p_node.m_transform );
 
             json comps = json::array();
-            for ( const auto& c : p_node.getComponents() )
+            for ( TComponent* c : p_node.getComponents() )
             {
+                if ( c == nullptr ) continue;
                 json cj = TComponentRegistry::get().saveComponent( *c, p_ctx );
                 if ( !cj.is_null() ) comps.push_back( std::move( cj ) );
             }
             j[ "components" ] = std::move( comps );
 
             json children = json::array();
-            for ( const auto& child : p_node.getChildren() ) children.push_back( saveNode( *child, p_ctx ) );
+            for ( TSceneNode* child : p_node.getChildren() )
+            {
+                if ( child != nullptr ) children.push_back( saveNode( *child, p_ctx ) );
+            }
             j[ "children" ] = std::move( children );
             return j;
         }
 
         void collectUsedAssets( const TSceneNode& p_node, const TAssetSystem& p_assets, std::unordered_set<std::string>& p_used )
         {
-            for ( const auto& c : p_node.getComponents() )
+            for ( TComponent* c : p_node.getComponents() )
             {
-                if ( const auto* mesh = dynamic_cast<const TMeshComponent*>( c.get() ) )
+                if ( c == nullptr ) continue;
+                if ( const auto* mesh = dynamic_cast<const TMeshComponent*>( c ) )
                 {
                     TMeshAssetRef ref{};
                     if ( p_assets.resolveMesh( mesh->m_mesh, mesh->m_material, ref ) ) p_used.insert( ref.m_assetName );
                 }
-                if ( const auto* anim = dynamic_cast<const TAnimatorComponent*>( c.get() ) )
+                if ( const auto* anim = dynamic_cast<const TAnimatorComponent*>( c ) )
                 {
                     std::string assetName, clipName;
                     if ( anim->m_clip != nullptr && p_assets.resolveClip( anim->m_clip, assetName, clipName ) ) p_used.insert( assetName );
                 }
             }
-            for ( const auto& child : p_node.getChildren() ) collectUsedAssets( *child, p_assets, p_used );
+            for ( TSceneNode* child : p_node.getChildren() )
+            {
+                if ( child != nullptr ) collectUsedAssets( *child, p_assets, p_used );
+            }
         }
 
-        std::shared_ptr<TSceneNode> loadNode( const json& p_j, TComponentResolveCtx& p_ctx, std::unordered_map<uint64_t, std::shared_ptr<TSceneNode>>& p_byId )
+        TSceneNode* loadNode( TScene& p_scene, const json& p_j, TComponentResolveCtx& p_ctx, std::unordered_map<uint64_t, TSceneNode*>& p_byId )
         {
-            auto node = std::make_shared<TSceneNode>( p_j.value( "name", std::string( "<unnamed>" ) ) );
-            if ( p_j.contains( "id" ) ) node->setId( p_j[ "id" ].get<uint64_t>() );
-            node->m_dynamic = p_j.value( "dynamic", true );
-            if ( p_j.contains( "transform" ) ) transformFromJson( node->m_transform, p_j[ "transform" ] );
+            TSceneNode& node = p_scene.createNode( p_j.value( "name", std::string( "<unnamed>" ) ) );
+            if ( p_j.contains( "id" ) ) node.setId( p_j[ "id" ].get<uint64_t>() );
+            node.m_dynamic = p_j.value( "dynamic", true );
+            if ( p_j.contains( "transform" ) ) transformFromJson( node.m_transform, p_j[ "transform" ] );
 
-            p_byId[ node->m_id ] = node;
+            p_byId[ node.m_id ] = &node;
 
             if ( p_j.contains( "components" ) && p_j[ "components" ].is_array() )
             {
                 for ( const auto& cj : p_j[ "components" ] )
                 {
-                    if ( auto comp = TComponentRegistry::get().loadComponent( cj, p_ctx ) ) node->addComponent( std::move( comp ) );
+                    if ( auto comp = TComponentRegistry::get().loadComponent( cj, p_ctx ) ) node.addComponent( std::move( comp ) );
                 }
             }
 
@@ -105,7 +113,7 @@ namespace Tomos
                 if ( !scriptType.empty() )
                 {
                     json scriptJson = json{ { "type", "script" }, { "script", scriptType } };
-                    if ( auto comp = TComponentRegistry::get().loadComponent( scriptJson, p_ctx ) ) node->addComponent( std::move( comp ) );
+                    if ( auto comp = TComponentRegistry::get().loadComponent( scriptJson, p_ctx ) ) node.addComponent( std::move( comp ) );
                 }
             }
 
@@ -113,10 +121,10 @@ namespace Tomos
             {
                 for ( const auto& childJ : p_j[ "children" ] )
                 {
-                    if ( auto child = loadNode( childJ, p_ctx, p_byId ) ) node->addChild( std::move( child ) );
+                    if ( TSceneNode* child = loadNode( p_scene, childJ, p_ctx, p_byId ) ) node.addChild( child );
                 }
             }
-            return node;
+            return &node;
         }
 
     }  // namespace
@@ -126,7 +134,10 @@ namespace Tomos
         const std::string resolvedPath = TPath::resolveString( p_path );
 
         std::unordered_set<std::string> usedAssets;
-        for ( const auto& child : p_scene.getChildren() ) collectUsedAssets( *child, p_assets, usedAssets );
+        for ( TSceneNode* child : p_scene.getChildren() )
+        {
+            if ( child != nullptr ) collectUsedAssets( *child, p_assets, usedAssets );
+        }
 
         json doc;
 
@@ -143,9 +154,13 @@ namespace Tomos
         }
         doc[ "assets" ] = std::move( assets );
 
-        TComponentResolveCtx ctx{ const_cast<TAssetSystem&>( p_assets ), const_cast<TSceneResourceBag&>( p_scene.resources() ), nullptr };
+        TComponentResolveCtx ctx{ const_cast<TAssetSystem&>( p_assets ), const_cast<TSceneResourceBag&>( p_scene.resources() ), nullptr, nullptr,
+                                  &p_scene.store() };
         json                 children = json::array();
-        for ( const auto& child : p_scene.getChildren() ) children.push_back( saveNode( *child, ctx ) );
+        for ( TSceneNode* child : p_scene.getChildren() )
+        {
+            if ( child != nullptr ) children.push_back( saveNode( *child, ctx ) );
+        }
         doc[ "children" ] = std::move( children );
 
         std::error_code ec;
@@ -212,16 +227,16 @@ namespace Tomos
             p_scene.resources().clear();
         }
 
-        std::unordered_map<uint64_t, std::shared_ptr<TSceneNode>> byId;
-        std::vector<TPendingSkinnedJoints>                        pendingSkinned;
+        std::unordered_map<uint64_t, TSceneNode*> byId;
+        std::vector<TPendingSkinnedJoints>        pendingSkinned;
 
-        TComponentResolveCtx ctx{ p_assets, p_scene.resources(), &p_gpu, &byId, &pendingSkinned };
+        TComponentResolveCtx ctx{ p_assets, p_scene.resources(), &p_gpu, &byId, &p_scene.store(), &pendingSkinned };
 
         if ( doc.contains( "children" ) && doc[ "children" ].is_array() )
         {
             for ( const auto& childJ : doc[ "children" ] )
             {
-                if ( auto child = loadNode( childJ, ctx, byId ) ) p_scene.addChild( std::move( child ) );
+                if ( TSceneNode* child = loadNode( p_scene, childJ, ctx, byId ) ) p_scene.addChild( child );
             }
         }
         else if ( doc.contains( "root" ) && doc[ "root" ].is_object() )
@@ -231,7 +246,7 @@ namespace Tomos
             {
                 for ( const auto& childJ : rootJ[ "children" ] )
                 {
-                    if ( auto child = loadNode( childJ, ctx, byId ) ) p_scene.addChild( std::move( child ) );
+                    if ( TSceneNode* child = loadNode( p_scene, childJ, ctx, byId ) ) p_scene.addChild( child );
                 }
             }
         }

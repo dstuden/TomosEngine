@@ -44,9 +44,6 @@ namespace Tomos
 
         virtual void onResize( const TPostContext& p_ctx ) = 0;
 
-        // Device must be idle. Default: no-op.
-        virtual void reloadShaders( const TPostContext& /*p_ctx*/ ) {}
-
         virtual void record( VkCommandBuffer p_cmd, TPostContext& p_ctx ) = 0;
 
         virtual void destroy() {}

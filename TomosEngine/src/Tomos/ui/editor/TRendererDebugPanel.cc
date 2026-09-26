@@ -13,7 +13,7 @@
 
 namespace Tomos
 {
-    void TRendererDebugPanel::draw( TSceneEditorContext& /*p_ctx*/, float p_dt )
+    void TRendererDebugPanel::draw( TSceneEditorContext& /*p_ctx*/, float /*p_dt*/ )
     {
         auto* gpu = TApplication::get().gpu();
         if ( gpu == nullptr ) return;
@@ -25,10 +25,6 @@ namespace Tomos
         static const char* kDebugViews[] = { "Off", "Cluster grid", "Light heatmap", "Depth slices" };
         int                mode          = static_cast<int>( state.m_debugMode );
         if ( ImGui::Combo( "Debug view", &mode, kDebugViews, 4 ) ) state.m_debugMode = static_cast<TDebugView>( mode );
-
-        static float sSmoothDt = p_dt;
-        sSmoothDt              = sSmoothDt * 0.9f + p_dt * 0.1f;
-        ImGui::Text( "Frame: %.2f ms (%.0f fps)", sSmoothDt * 1000.0f, sSmoothDt > 0.0f ? 1.0f / sSmoothDt : 0.0f );
 
         const VkExtent2D re = gpu->renderExtent();
         const VkExtent2D se = gpu->extent();

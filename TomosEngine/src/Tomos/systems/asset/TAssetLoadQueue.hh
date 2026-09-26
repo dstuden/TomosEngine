@@ -13,11 +13,13 @@
 
 #include "Tomos/systems/asset/TAssetSystem.hh"
 #include "Tomos/systems/asset/TGltfLoader.hh"
+#include "Tomos/util/memory/THandle.hh"
 
 namespace Tomos
 {
     class TVkGpu;
     class TScene;
+    class TLevelStore;
 
     enum class TAssetLoadStatus : uint8_t
     {
@@ -56,18 +58,16 @@ namespace Tomos
         [[nodiscard]] TGpuAsset*         asset( TAssetLoadHandle p_handle );
         [[nodiscard]] const std::string& error( TAssetLoadHandle p_handle ) const;
 
-        // Claim hierarchy built during upload (Sandbox). Null after take or if unused.
-        std::shared_ptr<TSceneNode> takeRoot( TAssetLoadHandle p_handle );
+        TSceneNode* takeRoot( TAssetLoadHandle p_handle, TScene& p_scene );
 
         using TCompleteFn = std::function<void( TAssetLoadStatus )>;
         void onComplete( TAssetLoadHandle p_handle, TCompleteFn p_fn );
 
-        // Main thread: drain decoded packages → upload → register → callbacks.
-        void tick( TScene* p_scene = nullptr );
+        void tick( TScene& p_scene );
 
         // Main thread only — pumps tick until Ready/Failed.
-        void waitUntilReady( TAssetLoadHandle p_handle, TScene* p_scene = nullptr );
-        void waitUntil( const std::function<bool()>& p_pred, TScene* p_scene = nullptr );
+        void waitUntilReady( TAssetLoadHandle p_handle, TScene& p_scene );
+        void waitUntil( const std::function<bool()>& p_pred, TScene& p_scene );
 
         void shutdown();
 
@@ -80,9 +80,10 @@ namespace Tomos
             std::string                 m_stableId;
             TAssetLoadStatus            m_status = TAssetLoadStatus::Pending;
             std::string                 m_error;
-            TGpuAsset*                  m_asset = nullptr;
-            std::shared_ptr<TSceneNode> m_root;
-            std::vector<TCompleteFn>    m_callbacks;
+            TGpuAsset*               m_asset = nullptr;
+            TNodeHandle              m_root{};
+            const TLevelStore*       m_rootStore = nullptr;  // identity only; never dereference
+            std::vector<TCompleteFn> m_callbacks;
         };
 
         struct TDecodedJob

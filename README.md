@@ -23,8 +23,8 @@ clustered forward rendering, shadows (dir/spot/point cubemap), GPU skinning, wor
 particles, ImGui overlays, scene editor (hierarchy / inspector / JSON / asset browser), post stack
 (SAO / fog / bloom / tonemap), spatial audio (`TAudioComponent`), fixed-timestep physics
 (`TPhysicsSystem` + rigid body / collider / triggers), engine config (`tomos.json` via
-`TConfigManager`), scene switching (`TSceneManager`), texture mipmaps, Debug shader hot-reload
-(F5 / file watch), animated textures (GIF / WebP / video via FFmpeg).
+`TConfigManager`), scene switching (`TSceneManager`), texture mipmaps,
+animated textures (GIF / WebP / video via FFmpeg).
 
 **Still planned:** networking, HTML UI backend, broader cross-platform polish.
 
@@ -36,23 +36,31 @@ Refer to `TomosEngine/CMakeLists.txt` for the most up-to-date list. Host package
 |-----------|--------|
 | CMake ≥ 3.28, C++23 toolchain | |
 | Vulkan 1.3 + **glslc** | LunarG Vulkan SDK, or distro `vulkan` / `shaderc` (`glslc` must be on `PATH`) |
-| glm ≥ 1.0, glfw ≥ 3.4, assimp ≥ 6, nlohmann_json ≥ 3.12 | system packages |
 | **FFmpeg** (libavformat / libavcodec / libavutil / libswscale) | animated textures (GIF, WebP, video) |
-| Dear ImGui, ImGuizmo, miniaudio, stb | fetched via CMake `FetchContent` (pinned) |
+| X11 + Wayland client libs (Linux) | needed to *build* GLFW (both backends; runtime picks one) |
+| glm, glfw, assimp, nlohmann_json, Dear ImGui, ImGuizmo, miniaudio, stb | fetched via CMake `FetchContent` (pinned) |
+
+Pinned FetchContent tags (see `TomosEngine/CMakeLists.txt`): glm `1.0.3`, glfw `3.5.1`,
+nlohmann_json `v3.12.0`, assimp `v6.0.5`, Dear ImGui `v1.91.9b-docking`, miniaudio `0.11.25`,
+ImGuizmo and stb pinned by commit hash. The first configure needs network access to
+fetch them; later configures reuse `build*/_deps`.
 
 ### Host packages (one-liners)
 
 ```bash
 # Arch
-sudo pacman -S --needed cmake ninja gcc glm glfw-x11 vulkan-devel shaderc assimp nlohmann-json ffmpeg
+sudo pacman -S --needed cmake ninja gcc vulkan-devel shaderc ffmpeg \
+  libx11 libxrandr libxinerama libxcursor libxi \
+  wayland wayland-protocols libxkbcommon
 
-# Debian / Ubuntu (26.04+ recommended for version floors above; 24.04 apt is often too old)
-sudo apt install build-essential cmake ninja-build libglm-dev libglfw3-dev \
-  libvulkan-dev glslc libassimp-dev nlohmann-json3-dev \
-  libavformat-dev libavcodec-dev libavutil-dev libswscale-dev
+# Debian / Ubuntu
+sudo apt install build-essential cmake ninja-build libvulkan-dev glslc \
+  libavformat-dev libavcodec-dev libavutil-dev libswscale-dev \
+  libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev \
+  libwayland-dev wayland-protocols libxkbcommon-dev
 
 # macOS (Homebrew) — also install the LunarG Vulkan SDK for validation layers / MoltenVK as needed
-brew install cmake ninja glm glfw assimp nlohmann-json shaderc ffmpeg
+brew install cmake ninja shaderc ffmpeg
 ```
 
 `glslc` comes from **shaderc** or the **Vulkan SDK**. Configure fails with a clear error if it is missing.

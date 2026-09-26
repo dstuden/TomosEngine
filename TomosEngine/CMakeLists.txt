@@ -1,16 +1,14 @@
 cmake_minimum_required(VERSION 3.28)
 project(Tomos)
 
-set(CMAKE_CXX_STANDARD 23)
-
-find_package(glm 1.0 CONFIG REQUIRED)
-find_package(glfw3 3.4 REQUIRED)
+# Host-only: Vulkan SDK / loader + FFmpeg (heavy native stacks; not FetchContent).
 find_package(Vulkan 1.3 REQUIRED)
-find_package(nlohmann_json 3.12 REQUIRED)
-find_package(assimp 6.0 REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET
+	libavformat libavcodec libavutil libswscale)
 
 # ---------------------------------------------------------------------------
-# Dear ImGui (tooling / debug UI backend) — fetched, compiled into the engine.
+# Third-party deps via FetchContent (pinned tags).
 # ---------------------------------------------------------------------------
 include(FetchContent)
 # CMP0169 OLD: allow FetchContent_Populate for header/source-only deps below
@@ -18,6 +16,71 @@ include(FetchContent)
 if(POLICY CMP0169)
 	cmake_policy(SET CMP0169 OLD)
 endif()
+
+# Prefer static libs from fetched deps (links cleanly into libTomos.a).
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+
+# glm ≥ 1.0
+set(GLM_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLM_BUILD_INSTALL OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(glm
+	GIT_REPOSITORY https://github.com/g-truc/glm.git
+	GIT_TAG        1.0.3
+	GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(glm)
+
+# glfw ≥ 3.4 — on Linux build both Wayland and X11; GLFW picks the backend at
+# runtime (WAYLAND_DISPLAY / DISPLAY). Needs wayland + wayland-protocols +
+# libxkbcommon (and the usual X11 client libs) on the host to compile.
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
+if(UNIX AND NOT APPLE)
+	set(GLFW_BUILD_WAYLAND ON CACHE BOOL "" FORCE)
+	set(GLFW_BUILD_X11 ON CACHE BOOL "" FORCE)
+endif()
+FetchContent_Declare(glfw
+	GIT_REPOSITORY https://github.com/glfw/glfw.git
+	GIT_TAG        3.5.1
+	GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(glfw)
+
+# nlohmann_json ≥ 3.12
+set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
+set(JSON_Install OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(nlohmann_json
+	GIT_REPOSITORY https://github.com/nlohmann/json.git
+	GIT_TAG        v3.12.0
+	GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(nlohmann_json)
+
+# assimp ≥ 6 — import-only (glTF via TGltfLoader); vendored zlib.
+# Only enable the GLTF importer to cut compile time / binary size.
+set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_SAMPLES OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
+set(ASSIMP_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_INJECT_DEBUG_POSTFIX OFF CACHE BOOL "" FORCE)
+set(ASSIMP_IGNORE_GIT_HASH ON CACHE BOOL "" FORCE)
+set(ASSIMP_NO_EXPORT ON CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_ZLIB ON CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_GLTF_IMPORTER ON CACHE BOOL "" FORCE)
+FetchContent_Declare(assimp
+	GIT_REPOSITORY https://github.com/assimp/assimp.git
+	GIT_TAG        v6.0.5
+	GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(assimp)
+
+# ---------------------------------------------------------------------------
+# Dear ImGui (tooling / debug UI backend) — fetched, compiled into the engine.
+# ---------------------------------------------------------------------------
 FetchContent_Declare(imgui
 	GIT_REPOSITORY https://github.com/ocornut/imgui.git
 	GIT_TAG        v1.91.9b-docking
@@ -78,10 +141,6 @@ FetchContent_Declare(miniaudio
 )
 FetchContent_MakeAvailable(miniaudio)
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET
-	libavformat libavcodec libavutil libswscale)
-
 add_library(${PROJECT_NAME} STATIC
 	src/Tomos/util/logger/TLogger.cc
 	src/Tomos/util/logger/TLogger.hh
@@ -92,8 +151,24 @@ add_library(${PROJECT_NAME} STATIC
 	src/Tomos/util/path/TPath.cc
 	src/Tomos/util/random/TRandom.hh
 	src/Tomos/util/random/TRandom.cc
-	src/Tomos/util/shader/TShaderHotReload.hh
-	src/Tomos/util/shader/TShaderHotReload.cc
+	# Memory (arenas / frame allocator / level store)
+	src/Tomos/util/memory/TArena.hh
+	src/Tomos/util/memory/TArena.cc
+	src/Tomos/util/memory/TArenaAllocator.hh
+	src/Tomos/util/memory/THandle.hh
+	src/Tomos/util/memory/TPool.hh
+	src/Tomos/util/memory/TFrameAllocator.hh
+	src/Tomos/util/memory/TFrameAllocator.cc
+	src/Tomos/util/memory/TLevelStore.hh
+	src/Tomos/util/memory/TLevelStore.cc
+	# Frame profiling (bodies compile out when TOMOS_DEBUG=0)
+	src/Tomos/util/profile/TProfile.hh
+	src/Tomos/util/profile/TFrameProfiler.hh
+	src/Tomos/util/profile/TFrameProfiler.cc
+	src/Tomos/util/profile/TGpuTimestamps.hh
+	src/Tomos/util/profile/TGpuTimestamps.cc
+	src/Tomos/util/profile/TFrameAnalytics.hh
+	src/Tomos/util/profile/TFrameAnalytics.cc
 	src/Tomos/core/events/TEvent.hh
 	src/Tomos/core/events/TEvent.cc
 	src/Tomos/core/events/mouse/TMouseEvent.cc
@@ -269,35 +344,15 @@ target_include_directories(${PROJECT_NAME}
 target_compile_definitions(${PROJECT_NAME}
 	PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE
 	PUBLIC IMGUI_DEFINE_MATH_OPERATORS
-	PUBLIC $<$<CONFIG:Debug>:TOMOS_DEBUG>
-	PUBLIC $<$<CONFIG:Release>:NDEBUG>
+	PUBLIC TOMOS_DEBUG=$<IF:$<CONFIG:Debug>,1,0>
 	PUBLIC TOMOS_RESOURCES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/resources"
 )
 
-# Release: interprocedural optimization (LTO) when the toolchain supports it.
-include(CheckIPOSupported)
-check_ipo_supported(RESULT TOMOS_IPO_SUPPORTED OUTPUT TOMOS_IPO_ERROR)
-if(TOMOS_IPO_SUPPORTED)
-	set_property(TARGET ${PROJECT_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
-else()
-	message(STATUS "IPO/LTO not available for Release: ${TOMOS_IPO_ERROR}")
-endif()
-
-# Extra CPU opts for local Release / RelWithDebInfo builds (GCC/Clang; skip MSVC).
-# --gc-sections is GNU ld / ELF-oriented; skip on MSVC and Apple ld.
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-	target_compile_options(${PROJECT_NAME} PRIVATE
-		$<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>:-O3 -ffunction-sections -fdata-sections>
-	)
-	if(NOT APPLE)
-		target_link_options(${PROJECT_NAME} PRIVATE
-			$<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>:-Wl,--gc-sections>
-		)
-	endif()
-endif()
+tomos_enable_ipo(${PROJECT_NAME})
 
 target_link_libraries(${PROJECT_NAME}
 	PRIVATE
+		tomos_build_flags
 		glm::glm
 		glfw
 		Vulkan::Vulkan
@@ -309,7 +364,7 @@ target_link_libraries(${PROJECT_NAME}
 
 # Docked scene editor — separate library (not baked into Tomos).
 # Sources live under Tomos/ui/editor but belong to the TomosEditor target.
-option(TOMOS_BUILD_EDITOR "Build TomosEditor library (docked scene editor)" ON)
+# TOMOS_BUILD_EDITOR is declared in cmake/TomosOptions.cmake.
 set(TOMOS_EDITOR_SOURCES
 	src/Tomos/ui/editor/TSceneEditorContext.hh
 	src/Tomos/ui/editor/TDebugDraw.hh
@@ -324,6 +379,8 @@ set(TOMOS_EDITOR_SOURCES
 	src/Tomos/ui/editor/TSceneViewportPanel.cc
 	src/Tomos/ui/editor/TRendererDebugPanel.hh
 	src/Tomos/ui/editor/TRendererDebugPanel.cc
+	src/Tomos/ui/editor/TPerformancePanel.hh
+	src/Tomos/ui/editor/TPerformancePanel.cc
 	src/Tomos/ui/editor/TPhysicsDebugPanel.hh
 	src/Tomos/ui/editor/TPhysicsDebugPanel.cc
 	src/Tomos/ui/editor/TConsolePanel.hh
@@ -334,22 +391,9 @@ set(TOMOS_EDITOR_SOURCES
 if(TOMOS_BUILD_EDITOR)
 	add_library(TomosEditor STATIC ${TOMOS_EDITOR_SOURCES})
 	target_link_libraries(TomosEditor PUBLIC ${PROJECT_NAME})
-	target_link_libraries(TomosEditor PRIVATE glm::glm nlohmann_json::nlohmann_json)
+	target_link_libraries(TomosEditor PRIVATE tomos_build_flags glm::glm nlohmann_json::nlohmann_json)
 	target_compile_definitions(TomosEditor PUBLIC TOMOS_EDITOR=1)
-	target_compile_definitions(TomosEditor PRIVATE
-		GLM_FORCE_DEPTH_ZERO_TO_ONE
-		IMGUI_DEFINE_MATH_OPERATORS
-		$<$<CONFIG:Debug>:TOMOS_DEBUG>
-		$<$<CONFIG:Release>:NDEBUG>
-	)
-	if(TOMOS_IPO_SUPPORTED)
-		set_property(TARGET TomosEditor PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
-	endif()
-	if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-		target_compile_options(TomosEditor PRIVATE
-			$<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>:-O3 -ffunction-sections -fdata-sections>
-		)
-	endif()
+	tomos_enable_ipo(TomosEditor)
 	message(STATUS "TomosEditor: ON (TOMOS_BUILD_EDITOR)")
 else()
 	message(STATUS "TomosEditor: OFF (TOMOS_BUILD_EDITOR=OFF)")
@@ -425,9 +469,6 @@ endforeach()
 add_custom_target(TomosShaders ALL DEPENDS ${SPV_OUTPUTS})
 
 # Fallback path when the binary is not launched from its own directory.
-# Shader source + glslc paths enable Debug hot-reload (F5 / file watch).
 target_compile_definitions(${PROJECT_NAME}
 	PUBLIC TOMOS_SHADER_DIR="${SHADER_OUT_DIR}"
-	PUBLIC TOMOS_SHADER_SRC_DIR="${SHADER_SRC_DIR}"
-	PUBLIC TOMOS_GLSLC="${GLSLC}"
 )

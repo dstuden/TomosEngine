@@ -98,15 +98,45 @@ namespace Tomos
             }
         }
 
-        void writePose( TSceneNode& p_root, const std::unordered_map<std::string, TAnimationSystem::TJointPose>& p_from,
+        void bindClipJoints( TSceneNode& p_root, const TAnimationClip* p_clip, std::unordered_map<std::string, TSceneNode*>& p_cache )
+        {
+            if ( p_clip == nullptr ) return;
+            for ( const TAnimationChannel& ch : p_clip->m_channels )
+            {
+                if ( ch.m_targetName.empty() ) continue;
+                if ( p_cache.count( ch.m_targetName ) ) continue;
+                p_cache.emplace( ch.m_targetName, p_root.findByName( ch.m_targetName ) );
+            }
+        }
+
+        void ensureJointCache( TAnimatorComponent& p_ac, TSceneNode& p_root )
+        {
+            const TLevelStore* store    = p_root.store();
+            const uint64_t     topology = store != nullptr ? store->topologyVersion() : 0;
+
+            if ( p_ac.m_jointCacheTopology != 0 && p_ac.m_jointCacheTopology == topology && p_ac.m_clip == p_ac.m_jointsBoundClip &&
+                 p_ac.m_fadeFromClip == p_ac.m_jointsBoundFadeClip )
+                return;
+
+            p_ac.m_jointCache.clear();
+            bindClipJoints( p_root, p_ac.m_clip, p_ac.m_jointCache );
+            bindClipJoints( p_root, p_ac.m_fadeFromClip, p_ac.m_jointCache );
+            p_ac.m_jointsBoundClip     = p_ac.m_clip;
+            p_ac.m_jointsBoundFadeClip = p_ac.m_fadeFromClip;
+            p_ac.m_jointCacheTopology  = topology;
+        }
+
+        void writePose( std::unordered_map<std::string, TSceneNode*>& p_cache,
+                        const std::unordered_map<std::string, TAnimationSystem::TJointPose>& p_from,
                         const std::unordered_map<std::string, TAnimationSystem::TJointPose>& p_to, float p_weight )
         {
             const float w = std::clamp( p_weight, 0.0f, 1.0f );
 
             auto writeJoint = [ & ]( const std::string& p_name, const TAnimationSystem::TJointPose* p_a, const TAnimationSystem::TJointPose* p_b )
             {
-                TSceneNode* joint = p_root.findByName( p_name );
-                if ( joint == nullptr ) return;
+                const auto it = p_cache.find( p_name );
+                if ( it == p_cache.end() || it->second == nullptr ) return;
+                TSceneNode& joint = *it->second;
 
                 const bool hasT = ( p_a && p_a->m_hasT ) || ( p_b && p_b->m_hasT );
                 const bool hasR = ( p_a && p_a->m_hasR ) || ( p_b && p_b->m_hasR );
@@ -114,21 +144,21 @@ namespace Tomos
 
                 if ( hasT )
                 {
-                    const glm::vec3 ta = ( p_a && p_a->m_hasT ) ? p_a->m_t : ( ( p_b && p_b->m_hasT ) ? p_b->m_t : joint->m_transform.translation() );
+                    const glm::vec3 ta = ( p_a && p_a->m_hasT ) ? p_a->m_t : ( ( p_b && p_b->m_hasT ) ? p_b->m_t : joint.m_transform.translation() );
                     const glm::vec3 tb = ( p_b && p_b->m_hasT ) ? p_b->m_t : ta;
-                    joint->m_transform.setTranslation( ( w <= 0.0f ) ? ta : ( w >= 1.0f ) ? tb : glm::mix( ta, tb, w ) );
+                    joint.m_transform.setTranslation( ( w <= 0.0f ) ? ta : ( w >= 1.0f ) ? tb : glm::mix( ta, tb, w ) );
                 }
                 if ( hasR )
                 {
-                    const glm::quat ra = ( p_a && p_a->m_hasR ) ? p_a->m_r : ( ( p_b && p_b->m_hasR ) ? p_b->m_r : joint->m_transform.rotation() );
+                    const glm::quat ra = ( p_a && p_a->m_hasR ) ? p_a->m_r : ( ( p_b && p_b->m_hasR ) ? p_b->m_r : joint.m_transform.rotation() );
                     const glm::quat rb = ( p_b && p_b->m_hasR ) ? p_b->m_r : ra;
-                    joint->m_transform.setRotation( ( w <= 0.0f ) ? ra : ( w >= 1.0f ) ? rb : glm::normalize( glm::slerp( ra, rb, w ) ) );
+                    joint.m_transform.setRotation( ( w <= 0.0f ) ? ra : ( w >= 1.0f ) ? rb : glm::normalize( glm::slerp( ra, rb, w ) ) );
                 }
                 if ( hasS )
                 {
-                    const glm::vec3 sa = ( p_a && p_a->m_hasS ) ? p_a->m_s : ( ( p_b && p_b->m_hasS ) ? p_b->m_s : joint->m_transform.scale() );
+                    const glm::vec3 sa = ( p_a && p_a->m_hasS ) ? p_a->m_s : ( ( p_b && p_b->m_hasS ) ? p_b->m_s : joint.m_transform.scale() );
                     const glm::vec3 sb = ( p_b && p_b->m_hasS ) ? p_b->m_s : sa;
-                    joint->m_transform.setScale( ( w <= 0.0f ) ? sa : ( w >= 1.0f ) ? sb : glm::mix( sa, sb, w ) );
+                    joint.m_transform.setScale( ( w <= 0.0f ) ? sa : ( w >= 1.0f ) ? sb : glm::mix( sa, sb, w ) );
                 }
             };
 
@@ -161,6 +191,7 @@ namespace Tomos
     void TAnimationSystem::componentCreated( TSceneNode& p_node, TComponent& p_component )
     {
         auto& ac           = dynamic_cast<TAnimatorComponent&>( p_component );
+        ac.invalidateJointCache();
         m_animators[ &ac ] = &p_node;
     }
 
@@ -203,11 +234,13 @@ namespace Tomos
                 if ( ac->m_blendWeight >= 1.0f ) ac->clearCrossfade();
             }
 
+            ensureJointCache( *ac, *node );
+
             m_fromPose.clear();
             m_toPose.clear();
             if ( ac->m_fadeFromClip != nullptr ) sampleClip( *ac->m_fadeFromClip, ac->m_fadeFromTime, m_fromPose );
             sampleClip( *ac->m_clip, ac->m_time, m_toPose );
-            writePose( *node, m_fromPose, m_toPose, ac->m_fadeFromClip != nullptr ? ac->m_blendWeight : 1.0f );
+            writePose( ac->m_jointCache, m_fromPose, m_toPose, ac->m_fadeFromClip != nullptr ? ac->m_blendWeight : 1.0f );
         }
     }
 }  // namespace Tomos
