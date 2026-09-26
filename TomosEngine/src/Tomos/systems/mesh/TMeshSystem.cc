@@ -5,7 +5,7 @@
 #include <tuple>
 #include <vector>
 
-#include "Tomos/core/app/TApplication.hh"
+#include "Tomos/core/scene/TScene.hh"
 #include "Tomos/systems/camera/TCameraSystem.hh"
 #include "Tomos/core/scene/TSceneNode.hh"
 #include "Tomos/gpu/TGpuEnums.hh"
@@ -68,19 +68,20 @@ namespace Tomos
         glm::vec4 planes[ 6 ];
         bool      haveFrustum = false;
 
-        auto& scene = TApplication::get().sceneManager().scene();
-        if ( auto* camSys = scene.ecs().maybeGetSystem<TCameraSystem>() )
+        if ( m_scene != nullptr )
         {
-            if ( camSys->hasActiveCamera() )
+            if ( auto* camSys = m_scene->ecs().maybeGetSystem<TCameraSystem>() )
             {
-                TSceneNode*       camNode = camSys->activeCameraNode();
-                TCameraComponent* cam     = camSys->activeCamera();
-                TVkGpu*           gpu     = TApplication::get().gpu();
-                if ( camNode != nullptr && cam != nullptr && gpu != nullptr )
+                if ( camSys->hasActiveCamera() )
                 {
-                    const glm::mat4 viewProj = cam->projMatrix( gpu->renderAspectRatio() ) * camNode->m_transform.getGlobalInvMatrix();
-                    extractFrustumPlanes( viewProj, planes );
-                    haveFrustum = true;
+                    TSceneNode*       camNode = camSys->activeCameraNode();
+                    TCameraComponent* cam     = camSys->activeCamera();
+                    if ( camNode != nullptr && cam != nullptr && m_gpu != nullptr )
+                    {
+                        const glm::mat4 viewProj = cam->projMatrix( m_gpu->renderAspectRatio() ) * camNode->m_transform.getGlobalInvMatrix();
+                        extractFrustumPlanes( viewProj, planes );
+                        haveFrustum = true;
+                    }
                 }
             }
         }
@@ -113,7 +114,7 @@ namespace Tomos
         const auto         it = m_overrideMaterials.find( key );
         if ( it != m_overrideMaterials.end() ) return it->second.get();
 
-        TVkGpu* gpu = TApplication::get().gpu();
+        TVkGpu* gpu = m_gpu;
         if ( gpu == nullptr ) return p_mc.m_material;
 
         TVkMaterialDesc desc = p_mc.m_material->makeDesc( p_mc.m_baseOverrideImage, p_mc.m_emissionOverrideImage );

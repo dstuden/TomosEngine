@@ -4,6 +4,7 @@
 #include <miniaudio.h>
 
 #include "Tomos/core/scene/TSceneNode.hh"
+#include "Tomos/systems/camera/TCameraSystem.hh"
 #include "Tomos/util/logger/TLogger.hh"
 #include "Tomos/util/path/TPath.hh"
 
@@ -199,6 +200,8 @@ namespace Tomos
     {
         if ( !m_ready ) return;
 
+        syncListenerFromCamera();
+
         for ( auto& [ ac, node ] : m_emitters )
         {
             if ( ac->m_stop )
@@ -279,6 +282,20 @@ namespace Tomos
                 destroyVoice( ac );
             }
         }
+    }
+
+    void TAudioSystem::syncListenerFromCamera()
+    {
+        if ( m_cameras == nullptr ) return;
+
+        TSceneNode* camNode = m_cameras->activeCameraNode();
+        if ( camNode == nullptr ) return;
+
+        const glm::mat4& world = camNode->m_transform.getGlobalMatrix();
+        const glm::vec3  pos   = glm::vec3( world[ 3 ] );
+        const glm::vec3  fwd   = -glm::normalize( glm::vec3( world[ 2 ] ) );
+        const glm::vec3  up    = glm::normalize( glm::vec3( world[ 1 ] ) );
+        updateListener( pos, fwd, up );
     }
 
     void TAudioSystem::updateListener( const glm::vec3& p_position, const glm::vec3& p_forward, const glm::vec3& p_up )

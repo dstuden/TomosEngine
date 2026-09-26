@@ -163,7 +163,8 @@ namespace Tomos
             return static_cast<T&>( *m_instance );
         }
 
-        [[nodiscard]] bool loadedFromFile() const { return m_loadedFromFile; }
+        [[nodiscard]] bool               loadedFromFile() const { return m_loadedFromFile; }
+        [[nodiscard]] const std::string& path() const { return m_path; }
 
     private:
         std::unique_ptr<TBaseConfig> m_instance;

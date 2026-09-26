@@ -90,6 +90,8 @@ add_library(${PROJECT_NAME} STATIC
 	src/Tomos/util/time/TTime.cc
 	src/Tomos/util/path/TPath.hh
 	src/Tomos/util/path/TPath.cc
+	src/Tomos/util/random/TRandom.hh
+	src/Tomos/util/random/TRandom.cc
 	src/Tomos/util/shader/TShaderHotReload.hh
 	src/Tomos/util/shader/TShaderHotReload.cc
 	src/Tomos/core/events/TEvent.hh
@@ -255,37 +257,6 @@ add_library(${PROJECT_NAME} STATIC
 	${imguizmo_SOURCE_DIR}/src/ImGuizmo.cpp
 )
 
-# Docked scene editor (TOMOS_EDITOR)
-option(TOMOS_EDITOR "Compile docked scene editor panels into Tomos" ON)
-set(TOMOS_EDITOR_SOURCES
-	src/Tomos/ui/editor/TSceneEditorContext.hh
-	src/Tomos/ui/editor/TDebugDraw.hh
-	src/Tomos/ui/editor/TDebugDraw.cc
-	src/Tomos/ui/editor/TAssetBrowserPanel.hh
-	src/Tomos/ui/editor/TAssetBrowserPanel.cc
-	src/Tomos/ui/editor/TSceneHierarchyPanel.hh
-	src/Tomos/ui/editor/TSceneHierarchyPanel.cc
-	src/Tomos/ui/editor/TSceneInspectorPanel.hh
-	src/Tomos/ui/editor/TSceneInspectorPanel.cc
-	src/Tomos/ui/editor/TSceneViewportPanel.hh
-	src/Tomos/ui/editor/TSceneViewportPanel.cc
-	src/Tomos/ui/editor/TRendererDebugPanel.hh
-	src/Tomos/ui/editor/TRendererDebugPanel.cc
-	src/Tomos/ui/editor/TPhysicsDebugPanel.hh
-	src/Tomos/ui/editor/TPhysicsDebugPanel.cc
-	src/Tomos/ui/editor/TConsolePanel.hh
-	src/Tomos/ui/editor/TConsolePanel.cc
-	src/Tomos/ui/editor/TSceneEditorLayer.hh
-	src/Tomos/ui/editor/TSceneEditorLayer.cc
-)
-if(TOMOS_EDITOR)
-	target_sources(${PROJECT_NAME} PRIVATE ${TOMOS_EDITOR_SOURCES})
-	target_compile_definitions(${PROJECT_NAME} PUBLIC TOMOS_EDITOR=1)
-	message(STATUS "Tomos editor panels: ON (TOMOS_EDITOR)")
-else()
-	message(STATUS "Tomos editor panels: OFF (TOMOS_EDITOR=OFF)")
-endif()
-
 # Automatically include all directories with headers
 target_include_directories(${PROJECT_NAME}
 	PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -335,6 +306,54 @@ target_link_libraries(${PROJECT_NAME}
 		miniaudio
 		PkgConfig::FFMPEG
 )
+
+# Docked scene editor — separate library (not baked into Tomos).
+# Sources live under Tomos/ui/editor but belong to the TomosEditor target.
+option(TOMOS_BUILD_EDITOR "Build TomosEditor library (docked scene editor)" ON)
+set(TOMOS_EDITOR_SOURCES
+	src/Tomos/ui/editor/TSceneEditorContext.hh
+	src/Tomos/ui/editor/TDebugDraw.hh
+	src/Tomos/ui/editor/TDebugDraw.cc
+	src/Tomos/ui/editor/TAssetBrowserPanel.hh
+	src/Tomos/ui/editor/TAssetBrowserPanel.cc
+	src/Tomos/ui/editor/TSceneHierarchyPanel.hh
+	src/Tomos/ui/editor/TSceneHierarchyPanel.cc
+	src/Tomos/ui/editor/TSceneInspectorPanel.hh
+	src/Tomos/ui/editor/TSceneInspectorPanel.cc
+	src/Tomos/ui/editor/TSceneViewportPanel.hh
+	src/Tomos/ui/editor/TSceneViewportPanel.cc
+	src/Tomos/ui/editor/TRendererDebugPanel.hh
+	src/Tomos/ui/editor/TRendererDebugPanel.cc
+	src/Tomos/ui/editor/TPhysicsDebugPanel.hh
+	src/Tomos/ui/editor/TPhysicsDebugPanel.cc
+	src/Tomos/ui/editor/TConsolePanel.hh
+	src/Tomos/ui/editor/TConsolePanel.cc
+	src/Tomos/ui/editor/TSceneEditorLayer.hh
+	src/Tomos/ui/editor/TSceneEditorLayer.cc
+)
+if(TOMOS_BUILD_EDITOR)
+	add_library(TomosEditor STATIC ${TOMOS_EDITOR_SOURCES})
+	target_link_libraries(TomosEditor PUBLIC ${PROJECT_NAME})
+	target_link_libraries(TomosEditor PRIVATE glm::glm nlohmann_json::nlohmann_json)
+	target_compile_definitions(TomosEditor PUBLIC TOMOS_EDITOR=1)
+	target_compile_definitions(TomosEditor PRIVATE
+		GLM_FORCE_DEPTH_ZERO_TO_ONE
+		IMGUI_DEFINE_MATH_OPERATORS
+		$<$<CONFIG:Debug>:TOMOS_DEBUG>
+		$<$<CONFIG:Release>:NDEBUG>
+	)
+	if(TOMOS_IPO_SUPPORTED)
+		set_property(TARGET TomosEditor PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+	endif()
+	if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+		target_compile_options(TomosEditor PRIVATE
+			$<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>:-O3 -ffunction-sections -fdata-sections>
+		)
+	endif()
+	message(STATUS "TomosEditor: ON (TOMOS_BUILD_EDITOR)")
+else()
+	message(STATUS "TomosEditor: OFF (TOMOS_BUILD_EDITOR=OFF)")
+endif()
 
 # ---------------------------------------------------------------------------
 # GLSL → SPIR-V compilation (requires glslc from the Vulkan SDK / shaderc)

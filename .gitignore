@@ -6,6 +6,23 @@ build-release/
 cmake-build-*/
 CMakeUserPresets.json
 
+# In-source CMake (binary dir == source dir)
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+compile_commands.json
+*.spv
+*.o
+*.obj
+*.a
+
+# Runtime written next to an in-source Sandbox binary
+Sandbox/SandBox
+Sandbox/resources/
+Sandbox/tomos.json
+imgui.ini
+
 # editor files
 .idea/
 .vscode/

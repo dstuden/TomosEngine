@@ -1,9 +1,6 @@
 #include "Tomos/core/layers/TSceneLayer.hh"
 
-#include <glm/glm.hpp>
-
 #include "Tomos/core/app/TApplication.hh"
-#include "Tomos/core/scene/TSceneNode.hh"
 #include "Tomos/gpu/vulkan/TVkGpu.hh"
 #include "Tomos/systems/animation/TAnimationSystem.hh"
 #include "Tomos/systems/audio/TAudioSystem.hh"
@@ -41,6 +38,22 @@ namespace Tomos
         if ( ecs.maybeGetSystem<TSpriteSystem>() == nullptr ) ecs.addSystem( std::make_unique<TSpriteSystem>() );
         if ( ecs.maybeGetSystem<TParticleSystem>() == nullptr ) ecs.addSystem( std::make_unique<TParticleSystem>() );
         if ( ecs.maybeGetSystem<TAudioSystem>() == nullptr ) ecs.addSystem( std::make_unique<TAudioSystem>() );
+
+        TVkGpu* gpu = TApplication::get().gpu();
+        if ( auto* mesh = ecs.maybeGetSystem<TMeshSystem>() )
+        {
+            mesh->setScene( &p_scene );
+            mesh->setGpu( gpu );
+        }
+        if ( auto* animTex = ecs.maybeGetSystem<TAnimatedTextureSystem>() )
+        {
+            animTex->setScene( &p_scene );
+            animTex->setGpu( gpu );
+        }
+        if ( auto* audio = ecs.maybeGetSystem<TAudioSystem>() )
+        {
+            if ( auto* cameras = ecs.maybeGetSystem<TCameraSystem>() ) audio->setCameraSystem( cameras );
+        }
     }
 
     void TSceneLayer::onAttach()
@@ -59,33 +72,18 @@ namespace Tomos
         auto& sc  = scene();
         auto& ecs = sc.ecs();
 
-        const bool simulating = sc.isSimulationPlaying();
+        const bool simulating = TApplication::get().sceneManager().isSimulationPlaying();
 
         // ECS: earlyUpdate → update → computeTransforms → lateUpdate.
-        // Populate is deferred to onRender so editor UI (after this onUpdate)
-        // can change TRS in the same frame.
+        // Populate is deferred to onRender so post-update TRS mutations
+        // (overlays / tooling) are visible in the same frame.
         if ( simulating )
         {
             ecs.earlyUpdate( p_dt );
             ecs.update( p_dt );
         }
         sc.computeTransforms();
-        if ( simulating )
-        {
-            if ( auto* audio = ecs.maybeGetSystem<TAudioSystem>() )
-            {
-                auto& camSys = ecs.getSystem<TCameraSystem>();
-                if ( TSceneNode* camNode = camSys.activeCameraNode() )
-                {
-                    const glm::mat4& world = camNode->m_transform.getGlobalMatrix();
-                    const glm::vec3  pos   = glm::vec3( world[ 3 ] );
-                    const glm::vec3  fwd   = -glm::normalize( glm::vec3( world[ 2 ] ) );
-                    const glm::vec3  up    = glm::normalize( glm::vec3( world[ 1 ] ) );
-                    audio->updateListener( pos, fwd, up );
-                }
-            }
-            ecs.lateUpdate( p_dt );
-        }
+        if ( simulating ) ecs.lateUpdate( p_dt );
 
         m_lastDt = p_dt;
     }
@@ -98,12 +96,12 @@ namespace Tomos
         auto& sc  = scene();
         auto& ecs = sc.ecs();
 
-        // Pick up TRS edits from editor overlays that ran after onUpdate.
+        // Pick up TRS edits from overlays that ran after onUpdate.
         sc.computeTransforms();
 
         auto&       state      = gpu->frameState();
         const float aspect     = gpu->renderAspectRatio();
-        const bool  simulating = sc.isSimulationPlaying();
+        const bool  simulating = TApplication::get().sceneManager().isSimulationPlaying();
         state.m_time           = TApplication::get().time().elapsed();
         ecs.getSystem<TCameraSystem>().populate( state, aspect );
         ecs.getSystem<TMeshSystem>().populate( state );

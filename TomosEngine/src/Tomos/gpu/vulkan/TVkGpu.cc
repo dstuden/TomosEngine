@@ -161,7 +161,7 @@ namespace Tomos
     {
         if ( !m_frameOpen ) return;
 
-        // Populate fills frameState in onRender (after editor TRS). Upload here
+        // Populate fills frameState in onRender (after post-update TRS). Upload here
         // so SSBOs match this frame's draws — still just host memcpy, no GPU idle.
         uploadFrameState( m_frames[ m_frameIndex ] );
         m_renderer->render( m_frames[ m_frameIndex ].m_cmd, m_frameIndex, m_frameState );

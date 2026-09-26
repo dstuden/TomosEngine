@@ -682,7 +682,8 @@ private:
 class SandboxApp : public TApplication
 {
 public:
-    SandboxApp() : TApplication( TWindowProps{ "Tomos — Sandbox", 1280, 720 } )
+    // Explicit config path (games can also call TPath::setConfigPath before constructing).
+    SandboxApp() : TApplication( TWindowProps{ "Tomos — Sandbox", 1280, 720 }, "tomos.json" )
     {
         // Validation is ~2/3 of CPU in Release profiles — keep it for Debug only.
         initGpu(

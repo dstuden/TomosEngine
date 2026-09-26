@@ -39,6 +39,18 @@ namespace Tomos
         return sRoot;
     }
 
+    std::string& TPath::configPathArgStorage()
+    {
+        static std::string sArg = "tomos.json";
+        return sArg;
+    }
+
+    std::filesystem::path& TPath::configPathStorage()
+    {
+        static std::filesystem::path sPath;
+        return sPath;
+    }
+
     std::filesystem::path TPath::executableDir()
     {
 #if defined( __linux__ )
@@ -65,9 +77,27 @@ namespace Tomos
 
     void TPath::setAssetRoot( const std::filesystem::path& p_root ) { rootStorage() = normalizeDir( p_root ); }
 
+    void TPath::setConfigPath( const std::string& p_path )
+    {
+        if ( !p_path.empty() ) configPathArgStorage() = p_path;
+    }
+
+    const std::string& TPath::configPathArg() { return configPathArgStorage(); }
+
+    const std::filesystem::path& TPath::configPath() { return configPathStorage(); }
+
+    std::filesystem::path TPath::configDir()
+    {
+        const auto& path = configPathStorage();
+        if ( path.empty() ) return {};
+        return path.parent_path();
+    }
+
     void TPath::init( const std::string& p_configPath )
     {
-        const std::filesystem::path config( p_configPath );
+        if ( !p_configPath.empty() ) setConfigPath( p_configPath );
+
+        const std::filesystem::path config( configPathArg() );
         const std::filesystem::path configName = config.filename();
 
         std::vector<std::filesystem::path> candidates;
@@ -95,11 +125,13 @@ namespace Tomos
             if ( looksLikeAssetRoot( candidate, configName ) )
             {
                 setAssetRoot( candidate );
+                configPathStorage() = resolve( configPathArg() );
                 return;
             }
         }
 
         setAssetRoot( std::filesystem::current_path() );
+        configPathStorage() = resolve( configPathArg() );
     }
 
     std::filesystem::path TPath::resolve( const std::filesystem::path& p_path )

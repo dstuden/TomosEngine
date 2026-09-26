@@ -23,10 +23,6 @@ namespace Tomos
 
         [[nodiscard]] bool isActive() const { return m_active; }
 
-        // When false, skips ECS update but still refreshes transforms (editor edits).
-        [[nodiscard]] bool isSimulationPlaying() const { return m_simulationPlaying; }
-        void               setSimulationPlaying( bool p_playing ) { m_simulationPlaying = p_playing; }
-
     private:
         struct TTransformTask
         {
@@ -37,7 +33,6 @@ namespace Tomos
 
         TECS              m_ecsInstance;
         TSceneResourceBag m_resources;
-        bool              m_active            = false;
-        bool              m_simulationPlaying = true;
+        bool              m_active = false;
     };
 }  // namespace Tomos

@@ -5,7 +5,8 @@
 
 namespace Tomos
 {
-    // Registers default systems; populate in onRender.
+    // Engine scene runtime: registers default systems, ticks ECS, populates GPU, renders.
+    // Game apps subclass for setup (spawn / hooks) only — not for frame orchestration.
     class TSceneLayer : public TLayer
     {
     public:

@@ -11,6 +11,9 @@ add_executable(${PROJECT_NAME}
 # The Tomos target exports its src/ directory as a PUBLIC include path, so
 # linking against it is sufficient — no manual target_include_directories needed.
 target_link_libraries(${PROJECT_NAME} PRIVATE Tomos)
+if(TARGET TomosEditor)
+	target_link_libraries(${PROJECT_NAME} PRIVATE TomosEditor)
+endif()
 
 # Match engine Release opts (LTO + section GC) on the executable.
 include(CheckIPOSupported)

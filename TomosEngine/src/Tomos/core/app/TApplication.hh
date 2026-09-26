@@ -22,7 +22,8 @@ namespace Tomos
     {
     public:
         // p_props seed the window only when no config file exists yet.
-        explicit TApplication( const TWindowProps& p_props = TWindowProps{}, const std::string& p_configPath = "tomos.json" );
+        // Empty p_configPath honors a prior TPath::setConfigPath(); otherwise defaults to "tomos.json".
+        explicit TApplication( const TWindowProps& p_props = TWindowProps{}, const std::string& p_configPath = {} );
 
         virtual ~TApplication();
 

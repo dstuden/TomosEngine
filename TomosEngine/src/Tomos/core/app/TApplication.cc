@@ -21,7 +21,7 @@ namespace Tomos
         g_sInstance = this;
 
         TPath::init( p_configPath );
-        const std::string resolvedConfig = TPath::resolveString( p_configPath );
+        const std::string resolvedConfig = TPath::configPath().string();
 
         auto& cfg = m_configManager.load<TEngineConfig>( resolvedConfig );
         // Constructor props seed the window when no config file exists yet.
@@ -93,7 +93,8 @@ namespace Tomos
 
             m_assetLoadQueue.tick( &m_sceneManager.scene() );
 
-            // Scene layers before startFrame; overlays after (ImGui matches rebuilt swapchain).
+            // Base layers before GPU frame open; overlays after so UI can
+            // resize/rebind destinations before render.
             for ( auto it = m_layerStack.layersBegin(); it != m_layerStack.layersEnd(); ++it ) ( *it )->onUpdate( dt );
 
             if ( m_gpu )

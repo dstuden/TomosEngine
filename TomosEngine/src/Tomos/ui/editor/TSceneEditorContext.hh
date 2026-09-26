@@ -5,6 +5,7 @@
 #include <imgui.h>
 #include <string>
 
+#include "Tomos/core/app/TApplication.hh"
 #include "Tomos/core/scene/TScene.hh"
 #include "Tomos/core/scene/TSceneResourceBag.hh"
 
@@ -22,7 +23,7 @@ namespace Tomos
         TScene*            m_scene      = nullptr;
         TSceneResourceBag* m_bag        = nullptr;
         uint64_t           m_selectedId = 0;
-        std::string        m_scenePath  = "assets/scenes/sandbox.json";
+        std::string        m_scenePath;
         std::string        m_status;
 
         bool m_showHierarchy = true;
@@ -60,9 +61,6 @@ namespace Tomos
         void select( uint64_t p_id ) { m_selectedId = p_id; }
         void clearSelection() { m_selectedId = 0; }
 
-        void syncSimulationFlag() const
-        {
-            if ( m_scene != nullptr ) m_scene->setSimulationPlaying( m_playing );
-        }
+        void syncSimulationFlag() const { TApplication::get().sceneManager().setSimulationPlaying( m_playing ); }
     };
 }  // namespace Tomos

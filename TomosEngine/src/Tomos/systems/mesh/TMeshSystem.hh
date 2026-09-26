@@ -12,6 +12,8 @@ namespace Tomos
 {
     class TAnimatedTextureSystem;
     class TFrameState;
+    class TScene;
+    class TVkGpu;
     class TVkMaterial;
     class TVkImage;
 
@@ -21,6 +23,9 @@ namespace Tomos
         friend class TAnimatedTextureSystem;
 
     public:
+        void setScene( TScene* p_scene ) { m_scene = p_scene; }
+        void setGpu( TVkGpu* p_gpu ) { m_gpu = p_gpu; }
+
         void componentCreated( TSceneNode& p_node, TComponent& p_component ) override;
         void componentDestroyed( TSceneNode& p_node, TComponent& p_component ) override;
 
@@ -30,6 +35,9 @@ namespace Tomos
 
     private:
         [[nodiscard]] const TVkMaterial* materialFor( const TMeshComponent& p_mc ) const;
+
+        TScene* m_scene = nullptr;
+        TVkGpu* m_gpu   = nullptr;
 
         std::unordered_map<TMeshComponent*, TSceneNode*> m_meshes;
         std::vector<TSkinnedMeshComponent*>              m_skinned;

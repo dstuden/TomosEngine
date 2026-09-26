@@ -2,7 +2,6 @@
 
 #include <unordered_set>
 
-#include "Tomos/core/app/TApplication.hh"
 #include "Tomos/core/scene/TScene.hh"
 #include "Tomos/core/scene/TSceneResourceBag.hh"
 #include "Tomos/gpu/vulkan/TVkGpu.hh"
@@ -14,12 +13,10 @@ namespace Tomos
 {
     void TAnimatedTextureSystem::update( float p_dt )
     {
-        TVkGpu* gpu = TApplication::get().gpu();
-        if ( gpu == nullptr ) return;
+        if ( m_gpu == nullptr || m_scene == nullptr ) return;
 
-        TScene&              scene = TApplication::get().sceneManager().scene();
-        TSceneResourceBag&   bag   = scene.resources();
-        TECS&                ecs   = scene.ecs();
+        TSceneResourceBag& bag = m_scene->resources();
+        TECS&              ecs = m_scene->ecs();
 
         std::unordered_set<const TVkImage*> inUse;
 
@@ -51,6 +48,6 @@ namespace Tomos
             }
         }
 
-        bag.tickAnimatedTextures( *gpu, p_dt, inUse );
+        bag.tickAnimatedTextures( *m_gpu, p_dt, inUse );
     }
 }  // namespace Tomos
