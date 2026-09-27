@@ -24,6 +24,8 @@
 #include "Tomos/ui/editor/TAssetBrowserPanel.hh"
 #include "Tomos/ui/editor/TSceneEditorContext.hh"
 #include "Tomos/util/image/TAnimatedTexture.hh"
+#include "Tomos/util/reflect/TReflectEnum.hh"
+#include "Tomos/util/reflect/TReflectImGui.hh"
 
 namespace Tomos
 {
@@ -119,37 +121,10 @@ namespace Tomos
 
         void editCamera( TCameraComponent& p_cam )
         {
-            ImGui::Checkbox( "Active", &p_cam.m_active );
-            int proj = p_cam.m_projection == TProjection::Orthographic ? 1 : 0;
-            if ( ImGui::Combo( "Projection", &proj, "Perspective\0Orthographic\0" ) )
-            {
-                p_cam.m_projection = proj == 1 ? TProjection::Orthographic : TProjection::Perspective;
-                p_cam.setDirty();
-            }
-            float fovDeg = glm::degrees( p_cam.m_fov );
-            if ( ImGui::SliderFloat( "FOV (deg)", &fovDeg, 10.0f, 120.0f ) )
-            {
-                p_cam.m_fov = glm::radians( fovDeg );
-                p_cam.setDirty();
-            }
-            if ( ImGui::DragFloat( "Near", &p_cam.m_near, 0.01f, 0.001f, 100.0f ) ) p_cam.setDirty();
-            if ( ImGui::DragFloat( "Far", &p_cam.m_far, 1.0f, 1.0f, 100000.0f ) ) p_cam.setDirty();
-            if ( ImGui::DragFloat( "Ortho half-height", &p_cam.m_orthoHalfHeight, 0.1f ) ) p_cam.setDirty();
+            if ( Reflect::editFields( p_cam ) ) p_cam.setDirty();
         }
 
-        void editLight( TLightComponent& p_lit )
-        {
-            int type = static_cast<int>( p_lit.m_type );
-            if ( ImGui::Combo( "Type", &type, "Point\0Directional\0Spot\0" ) ) p_lit.m_type = static_cast<TLightType>( type );
-            ImGui::ColorEdit3( "Color", &p_lit.m_color.x );
-            ImGui::DragFloat( "Intensity", &p_lit.m_intensity, 0.1f, 0.0f, 1000.0f );
-            ImGui::DragFloat( "Max range", &p_lit.m_maxRange, 0.1f, 0.1f, 1000.0f );
-            float innerDeg = glm::degrees( p_lit.m_innerCone );
-            float outerDeg = glm::degrees( p_lit.m_outerCone );
-            if ( ImGui::SliderFloat( "Inner cone (deg)", &innerDeg, 0.0f, 89.0f ) ) p_lit.m_innerCone = glm::radians( innerDeg );
-            if ( ImGui::SliderFloat( "Outer cone (deg)", &outerDeg, 1.0f, 90.0f ) ) p_lit.m_outerCone = glm::radians( outerDeg );
-            ImGui::Checkbox( "Cast shadow", &p_lit.m_castShadow );
-        }
+        void editLight( TLightComponent& p_lit ) { Reflect::editFields( p_lit ); }
 
         void editMesh( TMeshComponent& p_mesh, bool p_skinned, TSceneEditorContext& p_ctx )
         {
@@ -288,11 +263,12 @@ namespace Tomos
         {
             ImGui::DragFloat2( "Size", &p_spr.m_size.x, 0.01f );
             ImGui::ColorEdit4( "Color", &p_spr.m_color.x );
-            int mode = static_cast<int>( p_spr.m_mode );
-            if ( ImGui::Combo( "Billboard", &mode, "Spherical\0Cylindrical\0Fixed\0" ) ) p_spr.m_mode = static_cast<TBillboardMode>( mode );
-            int alphaMode = static_cast<int>( p_spr.m_alphaMode );
+            int mode = Reflect::enumIndex( p_spr.m_mode );
+            if ( ImGui::Combo( "Billboard", &mode, Reflect::enumImGuiItems<TBillboardMode>() ) )
+                p_spr.m_mode = Reflect::enumFromIndex<TBillboardMode>( mode );
+            int alphaMode = Reflect::enumIndex( p_spr.m_alphaMode );
             if ( ImGui::Combo( "Alpha", &alphaMode, "Cutout (writes depth)\0Blend (sorted, no depth)\0" ) )
-                p_spr.m_alphaMode = static_cast<TSpriteAlphaMode>( alphaMode );
+                p_spr.m_alphaMode = Reflect::enumFromIndex<TSpriteAlphaMode>( alphaMode );
             if ( p_spr.m_alphaMode == TSpriteAlphaMode::Cutout ) ImGui::SliderFloat( "Alpha cutoff", &p_spr.m_alphaCutoff, 0.01f, 1.0f );
             float rotDeg = glm::degrees( p_spr.m_rotation );
             if ( ImGui::DragFloat( "Rotation (deg)", &rotDeg, 0.5f ) ) p_spr.m_rotation = glm::radians( rotDeg );
@@ -304,21 +280,7 @@ namespace Tomos
 
         void editParticle( TParticleEmitterComponent& p_p, TSceneEditorContext& p_ctx )
         {
-            ImGui::Checkbox( "Emitting", &p_p.m_emitting );
-            ImGui::SliderFloat( "Rate", &p_p.m_rate, 0.0f, 400.0f );
-            ImGui::SliderFloat( "Gravity", &p_p.m_gravity, -20.0f, 5.0f );
-            ImGui::SliderFloat( "Life min", &p_p.m_lifetimeMin, 0.05f, 3.0f );
-            ImGui::SliderFloat( "Life max", &p_p.m_lifetimeMax, 0.05f, 4.0f );
-            ImGui::DragFloat3( "Vel min", &p_p.m_velocityMin.x, 0.05f );
-            ImGui::DragFloat3( "Vel max", &p_p.m_velocityMax.x, 0.05f );
-            ImGui::DragFloat2( "Size start", &p_p.m_sizeStart.x, 0.01f );
-            ImGui::DragFloat2( "Size end", &p_p.m_sizeEnd.x, 0.01f );
-            ImGui::ColorEdit4( "Color start", &p_p.m_colorStart.x );
-            ImGui::ColorEdit4( "Color end", &p_p.m_colorEnd.x );
-            ImGui::DragFloat2( "UV min", &p_p.m_uvMin.x, 0.01f );
-            ImGui::DragFloat2( "UV max", &p_p.m_uvMax.x, 0.01f );
-            int seed = static_cast<int>( p_p.m_seed );
-            if ( ImGui::DragInt( "Seed", &seed, 1, 1, 1000000 ) ) p_p.m_seed = static_cast<uint32_t>( std::max( 1, seed ) );
+            Reflect::editFields( p_p );
             if ( ImGui::Button( "Burst 200" ) ) p_p.burst( 200 );
             editTexturePath( p_ctx, p_p.m_texture, nullptr, p_p.m_animRef );
         }
@@ -355,19 +317,15 @@ namespace Tomos
         {
             float mass = p_b.m_mass;
             if ( ImGui::DragFloat( "Mass", &mass, 0.05f, 0.0f, 1000.0f ) ) p_b.setMass( mass );
-            ImGui::Checkbox( "Use gravity", &p_b.m_useGravity );
-            ImGui::Checkbox( "Kinematic", &p_b.m_kinematic );
-            ImGui::DragFloat( "Gravity scale", &p_b.m_gravityScale, 0.05f, 0.0f, 10.0f );
-            ImGui::DragFloat( "Linear damping", &p_b.m_linearDamping, 0.01f, 0.0f, 1.0f );
-            ImGui::SliderFloat( "Restitution", &p_b.m_restitution, 0.0f, 1.0f );
-            ImGui::DragFloat3( "Velocity", &p_b.m_linearVelocity.x, 0.05f );
+            Reflect::editFields( p_b );
             if ( ImGui::Button( "Zero velocity" ) ) p_b.m_linearVelocity = glm::vec3( 0.0f );
         }
 
         void editCollider( TColliderComponent& p_col )
         {
-            int shape = static_cast<int>( p_col.m_shape );
-            if ( ImGui::Combo( "Shape", &shape, "Sphere\0Box\0" ) ) p_col.m_shape = static_cast<TColliderShape>( shape );
+            int shape = Reflect::enumIndex( p_col.m_shape );
+            if ( ImGui::Combo( "Shape", &shape, Reflect::enumImGuiItems<TColliderShape>() ) )
+                p_col.m_shape = Reflect::enumFromIndex<TColliderShape>( shape );
             ImGui::Checkbox( "Enabled", &p_col.m_enabled );
             ImGui::Checkbox( "Trigger", &p_col.m_isTrigger );
             if ( p_col.m_shape == TColliderShape::Sphere )

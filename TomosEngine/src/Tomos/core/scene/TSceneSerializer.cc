@@ -179,7 +179,7 @@ namespace Tomos
     }
 
     bool TSceneSerializer::loadFromFile( TScene& p_scene, TAssetSystem& p_assets, TVkGpu& p_gpu, TAssetLoadQueue& p_loads, const std::string& p_path,
-                                          const TSceneSerializeOpts& p_opts )
+                                         const TSceneSerializeOpts& p_opts )
     {
         const std::string resolvedPath = TPath::resolveString( p_path );
 
@@ -223,6 +223,8 @@ namespace Tomos
 
         if ( p_opts.m_replaceChildren )
         {
+            // Bag images/samplers may still be bound in in-flight descriptor sets.
+            p_gpu.waitIdle();
             p_scene.clearChildren();
             p_scene.resources().clear();
         }

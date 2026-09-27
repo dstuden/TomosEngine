@@ -7,15 +7,14 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET
 	libavformat libavcodec libavutil libswscale)
 
-# ---------------------------------------------------------------------------
-# Third-party deps via FetchContent (pinned tags).
-# ---------------------------------------------------------------------------
 include(FetchContent)
 # CMP0169 OLD: allow FetchContent_Populate for header/source-only deps below
 # (ImGuizmo, stb) so their upstream CMakeLists are not added as subprojects.
 if(POLICY CMP0169)
 	cmake_policy(SET CMP0169 OLD)
 endif()
+
+set(FETCHCONTENT_TRY_FIND_PACKAGE_MODE NEVER)
 
 # Prefer static libs from fetched deps (links cleanly into libTomos.a).
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
@@ -27,6 +26,7 @@ FetchContent_Declare(glm
 	GIT_REPOSITORY https://github.com/g-truc/glm.git
 	GIT_TAG        1.0.3
 	GIT_SHALLOW    TRUE
+	OVERRIDE_FIND_PACKAGE
 )
 FetchContent_MakeAvailable(glm)
 
@@ -45,6 +45,7 @@ FetchContent_Declare(glfw
 	GIT_REPOSITORY https://github.com/glfw/glfw.git
 	GIT_TAG        3.5.1
 	GIT_SHALLOW    TRUE
+	OVERRIDE_FIND_PACKAGE
 )
 FetchContent_MakeAvailable(glfw)
 
@@ -55,6 +56,7 @@ FetchContent_Declare(nlohmann_json
 	GIT_REPOSITORY https://github.com/nlohmann/json.git
 	GIT_TAG        v3.12.0
 	GIT_SHALLOW    TRUE
+	OVERRIDE_FIND_PACKAGE
 )
 FetchContent_MakeAvailable(nlohmann_json)
 
@@ -75,6 +77,7 @@ FetchContent_Declare(assimp
 	GIT_REPOSITORY https://github.com/assimp/assimp.git
 	GIT_TAG        v6.0.5
 	GIT_SHALLOW    TRUE
+	OVERRIDE_FIND_PACKAGE
 )
 FetchContent_MakeAvailable(assimp)
 
@@ -85,6 +88,7 @@ FetchContent_Declare(imgui
 	GIT_REPOSITORY https://github.com/ocornut/imgui.git
 	GIT_TAG        v1.91.9b-docking
 	GIT_SHALLOW    TRUE
+	OVERRIDE_FIND_PACKAGE
 )
 FetchContent_MakeAvailable(imgui)
 
@@ -138,6 +142,7 @@ FetchContent_Declare(miniaudio
 	GIT_REPOSITORY https://github.com/mackron/miniaudio.git
 	GIT_TAG        0.11.25
 	GIT_SHALLOW    TRUE
+	OVERRIDE_FIND_PACKAGE
 )
 FetchContent_MakeAvailable(miniaudio)
 
@@ -350,13 +355,18 @@ target_compile_definitions(${PROJECT_NAME}
 
 tomos_enable_ipo(${PROJECT_NAME})
 
+# PUBLIC: deps appear in installed/public headers (glm types, GLFW, Vulkan, json).
+# Linking them PRIVATE made Sandbox/CLion fall back to system /usr/include copies
+# while the engine compiled against FetchContent — "Ambiguous symbol 'glm::vec3'".
 target_link_libraries(${PROJECT_NAME}
-	PRIVATE
-		tomos_build_flags
+	PUBLIC
 		glm::glm
 		glfw
 		Vulkan::Vulkan
 		nlohmann_json::nlohmann_json
+		tomos_reflection_flags
+	PRIVATE
+		tomos_build_flags
 		assimp::assimp
 		miniaudio
 		PkgConfig::FFMPEG
@@ -434,7 +444,8 @@ set(GLSL_SOURCES
 	${SHADER_SRC_DIR}/tonemap.frag
 	${SHADER_SRC_DIR}/fog.frag
 	${SHADER_SRC_DIR}/bloom_extract.frag
-	${SHADER_SRC_DIR}/bloom_blur.frag
+	${SHADER_SRC_DIR}/bloom_downsample.frag
+	${SHADER_SRC_DIR}/bloom_upsample.frag
 	${SHADER_SRC_DIR}/bloom_composite.frag
 	${SHADER_SRC_DIR}/sao_linearize.frag
 	${SHADER_SRC_DIR}/sao_sample.frag

@@ -387,6 +387,16 @@ cmake --build --preset debug -j
 cd build/Sandbox && ./SandBox
 ```
 
+### Compiler / C++26 reflection
+
+Tomos targets **C++26** and uses **P2996 static reflection** (`<meta>`, annotations, expansion statements) for enum↔string helpers, POD component JSON/ImGui field codecs, and registry stubs under `Tomos/util/reflect/`.
+
+| Toolchain | Status |
+|-----------|--------|
+| **GCC 16+** | Supported. CMake adds `-freflection` via `tomos_build_flags`. |
+| **Upstream Clang** | Not supported yet for reflection. Prefer GCC 16+, or the experimental Bloomberg `clang-p2996` fork with `-freflection-latest`. |
+| **MSVC** | No public C++26 reflection implementation. |
+
 Host packages and Vulkan/`glslc` notes are in the root [README.md](../README.md).
 
 ---
@@ -721,7 +731,7 @@ the binary directory).
 | `fullscreen.vert`                                                               | Vertex   | Full-screen triangle for all post passes               |
 | `sao_linearize.frag` / `sao_sample.frag` / `sao_blur.frag` / `sao_compose.frag` | Fragment | McGuire SAO (Alchemy AO + bilateral) → × HDR           |
 | `fog.frag`                                                                      | Fragment | Exponential distance fog                               |
-| `bloom_extract.frag` / `bloom_blur.frag` / `bloom_composite.frag`               | Fragment | Threshold → blur → add                                 |
+| `bloom_extract.frag` / `bloom_downsample.frag` / `bloom_upsample.frag` / `bloom_composite.frag` | Fragment | Threshold → Dual Kawase → add |
 | `tonemap.frag`                                                                  | Fragment | Reinhard HDR → swapchain                               |
 
 
@@ -903,19 +913,20 @@ the image stays in `COLOR_ATTACHMENT_OPTIMAL` so UI overlays can `LOAD` over it.
 Effects live under `gpu/vulkan/post/`:
 
 
-| Class          | Default | Tunables                                                         | Role                                      |
-| -------------- | ------- | ---------------------------------------------------------------- | ----------------------------------------- |
-| `TPostSAO`     | on      | `m_radius` (world m), `m_bias`, `m_intensity`, `m_blurSharpness` | McGuire SAO × HDR                         |
-| `TPostFog`     | off     | `m_density`, `m_color`                                           | Distance fog                              |
-| `TPostBloom`   | on      | `m_threshold`, `m_strength`                                      | Threshold extract → blur → add            |
-| `TPostTonemap` | always  | —                                                                | Reinhard HDR → swapchain (cannot disable) |
+| Class          | Default | Tunables                                                                              | Role                                              |
+| -------------- | ------- | ------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `TPostSAO`     | on      | `m_radius`, `m_bias`, `m_intensity`, `m_sampleCount`, `m_blurSharpness`, `m_temporalBlend` | Half-res McGuire SAO × HDR                    |
+| `TPostFog`     | off     | `m_density`, `m_color`                                                                | Distance fog                                      |
+| `TPostBloom`   | on      | `m_threshold`, `m_strength`, `m_iterations`                                           | Threshold → Dual Kawase pyramid → add             |
+| `TPostTonemap` | always  | —                                                                                     | Reinhard HDR → swapchain (cannot disable)         |
 
 
-SAO (Scalable Ambient Obscurance, McGuire HPG 2012 core variant) linearizes
-depth, runs a 9-sample AlchemyAO spiral with normals from depth gradients, then
-a separable bilateral blur. Radius is **world-space meters** (Sandbox slider
-~0.05–2). The z-MIP hierarchy from the paper is not implemented yet — linear Z
-is mip 0 only. Finite far planes are used today; an infinite-far
+SAO (Scalable Ambient Obscurance, McGuire HPG 2012 core variant) runs at **half
+resolution**: linearize depth, AlchemyAO spiral (`m_sampleCount`, default 12)
+with normals from depth gradients, one separable bilateral H+V, temporal history
+ping-pong, then compose with linear upsample into full HDR. Radius is
+**world-space meters** (Sandbox slider ~0.05–2). The z-MIP hierarchy from the
+paper is not implemented yet. Finite far planes are used today; an infinite-far
 `perspectiveVk` would improve Z reconstruction precision.
 
 Toggle / tune from the Sandbox Renderer panel, or in code:
@@ -929,7 +940,7 @@ bloom->m_enabled = false;
 `m_post.add(...)` in `TVkClusteredRenderer::initPostStack` **before** tonemap,
 add GLSL to `GLSL_SOURCES`.  Read/write HDR via `ctx.m_hdr` / `ctx.m_hdrOther`
 then `ctx.swapHdr()`.  Use **per-frame descriptor sets** (`ctx.m_frameIndex`,
-`k_framesInFlight = 3`) — never update a set already recorded into an in-flight
+`g_kFramesInFlight`) — never update a set already recorded into an in-flight
 command buffer.
 
 This is an ordered effect stack, not a full render graph yet (barriers are still

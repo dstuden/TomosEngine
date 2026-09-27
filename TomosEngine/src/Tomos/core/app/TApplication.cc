@@ -5,6 +5,7 @@
 
 #include "Tomos/core/events/TEvent.hh"
 #include "Tomos/core/events/application/TApplicationEvent.hh"
+#include "Tomos/core/input/TInput.hh"
 #include "Tomos/gpu/vulkan/TVkGpu.hh"
 #include "Tomos/gpu/vulkan/renderer/TVkClusteredRenderer.hh"
 #include "Tomos/util/logger/TLogger.hh"
@@ -135,6 +136,8 @@ namespace Tomos
                     TOMOS_PROFILE_SCOPE( "App.AssetQueue" );
                     m_assetLoadQueue.tick( m_sceneManager.scene() );
                 }
+
+                TInput::beginFrame( m_window->getNativeWindow() );
 
                 // Base layers before GPU frame open; overlays after so UI can
                 // resize/rebind destinations before render.

@@ -7,28 +7,19 @@
 #include <vector>
 
 #include "Tomos/gpu/vulkan/renderer/TVkClusteredRenderer.hh"
+#include "Tomos/util/reflect/TReflectEnum.hh"
 
 namespace Tomos
 {
     TVkGpu::TSwapchainPresentPolicy TVkGpu::presentPolicyFromString( const std::string& p_s )
     {
-        if ( p_s == "fifo" ) return TSwapchainPresentPolicy::Fifo;
-        if ( p_s == "immediate" ) return TSwapchainPresentPolicy::Immediate;
-        return TSwapchainPresentPolicy::Mailbox;
+        return Reflect::enumParseLowerOr<TSwapchainPresentPolicy>( p_s, TSwapchainPresentPolicy::Mailbox );
     }
 
     const char* TVkGpu::presentPolicyToString( TSwapchainPresentPolicy p_policy )
     {
-        switch ( p_policy )
-        {
-            case TSwapchainPresentPolicy::Fifo:
-                return "fifo";
-            case TSwapchainPresentPolicy::Immediate:
-                return "immediate";
-            case TSwapchainPresentPolicy::Mailbox:
-            default:
-                return "mailbox";
-        }
+        const auto name = Reflect::enumNameLower( p_policy );
+        return name.empty() ? "mailbox" : name.data();
     }
 
     const char* TVkGpu::vkPresentModeName( VkPresentModeKHR p_mode )

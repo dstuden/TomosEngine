@@ -3,6 +3,7 @@
 #include <imgui.h>
 
 #include "Tomos/core/app/TApplication.hh"
+#include "Tomos/core/window/TWindow.hh"
 #include "Tomos/gpu/vulkan/TVkGpu.hh"
 #include "Tomos/gpu/vulkan/TVkPass.hh"
 #include "Tomos/gpu/vulkan/post/TPostBloom.hh"
@@ -10,6 +11,8 @@
 #include "Tomos/gpu/vulkan/post/TPostSAO.hh"
 #include "Tomos/gpu/vulkan/post/TPostTonemap.hh"
 #include "Tomos/gpu/vulkan/renderer/TVkClusteredRenderer.hh"
+#include "Tomos/util/reflect/TReflectEnum.hh"
+#include "Tomos/util/reflect/TReflectImGui.hh"
 
 namespace Tomos
 {
@@ -22,9 +25,9 @@ namespace Tomos
 
         ImGui::Begin( "Renderer" );
 
-        static const char* kDebugViews[] = { "Off", "Cluster grid", "Light heatmap", "Depth slices" };
-        int                mode          = static_cast<int>( state.m_debugMode );
-        if ( ImGui::Combo( "Debug view", &mode, kDebugViews, 4 ) ) state.m_debugMode = static_cast<TDebugView>( mode );
+        int mode = Reflect::enumIndex( state.m_debugMode );
+        if ( ImGui::Combo( "Debug view", &mode, Reflect::enumImGuiItems<TDebugView>() ) )
+            state.m_debugMode = Reflect::enumFromIndex<TDebugView>( mode );
 
         const VkExtent2D re = gpu->renderExtent();
         const VkExtent2D se = gpu->extent();
@@ -33,12 +36,11 @@ namespace Tomos
         {
             auto& app = TApplication::get();
 
-            static const char* kWindowModes[] = { "Windowed", "Borderless fullscreen", "Exclusive fullscreen" };
-            int                winMode        = static_cast<int>( app.window().windowMode() );
-            if ( ImGui::Combo( "Window mode", &winMode, kWindowModes, 3 ) )
+            int winMode = Reflect::enumIndex( app.window().windowMode() );
+            if ( ImGui::Combo( "Window mode", &winMode, Reflect::enumImGuiItems<TWindowMode>() ) )
             {
-                const TWindowMode mode    = static_cast<TWindowMode>( winMode );
-                const TWindowMode prev    = app.window().windowMode();
+                const TWindowMode mode = Reflect::enumFromIndex<TWindowMode>( winMode );
+                const TWindowMode prev = app.window().windowMode();
                 if ( prev == TWindowMode::Windowed && mode != TWindowMode::Windowed )
                 {
                     app.config().m_windowWidth  = static_cast<unsigned int>( app.window().getData().m_width );
@@ -54,11 +56,10 @@ namespace Tomos
                 app.configManager().save();
             }
 
-            static const char* kPresentPolicies[] = { "FIFO (vsync)", "Mailbox", "Immediate" };
-            int                policyIdx          = static_cast<int>( gpu->swapchainPresentPolicy() );
-            if ( ImGui::Combo( "Present mode", &policyIdx, kPresentPolicies, 3 ) )
+            int policyIdx = Reflect::enumIndex( gpu->swapchainPresentPolicy() );
+            if ( ImGui::Combo( "Present mode", &policyIdx, Reflect::enumImGuiItems<TVkGpu::TSwapchainPresentPolicy>() ) )
             {
-                const auto policy = static_cast<TVkGpu::TSwapchainPresentPolicy>( policyIdx );
+                const auto policy = Reflect::enumFromIndex<TVkGpu::TSwapchainPresentPolicy>( policyIdx );
                 gpu->setSwapchainPresentPolicy( policy );
                 app.config().m_presentMode = TVkGpu::presentPolicyToString( policy );
                 app.configManager().save();
@@ -151,24 +152,9 @@ namespace Tomos
                     if ( dynamic_cast<TPostTonemap*>( effect.get() ) ) continue;
                     ImGui::Checkbox( effect->name(), &effect->m_enabled );
                 }
-                if ( auto* fog = renderer->postStack().find<TPostFog>() )
-                {
-                    ImGui::SliderFloat( "Fog density", &fog->m_density, 0.0f, 0.1f, "%.4f" );
-                    ImGui::ColorEdit3( "Fog color", &fog->m_color.x );
-                }
-                if ( auto* bloom = renderer->postStack().find<TPostBloom>() )
-                {
-                    ImGui::SliderFloat( "Bloom threshold", &bloom->m_threshold, 0.0f, 4.0f );
-                    ImGui::SliderFloat( "Bloom strength", &bloom->m_strength, 0.0f, 2.0f );
-                }
-                if ( auto* sao = renderer->postStack().find<TPostSAO>() )
-                {
-                    ImGui::SliderFloat( "SAO radius", &sao->m_radius, 0.05f, 2.0f, "%.2f" );
-                    ImGui::SliderFloat( "SAO bias", &sao->m_bias, 0.001f, 0.2f, "%.3f" );
-                    ImGui::SliderFloat( "SAO intensity", &sao->m_intensity, 0.0f, 2.0f );
-                    ImGui::SliderFloat( "SAO blur sharpness", &sao->m_blurSharpness, 10.0f, 500.0f, "%.0f" );
-                    ImGui::SliderFloat( "SAO temporal", &sao->m_temporalBlend, 0.0f, 0.9f, "%.2f" );
-                }
+                if ( auto* fog = renderer->postStack().find<TPostFog>() ) Reflect::editFields( *fog );
+                if ( auto* bloom = renderer->postStack().find<TPostBloom>() ) Reflect::editFields( *bloom );
+                if ( auto* sao = renderer->postStack().find<TPostSAO>() ) Reflect::editFields( *sao );
             }
         }
 

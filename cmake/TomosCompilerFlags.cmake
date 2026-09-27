@@ -2,6 +2,21 @@
 
 add_library(tomos_build_flags INTERFACE)
 
+# C++26 P2996 reflection (std::meta). Mainline: GCC 16+ with -freflection.
+# Upstream Clang does not ship reflection yet (Bloomberg clang-p2996 fork only).
+# Linked PUBLIC on Tomos so dependents compiling headers that use <meta> get the flag.
+add_library(tomos_reflection_flags INTERFACE)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+	if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 16)
+		message(FATAL_ERROR "Tomos requires GCC 16+ for C++26 reflection (found ${CMAKE_CXX_COMPILER_VERSION})")
+	endif()
+	target_compile_options(tomos_reflection_flags INTERFACE -freflection)
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+	message(WARNING
+		"Tomos uses C++26 reflection (-freflection). Upstream Clang does not support it yet; "
+		"use GCC 16+ or the Bloomberg clang-p2996 fork with -freflection-latest.")
+endif()
+
 # Extra CPU opts for local Release / RelWithDebInfo builds (GCC/Clang; skip MSVC).
 # --gc-sections is GNU ld / ELF-oriented; skip on MSVC and Apple ld.
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")

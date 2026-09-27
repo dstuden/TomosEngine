@@ -9,6 +9,7 @@
 #include "Tomos/core/events/key/TKeyEvent.hh"
 #include "Tomos/core/events/mouse/TMouseEvent.hh"
 #include "Tomos/util/logger/TLogger.hh"
+#include "Tomos/util/reflect/TReflectEnum.hh"
 
 namespace Tomos
 {
@@ -31,23 +32,13 @@ namespace Tomos
 
     TWindowMode TWindow::windowModeFromString( const std::string& p_s )
     {
-        if ( p_s == "borderless" ) return TWindowMode::Borderless;
-        if ( p_s == "exclusive" ) return TWindowMode::Exclusive;
-        return TWindowMode::Windowed;
+        return Reflect::enumParseLowerOr<TWindowMode>( p_s, TWindowMode::Windowed );
     }
 
     const char* TWindow::windowModeToString( TWindowMode p_mode )
     {
-        switch ( p_mode )
-        {
-            case TWindowMode::Borderless:
-                return "borderless";
-            case TWindowMode::Exclusive:
-                return "exclusive";
-            case TWindowMode::Windowed:
-            default:
-                return "windowed";
-        }
+        const auto name = Reflect::enumNameLower( p_mode );
+        return name.empty() ? "windowed" : name.data();
     }
 
     void TWindow::setDefaultWindowIcon()
@@ -233,7 +224,7 @@ namespace Tomos
         const float avgFps  = static_cast<float>( m_perfFrames ) / m_perfAccumDt;
         const float frameMs = ( m_perfAccumDt / static_cast<float>( m_perfFrames ) ) * 1000.0f;
 
-        const std::string title = std::format( "{}  |  {:.0f} fps  |  avg {:.0f} fps  |  {:.2f} ms", m_data.m_title, fps, avgFps, frameMs );
+        auto title = std::format( "{}  |  {:.0f} fps  |  avg {:.0f} fps  |  {:.2f} ms", m_data.m_title, fps, avgFps, frameMs );
         glfwSetWindowTitle( m_window, title.c_str() );
 
         m_perfAccumDt = 0.0f;

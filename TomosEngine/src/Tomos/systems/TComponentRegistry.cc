@@ -15,6 +15,8 @@
 #include "Tomos/systems/script/TScriptComponent.hh"
 #include "Tomos/systems/sprite/TSpriteComponent.hh"
 #include "Tomos/util/logger/TLogger.hh"
+#include "Tomos/util/reflect/TReflectComponent.hh"
+#include "Tomos/util/reflect/TReflectEnum.hh"
 
 namespace Tomos
 {
@@ -44,65 +46,6 @@ namespace Tomos
             return { p_j[ 0 ].get<float>(), p_j[ 1 ].get<float>(), p_j[ 2 ].get<float>(), p_j[ 3 ].get<float>() };
         }
 
-        const char* lightTypeName( TLightType p_t )
-        {
-            switch ( p_t )
-            {
-                case TLightType::Directional:
-                    return "directional";
-                case TLightType::Spot:
-                    return "spot";
-                default:
-                    return "point";
-            }
-        }
-
-        TLightType lightTypeFromName( const std::string& p_s )
-        {
-            if ( p_s == "directional" ) return TLightType::Directional;
-            if ( p_s == "spot" ) return TLightType::Spot;
-            return TLightType::Point;
-        }
-
-        const char* billboardName( TBillboardMode p_m )
-        {
-            switch ( p_m )
-            {
-                case TBillboardMode::Cylindrical:
-                    return "cylindrical";
-                case TBillboardMode::Fixed:
-                    return "fixed";
-                default:
-                    return "spherical";
-            }
-        }
-
-        TBillboardMode billboardFromName( const std::string& p_s )
-        {
-            if ( p_s == "cylindrical" ) return TBillboardMode::Cylindrical;
-            if ( p_s == "fixed" ) return TBillboardMode::Fixed;
-            return TBillboardMode::Spherical;
-        }
-
-        const char* colliderShapeName( TColliderShape p_s )
-        {
-            switch ( p_s )
-            {
-                case TColliderShape::Sphere:
-                    return "sphere";
-                case TColliderShape::Box:
-                    return "box";
-            }
-            return "box";
-        }
-
-        TColliderShape colliderShapeFromName( const std::string& p_s )
-        {
-            if ( p_s == "sphere" ) return TColliderShape::Sphere;
-            // "aabb" kept for older scene JSON.
-            return TColliderShape::Box;
-        }
-
         TBagAnimatedTextureRef animRefFromJson( const json& p_j, const std::string& p_pathKey = "texturePath" )
         {
             TBagAnimatedTextureRef ref{};
@@ -116,7 +59,6 @@ namespace Tomos
         void writeAnimFields( json& p_j, const TBagAnimatedTextureRef& p_ref )
         {
             if ( p_ref.empty() ) return;
-            // Only write non-defaults to keep JSON compact for static textures.
             if ( !p_ref.m_looping ) p_j[ "animLoop" ] = false;
             if ( !p_ref.m_playing ) p_j[ "animPlaying" ] = false;
             if ( p_ref.m_speed != 1.0f ) p_j[ "animSpeed" ] = p_ref.m_speed;
@@ -137,7 +79,8 @@ namespace Tomos
             return nullptr;
         }
 
-        TBagAnimatedTextureRef overrideRefFromJson( const json& p_j, const char* p_pathKey, const char* p_loopKey, const char* p_playKey, const char* p_speedKey )
+        TBagAnimatedTextureRef overrideRefFromJson( const json& p_j, const char* p_pathKey, const char* p_loopKey, const char* p_playKey,
+                                                    const char* p_speedKey )
         {
             TBagAnimatedTextureRef ref{};
             if ( p_j.contains( p_pathKey ) && p_j[ p_pathKey ].is_string() ) ref.m_path = p_j[ p_pathKey ].get<std::string>();
@@ -212,8 +155,7 @@ namespace Tomos
         return info->m_create();
     }
 
-    void TComponentRegistry::wireSkinnedJoints( std::vector<TPendingSkinnedJoints>&                 p_pending,
-                                                const std::unordered_map<uint64_t, TSceneNode*>& p_byId )
+    void TComponentRegistry::wireSkinnedJoints( std::vector<TPendingSkinnedJoints>& p_pending, const std::unordered_map<uint64_t, TSceneNode*>& p_byId )
     {
         for ( auto& entry : p_pending )
         {
@@ -245,79 +187,13 @@ namespace Tomos
         if ( m_defaultsRegistered ) return;
         m_defaultsRegistered = true;
 
-        registerType( TComponentTypeInfo{
-                .m_type    = "camera",
-                .m_label   = "Camera",
-                .m_create  = [] { return std::make_unique<TCameraComponent>(); },
-                .m_matches = []( const TComponent& p_c ) { return dynamic_cast<const TCameraComponent*>( &p_c ) != nullptr; },
-                .m_save =
-                        []( const TComponent& p_c, const TComponentResolveCtx& )
-                {
-                    const auto& cam = dynamic_cast<const TCameraComponent&>( p_c );
-                    return json{
-                            { "active", cam.m_active }, { "projection", cam.m_projection == TProjection::Orthographic ? "orthographic" : "perspective" },
-                            { "fov", cam.m_fov },       { "near", cam.m_near },
-                            { "far", cam.m_far },       { "orthoHalfHeight", cam.m_orthoHalfHeight },
-                    };
-                },
-                .m_load =
-                        []( const json& p_j, TComponentResolveCtx& )
-                {
-                    auto cam      = std::make_unique<TCameraComponent>();
-                    cam->m_active = p_j.value( "active", true );
-                    cam->m_projection =
-                            p_j.value( "projection", std::string( "perspective" ) ) == "orthographic" ? TProjection::Orthographic : TProjection::Perspective;
-                    cam->m_fov             = p_j.value( "fov", cam->m_fov );
-                    cam->m_near            = p_j.value( "near", cam->m_near );
-                    cam->m_far             = p_j.value( "far", cam->m_far );
-                    cam->m_orthoHalfHeight = p_j.value( "orthoHalfHeight", cam->m_orthoHalfHeight );
-                    cam->setDirty();
-                    return cam;
-                },
-        } );
+        registerType( Reflect::makePodComponent<TCameraComponent>( []( TCameraComponent& p_c ) { p_c.setDirty(); } ) );
 
-        registerType( TComponentTypeInfo{
-                .m_type    = "light",
-                .m_label   = "Light",
-                .m_create  = [] { return std::make_unique<TLightComponent>(); },
-                .m_matches = []( const TComponent& p_c ) { return dynamic_cast<const TLightComponent*>( &p_c ) != nullptr; },
-                .m_save =
-                        []( const TComponent& p_c, const TComponentResolveCtx& )
-                {
-                    const auto& lit = dynamic_cast<const TLightComponent&>( p_c );
-                    return json{
-                            { "lightType", lightTypeName( lit.m_type ) },
-                            { "color", vec3ToJson( lit.m_color ) },
-                            { "intensity", lit.m_intensity },
-                            { "maxRange", lit.m_maxRange },
-                            { "innerCone", lit.m_innerCone },
-                            { "outerCone", lit.m_outerCone },
-                            { "castShadow", lit.m_castShadow },
-                    };
-                },
-                .m_load =
-                        []( const json& p_j, TComponentResolveCtx& )
-                {
-                    auto lit          = std::make_unique<TLightComponent>();
-                    lit->m_type       = lightTypeFromName( p_j.value( "lightType", std::string( "point" ) ) );
-                    lit->m_color      = jsonToVec3( p_j.value( "color", json::array() ), lit->m_color );
-                    lit->m_intensity  = p_j.value( "intensity", lit->m_intensity );
-                    lit->m_maxRange   = p_j.value( "maxRange", lit->m_maxRange );
-                    lit->m_innerCone  = p_j.value( "innerCone", lit->m_innerCone );
-                    lit->m_outerCone  = p_j.value( "outerCone", lit->m_outerCone );
-                    lit->m_castShadow = p_j.value( "castShadow", lit->m_castShadow );
-                    return lit;
-                },
-        } );
+        registerType( Reflect::makePodComponent<TLightComponent>() );
 
-        registerType( TComponentTypeInfo{
-                .m_type    = "mesh",
-                .m_label   = "Mesh",
-                .m_create  = [] { return std::make_unique<TMeshComponent>( nullptr, nullptr, true ); },
-                .m_matches = []( const TComponent& p_c )
-                { return dynamic_cast<const TMeshComponent*>( &p_c ) != nullptr && dynamic_cast<const TSkinnedMeshComponent*>( &p_c ) == nullptr; },
-                .m_save =
-                        []( const TComponent& p_c, const TComponentResolveCtx& p_ctx )
+        registerType( Reflect::makeComponentStub<TMeshComponent, TSkinnedMeshComponent>(
+                "mesh", "Mesh",
+                []( const TComponent& p_c, const TComponentResolveCtx& p_ctx )
                 {
                     const auto&   mesh = dynamic_cast<const TMeshComponent&>( p_c );
                     TMeshAssetRef ref  = mesh.m_ref;
@@ -345,8 +221,7 @@ namespace Tomos
                     }
                     return j;
                 },
-                .m_load =
-                        []( const json& p_j, TComponentResolveCtx& p_ctx )
+                []( const json& p_j, TComponentResolveCtx& p_ctx )
                 {
                     TMeshAssetRef      ref{ p_j.value( "asset", std::string{} ), p_j.value( "meshIdx", 0u ), p_j.value( "materialIdx", 0u ) };
                     const TVkMesh*     mesh     = nullptr;
@@ -357,23 +232,18 @@ namespace Tomos
                             TLOG_WARN() << "[TComponentRegistry] mesh asset not found: " << ref.m_assetName;
                     }
                     auto mc = std::make_unique<TMeshComponent>( ref, mesh, material, p_ctx.m_assets.generation(), p_j.value( "castShadow", true ) );
-                    mc->m_baseTextureOverride =
-                            overrideRefFromJson( p_j, "baseTexturePath", "baseAnimLoop", "baseAnimPlaying", "baseAnimSpeed" );
+                    mc->m_baseTextureOverride = overrideRefFromJson( p_j, "baseTexturePath", "baseAnimLoop", "baseAnimPlaying", "baseAnimSpeed" );
                     mc->m_emissionTextureOverride =
                             overrideRefFromJson( p_j, "emissionTexturePath", "emissionAnimLoop", "emissionAnimPlaying", "emissionAnimSpeed" );
                     if ( p_ctx.m_gpu != nullptr && ( !mc->m_baseTextureOverride.empty() || !mc->m_emissionTextureOverride.empty() ) )
                         mc->rebindOverrides( p_ctx.m_bag, *p_ctx.m_gpu );
                     return mc;
                 },
-        } );
+                [] { return std::make_unique<TMeshComponent>( nullptr, nullptr, true ); } ) );
 
-        registerType( TComponentTypeInfo{
-                .m_type    = "skinnedMesh",
-                .m_label   = "Skinned Mesh",
-                .m_create  = [] { return std::make_unique<TSkinnedMeshComponent>( nullptr, nullptr, std::vector<TSkinJoint>{} ); },
-                .m_matches = []( const TComponent& p_c ) { return dynamic_cast<const TSkinnedMeshComponent*>( &p_c ) != nullptr; },
-                .m_save =
-                        []( const TComponent& p_c, const TComponentResolveCtx& p_ctx )
+        registerType( Reflect::makeComponentStub<TSkinnedMeshComponent>(
+                "skinnedMesh", "Skinned Mesh",
+                []( const TComponent& p_c, const TComponentResolveCtx& p_ctx )
                 {
                     const auto&   mesh = dynamic_cast<const TSkinnedMeshComponent&>( p_c );
                     TMeshAssetRef ref  = mesh.m_ref;
@@ -399,8 +269,7 @@ namespace Tomos
                     j[ "joints" ] = std::move( joints );
                     return j;
                 },
-                .m_load =
-                        []( const json& p_j, TComponentResolveCtx& p_ctx )
+                []( const json& p_j, TComponentResolveCtx& p_ctx )
                 {
                     TMeshAssetRef      ref{ p_j.value( "asset", std::string{} ), p_j.value( "meshIdx", 0u ), p_j.value( "materialIdx", 0u ) };
                     const TVkMesh*     mesh     = nullptr;
@@ -412,15 +281,11 @@ namespace Tomos
                         p_ctx.m_pendingSkinned->push_back( TPendingSkinnedJoints{ skinned.get(), p_j[ "joints" ] } );
                     return skinned;
                 },
-        } );
+                [] { return std::make_unique<TSkinnedMeshComponent>( nullptr, nullptr, std::vector<TSkinJoint>{} ); } ) );
 
-        registerType( TComponentTypeInfo{
-                .m_type    = "animator",
-                .m_label   = "Animator",
-                .m_create  = [] { return std::make_unique<TAnimatorComponent>(); },
-                .m_matches = []( const TComponent& p_c ) { return dynamic_cast<const TAnimatorComponent*>( &p_c ) != nullptr; },
-                .m_save =
-                        []( const TComponent& p_c, const TComponentResolveCtx& p_ctx )
+        registerType( Reflect::makeComponentStub<TAnimatorComponent>(
+                "animator", "Animator",
+                []( const TComponent& p_c, const TComponentResolveCtx& p_ctx )
                 {
                     const auto&   anim = dynamic_cast<const TAnimatorComponent&>( p_c );
                     json          j{ { "playing", anim.m_playing },
@@ -437,8 +302,7 @@ namespace Tomos
                     }
                     return j;
                 },
-                .m_load =
-                        []( const json& p_j, TComponentResolveCtx& p_ctx )
+                []( const json& p_j, TComponentResolveCtx& p_ctx )
                 {
                     auto anim                   = std::make_unique<TAnimatorComponent>();
                     anim->m_playing             = p_j.value( "playing", true );
@@ -454,16 +318,11 @@ namespace Tomos
                         anim->m_boundGeneration = p_ctx.m_assets.generation();
                     }
                     return anim;
-                },
-        } );
+                } ) );
 
-        registerType( TComponentTypeInfo{
-                .m_type    = "sprite",
-                .m_label   = "Sprite",
-                .m_create  = [] { return std::make_unique<TSpriteComponent>(); },
-                .m_matches = []( const TComponent& p_c ) { return dynamic_cast<const TSpriteComponent*>( &p_c ) != nullptr; },
-                .m_save =
-                        []( const TComponent& p_c, const TComponentResolveCtx& p_ctx )
+        registerType( Reflect::makeComponentStub<TSpriteComponent>(
+                "sprite", "Sprite",
+                []( const TComponent& p_c, const TComponentResolveCtx& p_ctx )
                 {
                     const auto& spr = dynamic_cast<const TSpriteComponent&>( p_c );
                     json        j{ { "size", vec2ToJson( spr.m_size ) },
@@ -471,8 +330,8 @@ namespace Tomos
                                    { "uvMin", vec2ToJson( spr.m_uvMin ) },
                                    { "uvMax", vec2ToJson( spr.m_uvMax ) },
                                    { "rotation", spr.m_rotation },
-                                   { "mode", billboardName( spr.m_mode ) },
-                                   { "alphaMode", spr.m_alphaMode == TSpriteAlphaMode::Blend ? "blend" : "cutout" },
+                                   { "mode", Reflect::enumNameLower( spr.m_mode ) },
+                                   { "alphaMode", Reflect::enumNameLower( spr.m_alphaMode ) },
                                    { "alphaCutoff", spr.m_alphaCutoff },
                                    { "visible", spr.m_visible } };
                     if ( !spr.m_animRef.empty() )
@@ -491,8 +350,7 @@ namespace Tomos
                     }
                     return j;
                 },
-                .m_load =
-                        []( const json& p_j, TComponentResolveCtx& p_ctx )
+                []( const json& p_j, TComponentResolveCtx& p_ctx )
                 {
                     TBagAnimatedTextureRef animRef;
                     auto                   spr = std::make_unique<TSpriteComponent>( resolveTexture( p_j, p_ctx, &animRef ) );
@@ -503,38 +361,19 @@ namespace Tomos
                     spr->m_uvMin    = jsonToVec2( p_j.value( "uvMin", json::array() ), spr->m_uvMin );
                     spr->m_uvMax    = jsonToVec2( p_j.value( "uvMax", json::array() ), spr->m_uvMax );
                     spr->m_rotation = p_j.value( "rotation", spr->m_rotation );
-                    spr->m_mode     = billboardFromName( p_j.value( "mode", std::string( "spherical" ) ) );
+                    spr->m_mode     = Reflect::enumParseLowerOr<TBillboardMode>( p_j.value( "mode", std::string( "spherical" ) ), TBillboardMode::Spherical );
                     spr->m_visible  = p_j.value( "visible", true );
                     spr->m_alphaMode =
-                            p_j.value( "alphaMode", std::string( "cutout" ) ) == "blend" ? TSpriteAlphaMode::Blend : TSpriteAlphaMode::Cutout;
+                            Reflect::enumParseLowerOr<TSpriteAlphaMode>( p_j.value( "alphaMode", std::string( "cutout" ) ), TSpriteAlphaMode::Cutout );
                     spr->m_alphaCutoff = p_j.value( "alphaCutoff", spr->m_alphaCutoff );
                     return spr;
-                },
-        } );
+                } ) );
 
-        registerType( TComponentTypeInfo{
-                .m_type    = "particleEmitter",
-                .m_label   = "Particle Emitter",
-                .m_create  = [] { return std::make_unique<TParticleEmitterComponent>(); },
-                .m_matches = []( const TComponent& p_c ) { return dynamic_cast<const TParticleEmitterComponent*>( &p_c ) != nullptr; },
-                .m_save =
-                        []( const TComponent& p_c, const TComponentResolveCtx& p_ctx )
+        registerType( Reflect::makeComponentStub<TParticleEmitterComponent>(
+                []( const TComponent& p_c, const TComponentResolveCtx& p_ctx )
                 {
-                    const auto& p = dynamic_cast<const TParticleEmitterComponent&>( p_c );
-                    json        j{ { "emitting", p.m_emitting },
-                                   { "rate", p.m_rate },
-                                   { "lifetimeMin", p.m_lifetimeMin },
-                                   { "lifetimeMax", p.m_lifetimeMax },
-                                   { "velocityMin", vec3ToJson( p.m_velocityMin ) },
-                                   { "velocityMax", vec3ToJson( p.m_velocityMax ) },
-                                   { "sizeStart", vec2ToJson( p.m_sizeStart ) },
-                                   { "sizeEnd", vec2ToJson( p.m_sizeEnd ) },
-                                   { "colorStart", vec4ToJson( p.m_colorStart ) },
-                                   { "colorEnd", vec4ToJson( p.m_colorEnd ) },
-                                   { "gravity", p.m_gravity },
-                                   { "uvMin", vec2ToJson( p.m_uvMin ) },
-                                   { "uvMax", vec2ToJson( p.m_uvMax ) },
-                                   { "seed", p.m_seed } };
+                    const auto& p       = dynamic_cast<const TParticleEmitterComponent&>( p_c );
+                    json        j       = Reflect::saveFields( p );
                     auto        texPath = texturePathJson( p.m_texture, p_ctx );
                     if ( !p.m_animRef.empty() )
                     {
@@ -547,38 +386,19 @@ namespace Tomos
                     }
                     return j;
                 },
-                .m_load =
-                        []( const json& p_j, TComponentResolveCtx& p_ctx )
+                []( const json& p_j, TComponentResolveCtx& p_ctx )
                 {
-                    auto p           = std::make_unique<TParticleEmitterComponent>();
-                    p->m_emitting    = p_j.value( "emitting", true );
-                    p->m_rate        = p_j.value( "rate", p->m_rate );
-                    p->m_lifetimeMin = p_j.value( "lifetimeMin", p->m_lifetimeMin );
-                    p->m_lifetimeMax = p_j.value( "lifetimeMax", p->m_lifetimeMax );
-                    p->m_velocityMin = jsonToVec3( p_j.value( "velocityMin", json::array() ), p->m_velocityMin );
-                    p->m_velocityMax = jsonToVec3( p_j.value( "velocityMax", json::array() ), p->m_velocityMax );
-                    p->m_sizeStart   = jsonToVec2( p_j.value( "sizeStart", json::array() ), p->m_sizeStart );
-                    p->m_sizeEnd     = jsonToVec2( p_j.value( "sizeEnd", json::array() ), p->m_sizeEnd );
-                    p->m_colorStart  = jsonToVec4( p_j.value( "colorStart", json::array() ), p->m_colorStart );
-                    p->m_colorEnd    = jsonToVec4( p_j.value( "colorEnd", json::array() ), p->m_colorEnd );
-                    p->m_gravity     = p_j.value( "gravity", p->m_gravity );
-                    p->m_uvMin       = jsonToVec2( p_j.value( "uvMin", json::array() ), p->m_uvMin );
-                    p->m_uvMax       = jsonToVec2( p_j.value( "uvMax", json::array() ), p->m_uvMax );
-                    p->m_seed        = p_j.value( "seed", p->m_seed );
+                    auto p = std::make_unique<TParticleEmitterComponent>();
+                    Reflect::loadFields( *p, p_j );
                     TBagAnimatedTextureRef animRef;
                     p->m_texture = resolveTexture( p_j, p_ctx, &animRef );
                     p->m_animRef = animRef;
                     return p;
-                },
-        } );
+                } ) );
 
-        registerType( TComponentTypeInfo{
-                .m_type    = "audio",
-                .m_label   = "Audio",
-                .m_create  = [] { return std::make_unique<TAudioComponent>(); },
-                .m_matches = []( const TComponent& p_c ) { return dynamic_cast<const TAudioComponent*>( &p_c ) != nullptr; },
-                .m_save =
-                        []( const TComponent& p_c, const TComponentResolveCtx& p_ctx )
+        registerType( Reflect::makeComponentStub<TAudioComponent>(
+                "audio", "Audio",
+                []( const TComponent& p_c, const TComponentResolveCtx& p_ctx )
                 {
                     const auto& a = dynamic_cast<const TAudioComponent&>( p_c );
                     json j{ { "volume", a.m_volume },   { "pitch", a.m_pitch },     { "minDistance", a.m_minDistance }, { "maxDistance", a.m_maxDistance },
@@ -593,8 +413,7 @@ namespace Tomos
                     }
                     return j;
                 },
-                .m_load =
-                        []( const json& p_j, TComponentResolveCtx& p_ctx )
+                []( const json& p_j, TComponentResolveCtx& p_ctx )
                 {
                     const TAudioClip* clip = nullptr;
                     const std::string path = p_j.value( "clipPath", std::string{} );
@@ -608,93 +427,27 @@ namespace Tomos
                     a->m_spatial     = p_j.value( "spatial", a->m_spatial );
                     a->m_playOnStart = p_j.value( "playOnStart", a->m_playOnStart );
                     return a;
-                },
-        } );
+                } ) );
 
-        registerType( TComponentTypeInfo{
-                .m_type    = "rigidBody",
-                .m_label   = "Rigid Body",
-                .m_create  = [] { return std::make_unique<TRigidBodyComponent>(); },
-                .m_matches = []( const TComponent& p_c ) { return dynamic_cast<const TRigidBodyComponent*>( &p_c ) != nullptr; },
-                .m_save =
-                        []( const TComponent& p_c, const TComponentResolveCtx& )
-                {
-                    const auto& b = dynamic_cast<const TRigidBodyComponent&>( p_c );
-                    return json{ { "mass", b.m_mass },
-                                 { "linearVelocity", vec3ToJson( b.m_linearVelocity ) },
-                                 { "gravityScale", b.m_gravityScale },
-                                 { "linearDamping", b.m_linearDamping },
-                                 { "restitution", b.m_restitution },
-                                 { "useGravity", b.m_useGravity },
-                                 { "kinematic", b.m_kinematic } };
-                },
-                .m_load =
-                        []( const json& p_j, TComponentResolveCtx& )
-                {
-                    auto b = std::make_unique<TRigidBodyComponent>();
-                    b->setMass( p_j.value( "mass", b->m_mass ) );
-                    b->m_linearVelocity = jsonToVec3( p_j.value( "linearVelocity", json::array() ), b->m_linearVelocity );
-                    b->m_gravityScale   = p_j.value( "gravityScale", b->m_gravityScale );
-                    b->m_linearDamping  = p_j.value( "linearDamping", b->m_linearDamping );
-                    b->m_restitution    = p_j.value( "restitution", b->m_restitution );
-                    b->m_useGravity     = p_j.value( "useGravity", b->m_useGravity );
-                    b->m_kinematic      = p_j.value( "kinematic", b->m_kinematic );
-                    return b;
-                },
-        } );
+        registerType( Reflect::makePodComponent<TRigidBodyComponent>( []( TRigidBodyComponent& p_b ) { p_b.setMass( p_b.m_mass ); } ) );
 
-        registerType( TComponentTypeInfo{
-                .m_type    = "collider",
-                .m_label   = "Collider",
-                .m_create  = [] { return std::make_unique<TColliderComponent>(); },
-                .m_matches = []( const TComponent& p_c ) { return dynamic_cast<const TColliderComponent*>( &p_c ) != nullptr; },
-                .m_save =
-                        []( const TComponent& p_c, const TComponentResolveCtx& )
-                {
-                    const auto& col = dynamic_cast<const TColliderComponent&>( p_c );
-                    return json{ { "shape", colliderShapeName( col.m_shape ) },
-                                 { "radius", col.m_radius },
-                                 { "halfExtents", vec3ToJson( col.m_halfExtents ) },
-                                 { "isTrigger", col.m_isTrigger },
-                                 { "enabled", col.m_enabled },
-                                 { "layer", col.m_layer },
-                                 { "mask", col.m_mask } };
-                },
-                .m_load =
-                        []( const json& p_j, TComponentResolveCtx& )
-                {
-                    auto col           = std::make_unique<TColliderComponent>();
-                    col->m_shape       = colliderShapeFromName( p_j.value( "shape", std::string( "aabb" ) ) );
-                    col->m_radius      = p_j.value( "radius", col->m_radius );
-                    col->m_halfExtents = jsonToVec3( p_j.value( "halfExtents", json::array() ), col->m_halfExtents );
-                    col->m_isTrigger   = p_j.value( "isTrigger", col->m_isTrigger );
-                    col->m_enabled     = p_j.value( "enabled", col->m_enabled );
-                    col->m_layer       = p_j.value( "layer", col->m_layer );
-                    col->m_mask        = p_j.value( "mask", col->m_mask );
-                    return col;
-                },
-        } );
+        registerType( Reflect::makePodComponent<TColliderComponent>() );
 
-        registerType( TComponentTypeInfo{
-                .m_type    = "script",
-                .m_label   = "Script",
-                .m_create  = nullptr,
-                .m_matches = []( const TComponent& p_c ) { return dynamic_cast<const TScriptComponent*>( &p_c ) != nullptr; },
-                .m_save =
-                        []( const TComponent& p_c, const TComponentResolveCtx& )
+        registerType( Reflect::makeComponentStub<TScriptComponent>(
+                "script", "Script",
+                []( const TComponent& p_c, const TComponentResolveCtx& )
                 {
                     const auto&       sc         = dynamic_cast<const TScriptComponent&>( p_c );
                     const std::string scriptType = sc.typeName();
                     if ( scriptType.empty() ) return json( nullptr );
                     return json{ { "script", scriptType } };
                 },
-                .m_load =
-                        []( const json& p_j, TComponentResolveCtx& ) -> std::unique_ptr<TComponent>
+                []( const json& p_j, TComponentResolveCtx& ) -> std::unique_ptr<TComponent>
                 {
                     const std::string scriptType = p_j.value( "script", std::string{} );
                     if ( scriptType.empty() ) return {};
                     return TScriptComponent::makeFromType( scriptType );
                 },
-        } );
+                nullptr ) );
     }
 }  // namespace Tomos

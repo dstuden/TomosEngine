@@ -5,6 +5,8 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 
+#include "Tomos/util/reflect/TReflectEnum.hh"
+
 #ifndef TOMOS_DEBUG
 #define TOMOS_DEBUG 0
 #endif
@@ -13,7 +15,7 @@
 
 namespace Tomos
 {
-    // GPU pass slots for timestamp queries (v1). Post is one block; SAO is inside it.
+    // GPU pass slots for timestamp queries. Post effects are split (SAO / Bloom / Tonemap).
     enum class TGpuPass : uint32_t
     {
         Shadows = 0,
@@ -22,26 +24,20 @@ namespace Tomos
         ForwardBlend,
         ParticleSim,
         ParticleDraw,
-        Post,
+        SAO,
+        Bloom,
+        Tonemap,
         Count
     };
 
-    inline constexpr uint32_t g_kGpuPassCount = static_cast<uint32_t>( TGpuPass::Count );
+    inline constexpr uint32_t g_kGpuPassCount      = static_cast<uint32_t>( TGpuPass::Count );
     inline constexpr uint32_t g_kGpuQueriesPerFrame = g_kGpuPassCount * 2;  // begin + end
 
     inline const char* gpuPassName( TGpuPass p_pass )
     {
-        switch ( p_pass )
-        {
-            case TGpuPass::Shadows:        return "Shadows";
-            case TGpuPass::ClusterCull:    return "ClusterCull";
-            case TGpuPass::ForwardOpaque:  return "ForwardOpaque";
-            case TGpuPass::ForwardBlend:   return "ForwardBlend";
-            case TGpuPass::ParticleSim:    return "ParticleSim";
-            case TGpuPass::ParticleDraw:   return "ParticleDraw";
-            case TGpuPass::Post:           return "Post";
-            default:                       return "?";
-        }
+        if ( p_pass == TGpuPass::Count ) return "?";
+        const auto name = Reflect::enumName( p_pass );
+        return name.empty() ? "?" : name.data();
     }
 
     // Lazy VkQueryPool timestamps. Created on first capture; writes only while capturing.

@@ -6,16 +6,18 @@ struct GLFWwindow;
 
 namespace Tomos
 {
+    class TApplication;
+
     // glfwGet* bypasses the event system. BlockFn returns true → report "not pressed".
     // Edge detection tracks raw device state so held keys don't fire on unblock.
-    // Call beginFrame() once per frame before mouseDelta().
+    // TApplication calls beginFrame() once per frame before mouseDelta().
     class TInput
     {
     public:
         using BlockFn = std::function<bool()>;
 
-        // Calling twice in the same frame zeroes mouse delta.
-        static void beginFrame( GLFWwindow* p_window = nullptr );
+        // Re-sync cursor and zero delta (e.g. after setCursorMode so look doesn't jump).
+        static void discardMouseDelta( GLFWwindow* p_window = nullptr );
 
         [[nodiscard]] static bool keyDown( int p_key, const BlockFn& p_block = {} );
         [[nodiscard]] static bool keyDown( GLFWwindow* p_window, int p_key, const BlockFn& p_block = {} );
@@ -40,6 +42,11 @@ namespace Tomos
 
         // Applies deadzone; returns 0 when blocked / absent.
         [[nodiscard]] static float gamepadAxis( int p_axis, int p_jid = 0, float p_deadzone = 0.15f, const BlockFn& p_block = {} );
+
+    private:
+        friend class TApplication;
+
+        static void beginFrame( GLFWwindow* p_window = nullptr );
     };
 
     class TInputPoll

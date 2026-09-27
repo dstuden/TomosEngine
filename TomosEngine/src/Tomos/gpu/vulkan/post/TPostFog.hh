@@ -3,7 +3,9 @@
 #include <array>
 #include <glm/glm.hpp>
 
+#include "Tomos/gpu/vulkan/TVkGpu.hh"
 #include "Tomos/gpu/vulkan/post/TPostEffect.hh"
+#include "Tomos/util/reflect/TReflectAttr.hh"
 
 namespace Tomos
 {
@@ -19,11 +21,11 @@ namespace Tomos
         void record( VkCommandBuffer p_cmd, TPostContext& p_ctx ) override;
         void destroy() override;
 
-        glm::vec3 m_color   = { 0.55f, 0.62f, 0.72f };
-        float     m_density = 0.015f;
+        TOMOS_ANN( Reflect::UiColor{} ) TOMOS_ANN( Reflect::UiLabel{ "Fog color" } ) glm::vec3 m_color = { 0.55f, 0.62f, 0.72f };
+        TOMOS_ANN( Reflect::UiRange{ 0.0f, 0.1f } ) TOMOS_ANN( Reflect::UiLabel{ "Fog density" } ) float m_density = 0.015f;
 
     private:
-        static constexpr uint32_t g_kFrames = 3;
+        static constexpr uint32_t g_kFrames = g_kFramesInFlight;
 
         VkDevice                               m_device  = VK_NULL_HANDLE;
         VkDescriptorSetLayout                  m_layout  = VK_NULL_HANDLE;

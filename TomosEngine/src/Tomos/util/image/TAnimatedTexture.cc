@@ -6,24 +6,24 @@
 
 namespace Tomos
 {
-    TAnimatedTexture::TAnimatedTexture() = default;
-    TAnimatedTexture::~TAnimatedTexture()  = default;
+    TAnimatedTexture::TAnimatedTexture()  = default;
+    TAnimatedTexture::~TAnimatedTexture() = default;
 
     bool TAnimatedTexture::create( TVkGpu& p_gpu, const std::string& p_path, const TBagAnimatedTextureRef& p_opts )
     {
         m_path = p_path;
         applyOpts( p_opts );
-        m_frameIndex   = 0;
-        m_frameTime    = 0.0f;
-        m_ended        = false;
-        m_dirty        = true;
-        m_useVideo     = false;
+        m_frameIndex = 0;
+        m_frameTime  = 0.0f;
+        m_ended      = false;
+        m_dirty      = true;
+        m_useVideo   = false;
         m_cache.reset();
         m_video.close();
         m_image = TVkImage{};
 
-        uint32_t width  = 0;
-        uint32_t height = 0;
+        uint32_t       width       = 0;
+        uint32_t       height      = 0;
         const uint8_t* firstPixels = nullptr;
 
         if ( isCachedAnimatedPath( p_path ) )
@@ -66,8 +66,7 @@ namespace Tomos
         p_gpu.uploadImage( m_image, firstPixels, width, height );
         m_dirty = false;
 
-        TLOG_INFO() << "[TAnimatedTexture] Created '" << p_path << "' (" << width << "x" << height << ")"
-                    << ( m_useVideo ? " [video]" : " [cached]" );
+        TLOG_INFO() << "[TAnimatedTexture] Created '" << p_path << "' (" << width << "x" << height << ")" << ( m_useVideo ? " [video]" : " [cached]" );
         return true;
     }
 

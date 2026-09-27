@@ -54,9 +54,7 @@ namespace Tomos
         recordParticlePass( p_cmd, p_state, frame );
         TOMOS_PROFILE_GPU_END( m_gpuTimestamps, p_cmd, p_frameIndex, ParticleDraw );
 
-        TOMOS_PROFILE_GPU_BEGIN( m_gpuTimestamps, p_cmd, p_frameIndex, Post );
         recordPost( p_cmd, p_frameIndex, p_state );
-        TOMOS_PROFILE_GPU_END( m_gpuTimestamps, p_cmd, p_frameIndex, Post );
     }
 
     void TVkClusteredRenderer::uploadParticles( uint32_t p_frameIndex, const TFrameState& p_state )
@@ -387,6 +385,9 @@ namespace Tomos
         ctx.m_frameIndex   = p_frameIndex;
         ctx.m_outputImage  = dest.m_image;
         ctx.m_outputView   = dest.m_view;
+#if TOMOS_DEBUG
+        ctx.m_gpuTimestamps = &m_gpuTimestamps;
+#endif
 
         m_post.execute( p_cmd, ctx );
 

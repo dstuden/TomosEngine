@@ -1,6 +1,9 @@
 #include "Tomos/gpu/vulkan/post/TPostStack.hh"
 
+#include "Tomos/gpu/vulkan/post/TPostBloom.hh"
+#include "Tomos/gpu/vulkan/post/TPostSAO.hh"
 #include "Tomos/gpu/vulkan/post/TPostTonemap.hh"
+#include "Tomos/util/profile/TProfile.hh"
 
 namespace Tomos
 {
@@ -28,9 +31,37 @@ namespace Tomos
                 tonemap = e.get();
                 continue;
             }
+
+#if TOMOS_DEBUG
+            const bool isSao   = dynamic_cast<TPostSAO*>( e.get() ) != nullptr;
+            const bool isBloom = dynamic_cast<TPostBloom*>( e.get() ) != nullptr;
+            if ( isSao && p_ctx.m_gpuTimestamps )
+                TOMOS_PROFILE_GPU_BEGIN( *p_ctx.m_gpuTimestamps, p_cmd, p_ctx.m_frameIndex, SAO );
+            if ( isBloom && p_ctx.m_gpuTimestamps )
+                TOMOS_PROFILE_GPU_BEGIN( *p_ctx.m_gpuTimestamps, p_cmd, p_ctx.m_frameIndex, Bloom );
+#endif
+
             if ( e->m_enabled ) e->record( p_cmd, p_ctx );
+
+#if TOMOS_DEBUG
+            if ( isSao && p_ctx.m_gpuTimestamps )
+                TOMOS_PROFILE_GPU_END( *p_ctx.m_gpuTimestamps, p_cmd, p_ctx.m_frameIndex, SAO );
+            if ( isBloom && p_ctx.m_gpuTimestamps )
+                TOMOS_PROFILE_GPU_END( *p_ctx.m_gpuTimestamps, p_cmd, p_ctx.m_frameIndex, Bloom );
+#endif
         }
 
-        if ( tonemap != nullptr ) tonemap->record( p_cmd, p_ctx );
+        if ( tonemap != nullptr )
+        {
+#if TOMOS_DEBUG
+            if ( p_ctx.m_gpuTimestamps )
+                TOMOS_PROFILE_GPU_BEGIN( *p_ctx.m_gpuTimestamps, p_cmd, p_ctx.m_frameIndex, Tonemap );
+#endif
+            tonemap->record( p_cmd, p_ctx );
+#if TOMOS_DEBUG
+            if ( p_ctx.m_gpuTimestamps )
+                TOMOS_PROFILE_GPU_END( *p_ctx.m_gpuTimestamps, p_cmd, p_ctx.m_frameIndex, Tonemap );
+#endif
+        }
     }
 }  // namespace Tomos

@@ -4,6 +4,7 @@
 
 #include "Tomos/systems/TComponent.hh"
 #include "Tomos/util/math/TProjection.hh"
+#include "Tomos/util/reflect/TReflectAttr.hh"
 
 namespace Tomos
 {
@@ -14,15 +15,16 @@ namespace Tomos
     };
 
     // m_fov vertical radians (perspective); m_orthoHalfHeight world units (ortho).
-    class TCameraComponent : public TComponent
+    class TOMOS_ANN( Reflect::ComponentMeta{ "camera", "Camera" } ) TCameraComponent : public TComponent
     {
     public:
-        bool        m_active          = true;
-        TProjection m_projection      = TProjection::Perspective;
-        float       m_fov             = glm::radians( 60.0f );
-        float       m_near            = 0.1f;
-        float       m_far             = 1000.0f;
-        float       m_orthoHalfHeight = 5.0f;
+        bool        m_active     = true;
+        TProjection m_projection = TProjection::Perspective;
+        TOMOS_ANN( Reflect::Degrees{} )
+        TOMOS_ANN( Reflect::UiRange{ 10.0f, 120.0f } ) TOMOS_ANN( Reflect::UiLabel{ "FOV (deg)" } ) float m_fov = glm::radians( 60.0f );
+        float m_near                                                                                            = 0.1f;
+        float m_far                                                                                             = 1000.0f;
+        TOMOS_ANN( Reflect::UiLabel{ "Ortho half-height" } ) float m_orthoHalfHeight                            = 5.0f;
 
         [[nodiscard]] const glm::mat4& projMatrix( float p_aspect )
         {

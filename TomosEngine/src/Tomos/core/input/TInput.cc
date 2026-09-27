@@ -91,6 +91,21 @@ namespace Tomos
         refreshGamepads();
     }
 
+    void TInput::discardMouseDelta( GLFWwindow* p_window )
+    {
+        if ( p_window == nullptr ) p_window = defaultWindow();
+
+        TMouseFrame& frame = mouseFrame();
+        double       x = 0.0, y = 0.0;
+        if ( p_window != nullptr ) glfwGetCursorPos( p_window, &x, &y );
+
+        frame.m_dx       = 0.0;
+        frame.m_dy       = 0.0;
+        frame.m_x        = x;
+        frame.m_y        = y;
+        frame.m_haveLast = true;
+    }
+
     bool TInput::keyDown( int p_key, const BlockFn& p_block ) { return keyDown( defaultWindow(), p_key, p_block ); }
 
     bool TInput::keyDown( GLFWwindow* p_window, int p_key, const BlockFn& p_block )

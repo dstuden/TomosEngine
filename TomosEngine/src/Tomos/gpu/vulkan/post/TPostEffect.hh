@@ -5,6 +5,14 @@
 
 #include "Tomos/gpu/vulkan/TVkImage.hh"
 
+#ifndef TOMOS_DEBUG
+#define TOMOS_DEBUG 0
+#endif
+
+#if TOMOS_DEBUG
+#include "Tomos/util/profile/TGpuTimestamps.hh"
+#endif
+
 namespace Tomos
 {
     class TVkGpu;
@@ -31,6 +39,10 @@ namespace Tomos
 
         // Only touch descriptor sets for this frame index.
         uint32_t m_frameIndex = 0;
+
+#if TOMOS_DEBUG
+        TGpuTimestamps* m_gpuTimestamps = nullptr;
+#endif
 
         void swapHdr() { std::swap( m_hdr, m_hdrOther ); }
     };

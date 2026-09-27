@@ -2,6 +2,7 @@
 
 #include <array>
 
+#include "Tomos/gpu/vulkan/TVkGpu.hh"
 #include "Tomos/gpu/vulkan/post/TPostEffect.hh"
 
 namespace Tomos
@@ -19,7 +20,7 @@ namespace Tomos
         void destroy() override;
 
     private:
-        static constexpr uint32_t g_kFrames = 3;
+        static constexpr uint32_t g_kFrames = g_kFramesInFlight;
 
         VkDevice                               m_device  = VK_NULL_HANDLE;
         VkDescriptorSetLayout                  m_layout  = VK_NULL_HANDLE;

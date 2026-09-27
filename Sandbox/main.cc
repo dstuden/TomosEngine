@@ -187,7 +187,6 @@ private:
     void update( float p_dt ) override
     {
         GLFWwindow* win = TApplication::get().window().getNativeWindow();
-        TInput::beginFrame( win );
 
         m_actions.setActiveContext( m_captured ? TInputContext::Gameplay : TInputContext::UI );
 
@@ -200,7 +199,7 @@ private:
             m_captured = !m_captured;
             TApplication::get().window().setCursorMode( m_captured ? TWindow::TCursorMode::Disabled : TWindow::TCursorMode::Normal );
             // Drop the next mouse delta so look doesn't jump after re-capture.
-            TInput::beginFrame( win );
+            TInput::discardMouseDelta( win );
         }
 
         double dx = 0.0, dy = 0.0;
@@ -344,11 +343,11 @@ private:
             floor.m_transform.setTranslation( { -1.5f, size.y * 0.5f, 1.5f } );
             floor.m_transform.setScale( size );
 
-            auto& col           = floor.emplaceComponent<TColliderComponent>();
-            col.m_shape         = TColliderShape::Box;
-            col.m_halfExtents   = { 0.5f, 0.5f, 0.5f };
-            col.m_layer         = TPhysicsLayer::g_static;
-            col.m_mask          = TPhysicsLayer::g_dynamic;
+            auto& col         = floor.emplaceComponent<TColliderComponent>();
+            col.m_shape       = TColliderShape::Box;
+            col.m_halfExtents = { 0.5f, 0.5f, 0.5f };
+            col.m_layer       = TPhysicsLayer::g_static;
+            col.m_mask        = TPhysicsLayer::g_dynamic;
             floor.emplaceComponent<TMeshComponent>( boxMesh, floorMat, true );
 
             scene().addChild( &floor );
@@ -361,17 +360,17 @@ private:
             ball.m_transform.setTranslation( p_pos );
             ball.m_transform.setScale( glm::vec3( radius * 2.0f ) );
 
-            auto& body             = ball.emplaceComponent<TRigidBodyComponent>();
+            auto& body = ball.emplaceComponent<TRigidBodyComponent>();
             body.setMass( 1.0f );
-            body.m_restitution     = p_restitution;
-            body.m_linearDamping   = 0.02f;
-            body.m_linearVelocity  = p_velocity;
+            body.m_restitution    = p_restitution;
+            body.m_linearDamping  = 0.02f;
+            body.m_linearVelocity = p_velocity;
 
-            auto& col     = ball.emplaceComponent<TColliderComponent>();
-            col.m_shape   = TColliderShape::Sphere;
-            col.m_radius  = 0.5f;
-            col.m_layer   = TPhysicsLayer::g_dynamic;
-            col.m_mask    = TPhysicsLayer::g_static | TPhysicsLayer::g_dynamic | TPhysicsLayer::g_trigger;
+            auto& col    = ball.emplaceComponent<TColliderComponent>();
+            col.m_shape  = TColliderShape::Sphere;
+            col.m_radius = 0.5f;
+            col.m_layer  = TPhysicsLayer::g_dynamic;
+            col.m_mask   = TPhysicsLayer::g_static | TPhysicsLayer::g_dynamic | TPhysicsLayer::g_trigger;
             ball.emplaceComponent<TMeshComponent>( sphereMesh, ballMat, true );
 
             scene().addChild( &ball );
@@ -385,13 +384,13 @@ private:
             zone.m_transform.setTranslation( { -1.5f, 1.4f, 1.5f } );
             zone.m_transform.setScale( { 2.0f, 1.2f, 2.0f } );
 
-            auto& col           = zone.emplaceComponent<TColliderComponent>();
-            col.m_shape         = TColliderShape::Box;
-            col.m_halfExtents   = { 0.5f, 0.5f, 0.5f };
-            col.m_isTrigger     = true;
-            col.m_layer         = TPhysicsLayer::g_trigger;
-            col.m_mask          = TPhysicsLayer::g_dynamic;
-            col.m_onOverlap     = []( TSceneNode& /*self*/, TSceneNode& p_other, TOverlapPhase p_phase )
+            auto& col         = zone.emplaceComponent<TColliderComponent>();
+            col.m_shape       = TColliderShape::Box;
+            col.m_halfExtents = { 0.5f, 0.5f, 0.5f };
+            col.m_isTrigger   = true;
+            col.m_layer       = TPhysicsLayer::g_trigger;
+            col.m_mask        = TPhysicsLayer::g_dynamic;
+            col.m_onOverlap   = []( TSceneNode& /*self*/, TSceneNode& p_other, TOverlapPhase p_phase )
             {
                 if ( p_phase == TOverlapPhase::Stay ) return;
                 const char* label = ( p_phase == TOverlapPhase::Enter ) ? "enter" : "exit";
@@ -461,17 +460,17 @@ private:
             TSceneNode& node = scene().createNode( "BeepEmitter" );
             node.m_transform.setTranslation( { 2.0f, 1.5f, 0.0f } );
 
-            auto& audio           = node.emplaceComponent<TAudioComponent>( beepClip );
-            audio.m_spatial       = true;
-            audio.m_looping       = false;
-            audio.m_volume        = 1.0f;
-            audio.m_minDistance   = 1.0f;
-            audio.m_maxDistance   = 25.0f;
+            auto& audio         = node.emplaceComponent<TAudioComponent>( beepClip );
+            audio.m_spatial     = true;
+            audio.m_looping     = false;
+            audio.m_volume      = 1.0f;
+            audio.m_minDistance = 1.0f;
+            audio.m_maxDistance = 25.0f;
 
-            auto& sprite    = node.emplaceComponent<TSpriteComponent>();
-            sprite.m_size   = { 0.25f, 0.25f };
-            sprite.m_color  = { 0.2f, 0.9f, 0.4f, 1.0f };
-            sprite.m_mode   = TBillboardMode::Spherical;
+            auto& sprite   = node.emplaceComponent<TSpriteComponent>();
+            sprite.m_size  = { 0.25f, 0.25f };
+            sprite.m_color = { 0.2f, 0.9f, 0.4f, 1.0f };
+            sprite.m_mode  = TBillboardMode::Spherical;
 
             scene().addChild( &node );
         }
@@ -482,19 +481,19 @@ private:
             TSceneNode& node = scene().createNode( "SparkEmitter" );
             node.m_transform.setTranslation( { 2.0f, 0.6f, 0.4f } );
 
-            auto& sparks           = node.emplaceComponent<TParticleEmitterComponent>();
-            sparks.m_emitting      = true;
-            sparks.m_rate          = 80.0f;
-            sparks.m_lifetimeMin   = 0.35f;
-            sparks.m_lifetimeMax   = 0.9f;
-            sparks.m_velocityMin   = { -0.8f, 1.5f, -0.8f };
-            sparks.m_velocityMax   = { 0.8f, 4.0f, 0.8f };
-            sparks.m_sizeStart     = { 0.28f, 0.28f };
-            sparks.m_sizeEnd       = { 0.06f, 0.06f };
-            sparks.m_colorStart    = { 1.0f, 1.0f, 1.0f, 1.0f };
-            sparks.m_colorEnd      = { 1.0f, 0.55f, 0.2f, 0.0f };
-            sparks.m_gravity       = -3.5f;
-            sparks.m_texture       = sparkTex;
+            auto& sparks         = node.emplaceComponent<TParticleEmitterComponent>();
+            sparks.m_emitting    = true;
+            sparks.m_rate        = 80.0f;
+            sparks.m_lifetimeMin = 0.35f;
+            sparks.m_lifetimeMax = 0.9f;
+            sparks.m_velocityMin = { -0.8f, 1.5f, -0.8f };
+            sparks.m_velocityMax = { 0.8f, 4.0f, 0.8f };
+            sparks.m_sizeStart   = { 0.28f, 0.28f };
+            sparks.m_sizeEnd     = { 0.06f, 0.06f };
+            sparks.m_colorStart  = { 1.0f, 1.0f, 1.0f, 1.0f };
+            sparks.m_colorEnd    = { 1.0f, 0.55f, 0.2f, 0.0f };
+            sparks.m_gravity     = -3.5f;
+            sparks.m_texture     = sparkTex;
 
             scene().addChild( &node );
         }
@@ -503,11 +502,11 @@ private:
             TSceneNode& node = scene().createNode( "Sun" );
             node.m_transform.setLocalTRS( { 0.0f, 20.0f, 8.0f }, glm::angleAxis( glm::radians( -50.0f ), glm::vec3( 1.0f, 0.0f, 0.0f ) ), glm::vec3( 1.0f ) );
 
-            auto& light          = node.emplaceComponent<TLightComponent>();
-            light.m_type         = TLightType::Directional;
-            light.m_color        = { 1.0f, 0.9f, 0.75f };
-            light.m_intensity    = 3.0f;
-            light.m_castShadow   = true;
+            auto& light        = node.emplaceComponent<TLightComponent>();
+            light.m_type       = TLightType::Directional;
+            light.m_color      = { 1.0f, 0.9f, 0.75f };
+            light.m_intensity  = 3.0f;
+            light.m_castShadow = true;
             scene().addChild( &node );
         }
 
@@ -516,12 +515,12 @@ private:
             TSceneNode& node = scene().createNode( "FillPoint" );
             node.m_transform.setTranslation( { -1.5f, 2.5f, 0.5f } );
 
-            auto& light          = node.emplaceComponent<TLightComponent>();
-            light.m_type         = TLightType::Point;
-            light.m_color        = { 1.0f, 0.85f, 0.65f };
-            light.m_intensity    = 40.0f;
-            light.m_maxRange     = 18.0f;
-            light.m_castShadow   = true;
+            auto& light        = node.emplaceComponent<TLightComponent>();
+            light.m_type       = TLightType::Point;
+            light.m_color      = { 1.0f, 0.85f, 0.65f };
+            light.m_intensity  = 40.0f;
+            light.m_maxRange   = 18.0f;
+            light.m_castShadow = true;
             scene().addChild( &node );
         }
 
@@ -529,24 +528,24 @@ private:
             TSceneNode& node = scene().createNode( "Camera" );
             node.m_transform.setTranslation( { 0.0f, 1.8f, 3.0f } );
 
-            auto& cam    = node.emplaceComponent<TCameraComponent>();
-            cam.m_fov    = glm::radians( 65.0f );
-            cam.m_near   = 0.05f;
-            cam.m_far    = 500.0f;
+            auto& cam  = node.emplaceComponent<TCameraComponent>();
+            cam.m_fov  = glm::radians( 65.0f );
+            cam.m_near = 0.05f;
+            cam.m_far  = 500.0f;
             node.addComponent( TScriptComponent::make<FlyCameraScript>() );
             scene().addChild( &node );
 
             TSceneNode& spotNode = scene().createNode( "CameraSpotlight" );
             spotNode.m_transform.setTranslation( { 0.2f, -0.2f, 0.0f } );
 
-            auto& light          = spotNode.emplaceComponent<TLightComponent>();
-            light.m_type         = TLightType::Spot;
-            light.m_color        = { 1.0f, 0.95f, 0.8f };
-            light.m_intensity    = 25.0f;
-            light.m_maxRange     = 20.0f;
-            light.m_innerCone    = glm::radians( 12.5f );
-            light.m_outerCone    = glm::radians( 17.5f );
-            light.m_castShadow   = true;
+            auto& light        = spotNode.emplaceComponent<TLightComponent>();
+            light.m_type       = TLightType::Spot;
+            light.m_color      = { 1.0f, 0.95f, 0.8f };
+            light.m_intensity  = 25.0f;
+            light.m_maxRange   = 20.0f;
+            light.m_innerCone  = glm::radians( 12.5f );
+            light.m_outerCone  = glm::radians( 17.5f );
+            light.m_castShadow = true;
 
             node.addChild( &spotNode );
         }
@@ -569,12 +568,12 @@ private:
             TSceneNode& node = scene().createNode( "AnimGifSprite" );
             node.m_transform.setTranslation( { 1.5f, 1.2f, 1.0f } );
 
-            auto& sprite         = node.emplaceComponent<TSpriteComponent>( gif );
-            sprite.m_size        = { 0.6f, 0.6f };
-            sprite.m_color       = { 1.0f, 1.0f, 1.0f, 1.0f };
-            sprite.m_mode        = TBillboardMode::Spherical;
-            sprite.m_animRef     = opts;
-            sprite.m_textureRef  = TBagTextureRef{ opts.m_path };
+            auto& sprite        = node.emplaceComponent<TSpriteComponent>( gif );
+            sprite.m_size       = { 0.6f, 0.6f };
+            sprite.m_color      = { 1.0f, 1.0f, 1.0f, 1.0f };
+            sprite.m_mode       = TBillboardMode::Spherical;
+            sprite.m_animRef    = opts;
+            sprite.m_textureRef = TBagTextureRef{ opts.m_path };
             scene().addChild( &node );
         }
 
@@ -593,8 +592,7 @@ private:
             desc.m_metRghTexture   = &gpu->defaultTexture();
             desc.m_emissionTexture = &gpu->defaultTexture();
             desc.m_normalTexture   = &gpu->defaultTexture();
-            asset->m_materials.push_back(
-                    std::make_unique<TVkMaterial>( gpu->device(), gpu->physDevice(), gpu->descPool(), gpu->layouts().m_material, desc ) );
+            asset->m_materials.push_back( std::make_unique<TVkMaterial>( gpu->device(), gpu->physDevice(), gpu->descPool(), gpu->layouts().m_material, desc ) );
             app.assetSystem().registerAsset( std::move( asset ) );
             screenAsset = app.assetSystem().maybeGetAsset( "VideoScreen" );
         }
@@ -604,8 +602,8 @@ private:
         node.m_transform.setLocalTRS( { -2.5f, 1.5f, 0.0f }, glm::angleAxis( glm::radians( 90.0f ), glm::vec3( 1.0f, 0.0f, 0.0f ) ),
                                       glm::vec3( 1.2f, 1.0f, 0.8f ) );
 
-        auto& mesh                   = node.emplaceComponent<TMeshComponent>( screenAsset->m_meshes[ 0 ].get(), screenAsset->m_materials[ 0 ].get(), false );
-        mesh.m_baseTextureOverride   = TBagAnimatedTextureRef{ "assets/textures/screen.mp4" };
+        auto& mesh                 = node.emplaceComponent<TMeshComponent>( screenAsset->m_meshes[ 0 ].get(), screenAsset->m_materials[ 0 ].get(), false );
+        mesh.m_baseTextureOverride = TBagAnimatedTextureRef{ "assets/textures/screen.mp4" };
         mesh.rebindOverrides( scene().resources(), *gpu );
         scene().addChild( &node );
     }
