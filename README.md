@@ -1,5 +1,7 @@
 # The Tomos Game Engine
 
+> **Note:** All documentation in this repository was AI-generated.
+
 The Tomos Game Engine is a 2D/3D game engine written in C++ and Vulkan. It is designed to be simple and easy to use,
 while still being powerful and flexible. The engine is still in development.
 
