@@ -14,28 +14,25 @@ jobs:
   build:
     name: Build (Linux)
     runs-on: ubuntu-26.04
+    # Arch ships current GCC 16.x; Ubuntu 26.04's g++-16 is an early snapshot
+    # with broken std::meta::annotations_of in consteval.
+    container: archlinux:latest
 
     steps:
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            base-devel git cmake ninja pkgconf gcc \
+            vulkan-devel shaderc ffmpeg mesa \
+            libx11 libxrandr libxinerama libxcursor libxi \
+            wayland wayland-protocols libxkbcommon \
+            nodejs
+
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            gcc-16 g++-16 \
-            cmake ninja-build pkg-config \
-            libvulkan-dev glslc libgl1-mesa-dev \
-            libavformat-dev libavcodec-dev libavutil-dev libswscale-dev \
-            libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev \
-            libwayland-dev wayland-protocols libxkbcommon-dev
-
       - name: Configure
-        run: |
-          cmake -S . -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_C_COMPILER=gcc-16 \
-            -DCMAKE_CXX_COMPILER=g++-16
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
 
       - name: Build
         run: cmake --build build --parallel "$(nproc)"

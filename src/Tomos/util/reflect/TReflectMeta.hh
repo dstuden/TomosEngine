@@ -28,7 +28,10 @@ namespace Tomos::Reflect
     template<typename Ann>
     consteval bool hasAnnotation( std::meta::info p_m )
     {
-        for ( auto a : std::meta::annotations_of( p_m ) )
+        // Promote to a static array so we never destroy a temporary
+        // std::meta::annotations_of vector during consteval (buggy on early GCC 16).
+        auto anns = std::define_static_array( std::meta::annotations_of( p_m ) );
+        for ( auto a : anns )
         {
             if ( std::meta::remove_const( std::meta::dealias( std::meta::type_of( a ) ) ) == ^^Ann ) return true;
         }
@@ -38,7 +41,8 @@ namespace Tomos::Reflect
     template<typename Ann>
     consteval Ann getAnnotationOr( std::meta::info p_m, Ann p_fallback )
     {
-        for ( auto a : std::meta::annotations_of( p_m ) )
+        auto anns = std::define_static_array( std::meta::annotations_of( p_m ) );
+        for ( auto a : anns )
         {
             if ( std::meta::remove_const( std::meta::dealias( std::meta::type_of( a ) ) ) == ^^Ann )
                 return std::meta::extract<Ann>( a );
