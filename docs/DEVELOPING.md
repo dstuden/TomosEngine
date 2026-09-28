@@ -3,8 +3,9 @@
 This guide explains how Tomos is put together and how to extend it — new scenes,
 components, materials, shaders, lights, and overlays.
 
-The working reference is [Sandbox/main.cc](../Sandbox/main.cc). Copy that pattern
-for a new game; treat the engine library as the reusable core.
+Wire Tomos into your game with `add_subdirectory` — copy
+[`docs/examples/MyGame.CMakeLists.txt`](examples/MyGame.CMakeLists.txt) and see the root
+[README.md](../README.md). This doc covers the engine internals you then build on.
 
 ---
 
@@ -15,7 +16,7 @@ Tomos is **not** a black-box “engine that draws things.” It is three layers:
 
 | Layer                          | Owns                                               | You usually…                                         |
 | ------------------------------ | -------------------------------------------------- | ---------------------------------------------------- |
-| **Game** (`Sandbox`, your app) | Scenes, scripts, lights, camera, assets            | Subclass `TSceneLayer`, spawn nodes                  |
+| **Game** (your app) | Scenes, scripts, lights, camera, assets            | Subclass `TSceneLayer`, spawn nodes                  |
 | **ECS / systems**              | Components + per-frame population of `TFrameState` | Add components/systems                               |
 | **Vulkan backend**             | Device, swapchain, `TVkClusteredRenderer`          | Change shaders / pipelines when you need new visuals |
 
@@ -116,7 +117,7 @@ GPU resources stay on their own rules (upload ring, particle freelist, soft caps
 ```mermaid
 flowchart TB
   subgraph App["Your game"]
-    SA[SandboxApp / TApplication]
+    SA[YourApp / TApplication]
     SL[TSceneLayer subclass]
     UL[TUiLayer subclass - overlay]
     SN[TSceneNode tree]
@@ -126,6 +127,7 @@ flowchart TB
     SCR[TScriptSystem]
     PHYS[TPhysicsSystem]
     ANIM[TAnimationSystem]
+    ATEX[TAnimatedTextureSystem]
     CAM[TCameraSystem]
     MESH[TMeshSystem]
     LIT[TLightSystem]
@@ -157,6 +159,7 @@ flowchart TB
   SN --> SCR
   SN --> PHYS
   SN --> ANIM
+  SN --> ATEX
   SN --> CAM
   SN --> MESH
   SN --> LIT
@@ -265,7 +268,7 @@ the rebuilt swapchain.
 
 Source of truth for the shared CPU↔GPU types:
 
-- [TomosEngine/src/Tomos/gpu/vulkan/TVkPass.hh](../TomosEngine/src/Tomos/gpu/vulkan/TVkPass.hh)
+- [src/Tomos/gpu/vulkan/TVkPass.hh](../src/Tomos/gpu/vulkan/TVkPass.hh)
 
 
 
@@ -336,7 +339,7 @@ affect contacts on the next sim step.
 
 ## How to start a game
 
-Minimal skeleton (same shape as Sandbox):
+Minimal skeleton (after `add_subdirectory` + linking `Tomos`):
 
 ```cpp
 class MyLayer : public TSceneLayer {
@@ -344,7 +347,8 @@ public:
     MyLayer() : TSceneLayer("MyGame") {}
 
     void onAttach() override {
-        // Registers script / physics / animation / camera / mesh / light / sprite / particle / audio systems.
+        // Registers script / physics / animation / animated-texture / camera /
+        // mesh / light / sprite / particle / audio systems.
         TSceneLayer::onAttach();
 
         auto* gpu = TApplication::get().gpu();  // already TVkGpu*
@@ -376,16 +380,10 @@ int main() {
 }
 ```
 
-Build & run from the sandbox binary directory so relative paths (`assets/`,
-`shaders/`) resolve. `TApplication` also calls `TPath::init` so loaders /
-serializer resolve against the asset root (binary dir or `tomos.json` location)
-even if cwd differs:
-
-```bash
-cmake --preset debug
-cmake --build --preset debug -j
-cd build/Sandbox && ./SandBox
-```
+Stage runtime data with `tomos_deploy_runtime(MyGame ASSETS …)` so `assets/`,
+`shaders/`, and `resources/` sit next to the binary. `TApplication` calls
+`TPath::init` so loaders resolve against the asset root (binary dir or
+`tomos.json` location) even if cwd differs. See root [README.md](../README.md).
 
 ### Compiler / C++26 reflection
 
@@ -431,7 +429,7 @@ Useful components today:
 | `TScriptComponent`                         | `TScriptSystem`    | Per-frame gameplay code (`update(dt)`)                   |
 
 
-Hierarchy matters: a flashlight parented under the camera moves with it automatically (see Sandbox).
+Hierarchy matters: a flashlight parented under the camera moves with it automatically (see your game).
 
 ### Camera notes
 
@@ -441,7 +439,7 @@ Hierarchy matters: a flashlight parented under the camera moves with it automati
 NDC (Y down). Depth is **0 → 1** (`GLM_FORCE_DEPTH_ZERO_TO_ONE` in CMake).
 Frustum extraction, SAO, and fog all assume that convention — do not drop
 either without updating `TFrustum.hh` and the post shaders.
-- Defaults are near `0.1` / far `1000`; Sandbox uses a tighter near (`0.05`).
+- Defaults are near `0.1` / far `1000`; A typical game uses a tighter near (`0.05`).
 
 
 
@@ -479,7 +477,7 @@ Frame `dt` is passed from `TApplication` (`TTime`) → `TSceneLayer` →
 `TECS::update(dt)` → `TAnimationSystem` / scripts.
 
 ```cpp
-auto result = TGltfLoader::load("assets/CesiumMan.glb", *gpu, scene().store());
+auto result = TGltfLoader::load("assets/character.glb", *gpu, scene().store());
 TGpuAsset* asset = result.m_asset.get();
 app.assetSystem().registerAsset(std::move(result.m_asset));
 
@@ -501,18 +499,18 @@ anim.applyState(*anim.m_stateMachine.findState("Idle"), 0.0f);
 ```
 
 `makeHoldPoseClip(src, "Idle")` builds a single-keyframe Idle from the first
-sample of each channel when an asset only has one clip (Sandbox does this for
-CesiumMan). Morph targets remain deferred.
+sample of each channel when an asset only has one clip. Morph targets remain
+deferred.
 
 Order each frame: scripts → **physics** → **animation** (state machine →
 crossfade sample → joint locals) → `computeTransforms` → mesh `lateUpdate`
 (bone = jointWorld × invBind) → populate bone SSBO → skinned forward / shadow
 pipelines.
 
-Caps: `k_maxBonesPerSkin` (128), `k_maxBonesPerFrame` (16384). APIs: `play` /
+Caps: `g_kMaxBonesPerSkin` (128), `g_kMaxBonesPerFrame` (16384). APIs: `play` /
 `crossfadeTo` / `stop` / `seek`, plus `m_speed` / `m_looping` /
-`m_defaultFadeDuration` and `m_stateMachine` (Sandbox auto-toggles Idle↔Walk;
-**G** forces a switch).
+`m_defaultFadeDuration` and `m_stateMachine` (e.g. Idle↔Walk driven by script
+bools).
 
 ### Scripts (gameplay without forking the engine)
 
@@ -548,7 +546,7 @@ Prefer scripts for camera controllers, spawners, door logic, etc. Prefer new **s
 Scripts already receive the same variable app `dt` as the rest of the frame
 (`TApplication` / `TTime` → `TSceneLayer` → `TScriptSystem`). Prefer that for
 gameplay / camera motion. Physics advances with the bound `TTime::fixedDt()`
-(default `TTime::k_defaultFixedDt` = 1/60) — `TSceneLayer` calls
+(default `TTime::g_kDefaultFixedDt` = 1/60) — `TSceneLayer` calls
 `TPhysicsSystem::setTime(&app.time())` so physics does not include
 `TApplication`. Do not drive dynamic bodies with variable `dt`. Change the step
 with `time().setFixedDt(...)`.
@@ -585,7 +583,7 @@ zoneCol.m_onOverlap = [](TSceneNode& /*self*/, TSceneNode& other, TOverlapPhase 
 };
 ```
 
-Translation only for dynamics (no angular / visual rolling yet); **dynamic vs static** and **dynamic–dynamic** contacts; **trigger** colliders report enter / stay / exit via `TColliderComponent::m_onOverlap` (and optional `TPhysicsSystem::setOverlapListener`). Box–box uses SAT (no sphere-shell approx). Collider sizes are **local × node scale** (so `0.5` hugs the unit box/sphere meshes). Zero local size is zero volume, not “auto-fit.” Box colliders honor node **rotation** (OBB). Contact bounce uses `m_restitution` only when inbound normal speed ≥ `TPhysicsSystem::k_restNormalSpeed` (0.5); slower contacts settle so gravity doesn’t leave a permanent micro-bounce. Best with root-level nodes. Sandbox spawns a lit **box floor**, two **UV-sphere balls** (dyn–dyn push), and a **trigger zone** (`PhysicsFloor` / `PhysicsBall` / `PhysicsBallB` / `PhysicsTriggerZone`) as a smoke test — floor `Static`, balls `Dynamic`, zone `Trigger` with mask `Dynamic`.
+Translation only for dynamics (no angular / visual rolling yet); **dynamic vs static** and **dynamic–dynamic** contacts; **trigger** colliders report enter / stay / exit via `TColliderComponent::m_onOverlap` (and optional `TPhysicsSystem::setOverlapListener`). Box–box uses SAT (no sphere-shell approx). Collider sizes are **local × node scale** (so `0.5` hugs the unit box/sphere meshes). Zero local size is zero volume, not “auto-fit.” Box colliders honor node **rotation** (OBB). Contact bounce uses `m_restitution` only when inbound normal speed ≥ `TPhysicsSystem::g_kRestNormalSpeed` (0.5); slower contacts settle so gravity doesn’t leave a permanent micro-bounce. Best with root-level nodes. A typical smoke test uses a lit **box floor** (`Static`), two **UV-sphere balls** (`Dynamic`, dyn–dyn push), and a **trigger zone** (`Trigger` with mask `Dynamic`) — build those nodes in your layer; nothing ships pre-named.
 
 ---
 
@@ -595,7 +593,7 @@ Translation only for dynamics (no angular / visual rolling yet); **dynamic vs st
 
 Use this when a feature is “many entities, same update rule” (physics body, AI, audio emitter…).
 
-1. **Component** under `TomosEngine/src/Tomos/systems/<area>/`:
+1. **Component** under `src/Tomos/systems/<area>/`:
 
 ```cpp
 class TFooComponent : public TComponent {
@@ -635,7 +633,7 @@ scene().ecs().addSystem(std::make_unique<TFooSystem>());
 
 ## How to work with materials
 
-Materials live in [TVkMaterial.hh](../TomosEngine/src/Tomos/gpu/vulkan/TVkMaterial.hh).
+Materials live in [TVkMaterial.hh](../src/Tomos/gpu/vulkan/TVkMaterial.hh).
 
 ### What a material is today
 
@@ -703,12 +701,15 @@ Each flushes the UBO via `push()`.
 
 Shaders live in:
 
-`TomosEngine/src/Tomos/gpu/vulkan/shaders/`
+`src/Tomos/gpu/vulkan/shaders/`
 
-CMake compiles them with `glslc` into `<build>/TomosEngine/shaders/*.spv` and
-copies them next to the Sandbox binary. Release / RelWithDebInfo also pass
+CMake compiles them with `glslc` via `tomos_compile_shaders(TomosShaders …)` into
+`<build>/_tomos/shaders/*.spv`. `tomos_deploy_runtime` copies them next to the
+app binary (same helper games use). Release / RelWithDebInfo also pass
 `glslc -O`. Fallback path macro: `TOMOS_SHADER_DIR` (used when not launched from
-the binary directory).
+the binary directory). Game-owned GLSL: `tomos_compile_shaders(MyShaders SOURCES …)` then
+pass `SHADERS MyShaders` to `tomos_deploy_runtime`. Configure **fails** if a game basename
+collides with an engine shader (flat `shaders/<name>.spv`).
 
 ### Current shader map
 
@@ -729,7 +730,7 @@ the binary directory).
 | `particle.vert`                                                                 | Vertex   | Vertex-pulled spherical billboards from particle pool  |
 | `particle.frag`                                                                 | Fragment | Soft disc × tint, additive blend                       |
 | `fullscreen.vert`                                                               | Vertex   | Full-screen triangle for all post passes               |
-| `sao_linearize.frag` / `sao_sample.frag` / `sao_blur.frag` / `sao_compose.frag` | Fragment | McGuire SAO (Alchemy AO + bilateral) → × HDR           |
+| `sao_linearize.frag` / `sao_sample.frag` / `sao_blur.frag` / `sao_temporal.frag` / `sao_compose.frag` | Fragment | McGuire SAO (Alchemy AO + bilateral + temporal) → × HDR |
 | `fog.frag`                                                                      | Fragment | Exponential distance fog                               |
 | `bloom_extract.frag` / `bloom_downsample.frag` / `bloom_upsample.frag` / `bloom_composite.frag` | Fragment | Threshold → Dual Kawase → add |
 | `tonemap.frag`                                                                  | Fragment | Reinhard HDR → swapchain                               |
@@ -791,7 +792,7 @@ If you change a layout in GLSL, update `TVkClusteredRenderer::createLayouts` / `
 ### Recipe A — tweak the look (same pipeline)
 
 1. Edit `forward.frag` (e.g. ambient, BRDF) or a post shader (`tonemap.frag`, `fog.frag`, …).
-2. Rebuild (`TomosShaders` / the Sandbox target) and relaunch the app. SPIR-V is compiled at
+2. Rebuild (`TomosShaders` / the app target) and relaunch the app. SPIR-V is compiled at
   configure/build time via `glslc`; there is no runtime shader hot-reload.
 
 
@@ -807,7 +808,7 @@ If you change a layout in GLSL, update `TVkClusteredRenderer::createLayouts` / `
 
 ### Recipe C — entirely new pass / technique (e.g. outline, decals)
 
-1. Add GLSL under `shaders/`, list it in `TomosEngine/CMakeLists.txt` `GLSL_SOURCES`.
+1. Add GLSL under `shaders/`, list it in the engine `tomos_compile_shaders(TomosShaders …)` `SOURCES` (root `CMakeLists.txt`).
 2. Create pipeline(s) in `TVkClusteredRenderer::createPipelines`.
 3. Record commands in a new `recordXPass` and call it from `render()` in the right barrier order.
 4. Leave the swapchain in `COLOR_ATTACHMENT_OPTIMAL` if later overlays still need to draw.
@@ -821,8 +822,8 @@ Materials select a `TMeshTechniqueId`; the renderer owns a table of PSOs
 `drawMesh` does `m_meshTechniques[material->technique()].pick(blend, skinned)` —
 no growing switch. Unsupported slots are `VK_NULL_HANDLE` and that draw is skipped.
 
-1. Add a value to `TMeshTechniqueId` in [TMeshTechnique.hh](../TomosEngine/src/Tomos/gpu/vulkan/TMeshTechnique.hh).
-2. Add GLSL under `shaders/`, list it in `GLSL_SOURCES`.
+1. Add a value to `TMeshTechniqueId` in [TMeshTechnique.hh](../src/Tomos/gpu/vulkan/TMeshTechnique.hh).
+2. Add GLSL under `shaders/`, list it in the engine `TomosShaders` `SOURCES`.
 3. In `TVkClusteredRenderer::createGraphicsPipelines`, fill
   `m_meshTechniques[Id]` (opaque / blend / skinnedOpaque / skinnedBlend as needed).
 4. Set `TVkMaterialDesc::m_technique` (and usually `m_alphaMode`) on the material.
@@ -850,9 +851,9 @@ for animated techniques (e.g. Water).
 | Spot        | 2               | Yes — perspective VP from outer cone, one array layer                |
 
 
-Limits (constants in `TRenderLimits.hh`, re-exported via `TVkPass.hh`): 128 lights, 16 shadow-map layers @ 2048²,
-64 lights per cluster. Point casters consume **6 layers** each
-(`k_pointShadowFaces` in `TPointShadow.hh`).
+Limits (constants in `TRenderLimits.hh`, re-exported via `TVkPass.hh`): 128 lights,
+16 shadow-map layers @ 2048² (`g_kMaxShadowMaps`), 64 lights per cluster. Point
+casters consume **6 layers** each (`g_kPointShadowFaces` in `TPointShadow.hh`).
 
 ### To add a new light behaviour
 
@@ -865,25 +866,25 @@ Limits (constants in `TRenderLimits.hh`, re-exported via `TVkPass.hh`): 128 ligh
 ### Shadow knobs
 
 - Ortho size for the sun: `kDirShadowHalfSize` / `kDirShadowDepth` in `TLightSystem.cc`.
-- Point cubemap near plane: `k_pointShadowNear` in `TPointShadow.hh` (must match
+- Point cubemap near plane: `g_kPointShadowNear` in `TPointShadow.hh` (must match
 `point_shadow.glsl`). Far plane is the light’s `m_maxRange`.
 - Bias / slope: raster state in `TVkClusteredRenderer::createPipelines` (shadow
 pipeline — constant 1.25, slope 1.75 today).
-- Resolution / layer count: `k_shadowMapSize` / `k_maxShadowMaps`.
+- Resolution / layer count: `g_kShadowMapSize` / `g_kMaxShadowMaps`.
 
 Meshes opt into casting via `TMeshComponent::m_castShadow` (default true).
 Forward ambient is a small constant (`base.rgb * 0.03` in `forward.frag`).
 
 ### Debug views (cluster visualization)
 
-Set `TFrameState::m_debugMode` (`TDebugView` in `TVkPass.hh`) — the Sandbox
+Set `TFrameState::m_debugMode` (`TDebugView` in `TVkPass.hh`) — the editor
 debug Renderer panel has a combo for it:
 
 
 | Mode           | Shows                                                                                               |
 | -------------- | --------------------------------------------------------------------------------------------------- |
 | `ClusterGrid`  | One hashed color per froxel — the actual cluster frustums (16×9 screen tiles × 24 log-depth slices) |
-| `LightHeatmap` | Lights-per-cluster load, blue (0) → red (`k_maxLightsPerCluster`)                                   |
+| `LightHeatmap` | Lights-per-cluster load, blue (0) → red (`g_kMaxLightsPerCluster`)                                   |
 | `DepthSlices`  | Only the logarithmic Z subdivision                                                                  |
 
 
@@ -925,11 +926,11 @@ SAO (Scalable Ambient Obscurance, McGuire HPG 2012 core variant) runs at **half
 resolution**: linearize depth, AlchemyAO spiral (`m_sampleCount`, default 12)
 with normals from depth gradients, one separable bilateral H+V, temporal history
 ping-pong, then compose with linear upsample into full HDR. Radius is
-**world-space meters** (Sandbox slider ~0.05–2). The z-MIP hierarchy from the
+**world-space meters** (editor slider ~0.05–2). The z-MIP hierarchy from the
 paper is not implemented yet. Finite far planes are used today; an infinite-far
 `perspectiveVk` would improve Z reconstruction precision.
 
-Toggle / tune from the Sandbox Renderer panel, or in code:
+Toggle / tune from the Renderer panel, or in code:
 
 ```cpp
 auto* bloom = gpu->renderer()->postStack().find<TPostBloom>();
@@ -938,7 +939,7 @@ bloom->m_enabled = false;
 
 **Adding a new effect:** implement `TPostEffect` (`onResize` / `record` / `destroy`),
 `m_post.add(...)` in `TVkClusteredRenderer::initPostStack` **before** tonemap,
-add GLSL to `GLSL_SOURCES`.  Read/write HDR via `ctx.m_hdr` / `ctx.m_hdrOther`
+add GLSL to the engine `TomosShaders` `SOURCES`.  Read/write HDR via `ctx.m_hdr` / `ctx.m_hdrOther`
 then `ctx.swapHdr()`.  Use **per-frame descriptor sets** (`ctx.m_frameIndex`,
 `g_kFramesInFlight`) — never update a set already recorded into an in-flight
 command buffer.
@@ -1016,7 +1017,7 @@ How it flows through the frame:
   `m_spriteBatches`: cutout sprites first (sorted by texture only — depth handles order),
    then blend sprites **back-to-front** (ties by texture). Consecutive same-texture runs
    of the same mode become one batch / draw.
-2. `TVkGpu::startFrame` uploads them into the per-frame sprite SSBO (`k_maxSprites = 10 000`).
+2. `TVkGpu::startFrame` uploads them into the per-frame sprite SSBO (`g_kMaxSprites = 10 000`).
 3. `TVkClusteredRenderer::recordSprites` runs twice inside the forward pass: cutout
   batches right after the opaque/mask meshes, blend batches after the sorted blend
    meshes. `sprite.vert` expands each instance into a quad (vertex pulling — no vertex
@@ -1062,7 +1063,7 @@ mesh->rebindOverrides( scene().resources(), *gpu );
 ```
 
 Host package: FFmpeg (`libavformat` / `libavcodec` / `libavutil` / `libswscale`) —
-see root [README.md](../README.md). Sandbox demos: `AnimGifSprite` + `VideoScreen`.
+see root [README.md](../README.md). Wire a sprite + media texture the same way (`TAnimatedTexture`).
 
 ---
 
@@ -1071,7 +1072,7 @@ see root [README.md](../README.md). Sandbox demos: `AnimGifSprite` + `VideoScree
 ## How to spawn GPU particles
 
 Particles are **GPU-simulated** additive billboards. The CPU only uploads
-**emitters**; a compute pass owns a persistent pool (`k_maxParticles = 65536`).
+**emitters**; a compute pass owns a persistent pool (`g_kMaxParticles = 65536`).
 
 ```cpp
 TSceneNode& node = scene().createNode("Sparks");
@@ -1113,14 +1114,14 @@ Frame path:
 4. `particle.vert` / `particle.frag` draw textured soft spherical discs with
   **additive** blend (`SRC_ALPHA` / `ONE`) into HDR (bloom picks them up).
    Textures reuse the sprite descriptor cache (`spriteTextureSet`); one indirect
-   draw per registered texture (up to `k_maxParticleTextures` = 64). Because the
+   draw per registered texture (up to `g_kMaxParticleTextures` = 64). Because the
    sim wrote each slot's `instanceCount`, a draw only touches its own particles —
    unused slots cost nothing and no shader-side texture check is needed.
 
-Limits: `k_maxEmitters = 64`. Unlit, no shadows, no depth write. Keep textures
+Limits: `g_kMaxEmitters = 64`. Unlit, no shadows, no depth write. Keep textures
 alive (same borrow rules as `TSpriteComponent`).
 
-Sandbox: orange sparks at `SparkEmitter` near CesiumMan — tune emitter fields in the
+Drop a `TParticleEmitterComponent` and tune emitter fields in the
 Inspector; Renderer shows emitter counts.
 
 ---
@@ -1134,7 +1135,7 @@ Audio is an ECS feature (not part of `TFrameState`). Backend: **miniaudio**
 
 ```cpp
 // Keep the clip alive (layer member, asset bag, …).
-auto clip = std::make_unique<TAudioClip>( "assets/beep.wav", "Beep" );
+auto clip = std::make_unique<TAudioClip>( "assets/sfx/jump.wav", "Jump" );
 
 TSceneNode& node = scene().createNode( "Emitter" );
 node.m_transform.m_translation = { 2.0f, 1.5f, 0.0f };
@@ -1162,7 +1163,7 @@ Behaviour:
 | `TAudioClip`      | Path to a WAV / FLAC / MP3 / Ogg file (borrowed by emitters)           |
 | `TAudioComponent` | Per-node emitter — volume, pitch, loop, spatial range, `play` / `stop` |
 | `TAudioSystem`    | Owns the miniaudio engine; starts/stops voices in `lateUpdate`         |
-| Listener          | Active camera pose, wired by `TSceneLayer` before `lateUpdate`         |
+| Listener          | Follows the active camera at the start of `TAudioSystem::lateUpdate` (after `computeTransforms`); `TSceneLayer` wires the camera system via `setCameraSystem` |
 
 
 Spatial emitters use **linear attenuation** (miniaudio
@@ -1179,7 +1180,7 @@ with `m_volume <= 0` skip voice creation entirely.
 
 Master volume: `system<TAudioSystem>().setMasterVolume(0.5f)`.
 
-Sandbox: green sprite near CesiumMan is the emitter — press **F** to beep, or
+Attach audio to a sprite/emitter and trigger playback from input, or
 edit the Audio component in the Inspector. Walk toward / away to hear attenuation
 and silence beyond `m_maxDistance`.
 
@@ -1244,7 +1245,7 @@ Rules that keep this correct:
    `TInputPoll` with a block callback (e.g. `TImGuiBackend::ioBlocksGameInput()`)
    instead of raw `glfwGetKey`. While the cursor is `Disabled`, ImGui sets
    `ImGuiConfigFlags_NoMouse` so look-around does not hover UI. Tab releases
-   the cursor for the editor (Sandbox fly cam).
+   the cursor for the editor (fly cam).
 
 
 
@@ -1297,7 +1298,7 @@ Config `presentMode` (`fifo` / `mailbox` / `immediate`) controls `VkPresentModeK
 Config `windowMode` (`windowed` / `borderless` / `exclusive`) controls the OS window.
 
 **Play / Pause:** menu bar Play/Pause button (Space is unbound — fly-cam uses
-it for move-up). Toggles `TScene::setSimulationPlaying` /
+it for move-up). Toggles `TSceneManager::setSimulationPlaying` /
 `isSimulationPlaying` — when paused, `TSceneLayer` skips script/physics/animation
 updates but still recomputes transforms and populates `TFrameState` so
 gizmo/inspector edits remain visible. (`TTime::setPaused` exists and zeros
@@ -1314,7 +1315,7 @@ rendering and picking keep Vulkan Y-down.
 `{ "type": "script", "script": "<name>" }` for types registered in
 `TScriptRegistry`.
 
-Wire-up (Sandbox pattern):
+Wire-up:
 
 ```cpp
 TScriptRegistry::get().registerType<FlyCameraScript>("FlyCamera");
@@ -1323,7 +1324,7 @@ auto layer = std::make_unique<MySceneLayer>();
 auto* ptr  = layer.get();
 pushLayer(std::move(layer));
 
-auto editor = std::make_unique<TSceneEditorLayer>(ptr->scene()); // bag is scene.resources()
+auto editor = std::make_unique<TSceneEditorLayer>(ptr->scene(), "assets/scenes/level.json");
 // Optional: only for app-specific glue (globals, blend setup). Scripts restore from JSON.
 editor->context().m_afterLoad = [ptr] { ptr->bindGameplayHooks(); };
 pushOverlay(std::move(editor));
@@ -1337,7 +1338,7 @@ JSON sketch:
 
 ```json
 {
-  "assets": [ { "name": "CesiumMan", "path": "assets/CesiumMan.glb" } ],
+  "assets": [ { "name": "Character", "path": "assets/character.glb" } ],
   "children": [ { "id": 12, "name": "Camera", "transform": { "t": [0,1.8,3], "r": […], "s": [1,1,1] },
                   "components": [
                     { "type": "camera", … },
@@ -1349,7 +1350,7 @@ JSON sketch:
 
 **Scripts:** registered types serialize/restore automatically. Unregistered
 scripts (empty `typeName()`) are skipped on save — use optional `m_afterLoad`
-for those, or for non-script glue (Sandbox: beep emitter pointer + Idle↔Walk
+for those, or for non-script glue (e.g. emitter pointer + Idle↔Walk
 blend graph).
 
 **Borrowed resources:** meshes/materials/clips resolve by `{ asset, index|name }`.
@@ -1357,7 +1358,7 @@ Audio/sprite/particle textures use paths in `TScene::resources()` (survive
 `deactivate()`, destroyed with the scene). `TSceneSerializer` save/load uses that
 bag automatically — no separate bag argument.
 
-Default Sandbox editor path: `assets/scenes/sandbox.json`. Startup always
+Default editor scene path is yours (e.g. `assets/scenes/level.json`). Startup always
 procedural-spawns; Scene → Save / Load is menu-only (Ctrl+S is unbound because
 fly-cam uses Ctrl for descend). The directory is created on first save.
 
@@ -1374,11 +1375,11 @@ layers side by side.
 ## File map (where to look)
 
 ```
-TomosEngine/src/Tomos/
+src/Tomos/
 ├── core/
 │   ├── app/TApplication.*          # main loop
 │   ├── input/TInput.*              # key poll + optional block predicate
-│   ├── input/TActionMap.*          # named actions → keys / axes (Sandbox fly-cam)
+│   ├── input/TActionMap.*          # named actions → keys / axes
 │   ├── layers/TSceneLayer.*        # scene + default systems + populate
 │   ├── scene/                      # TScene, TSceneNode, TSceneManager, bag, TSceneSerializer
 │   └── ecs/TECS.*
@@ -1394,7 +1395,7 @@ TomosEngine/src/Tomos/
 │   ├── audio/                      # TAudioClip + emitters (miniaudio)
 │   ├── physics/                    # rigid body + collider (fixed timestep)
 │   ├── script/                     # gameplay hooks + TScriptRegistry
-│   └── asset/                      # TAssetHandles + TAssetSystem + TGltfLoader
+│   └── asset/                      # TAssetHandles + TAssetSystem + TGltfLoader + TAssetLoadQueue
 ├── ui/
 │   ├── TUiBackend.hh               # backend interface
 │   ├── TUiLayer.*                  # overlay layer driving a backend
@@ -1404,23 +1405,28 @@ TomosEngine/src/Tomos/
 │   ├── config/TConfig.hh           # tomos.json via TConfigManager
 │   ├── image/TImageLoad.*          # CPU image decode (stb)
 │   ├── image/TAnimatedTexture.*    # animated texture + FFmpeg decoder
+│   ├── logger/TLogger.*            # leveled log + ring buffer (Console panel)
+│   ├── memory/                     # TArena / TFrameAllocator / TLevelStore / handles
 │   ├── path/TPath.*                # asset-root resolve (binary dir / tomos.json)
+│   ├── reflect/                    # C++26 reflection helpers (enum/fields/ImGui/JSON)
 │   ├── time/TTime.*                # pause-aware clock (dt / fixedDt / elapsed)
 │   ├── math/TFrustum.hh            # AABB + frustum plane tests (Vulkan 0–1 Z)
 │   ├── math/TPointShadow.hh        # point-light cubemap face VPs (CPU)
 │   └── transform/TTransform.*
 └── gpu/
     ├── TRenderLimits.hh            # shared CPU/GPU soft caps (no Vulkan types)
+    ├── TGpuEnums.hh                # buffer / image usage + format enums
     ├── TBillboardMode.hh           # sprite orientation enum
     └── vulkan/
         ├── TVkGpu.*                # device + frame loop (+ .Swapchain / .Upload TUs)
         ├── TVkPass.hh              # TFrameState + GPU structs
+        ├── TRenderDestination.hh   # tonemap target (swapchain or offscreen)
         ├── TMeshTechnique.*        # technique ids + shared PSO factory
         ├── TVkMaterial.* / TVkMesh.*  # mesh includes local AABB
         ├── renderer/TVkClusteredRenderer.*  # + .Pipelines / .Record TUs
         ├── post/                   # TPostStack + SAO / fog / bloom / tonemap
         └── shaders/                # GLSL sources (post + sprite + common/*.glsl)
-Sandbox/main.cc                     # example game + scene editor wiring
+README.md                          # submodule + tomos_deploy_runtime
 docs/DEVELOPING.md                  # this file
 ```
 
@@ -1449,6 +1455,97 @@ docs/DEVELOPING.md                  # this file
 | Cull off-screen meshes        | Already on (`TMeshSystem` + `TVkMesh::m_aabb`)       | Check debug “frustum-culled” count                                            |
 | Physics / rigid bodies        | `TRigidBodyComponent` + `TColliderComponent`         | Fixed step in `TPhysicsSystem`; don’t put in renderer                         |
 | Switch rendering technique    | New renderer class, swap in `TVkGpu`                 | Same `TFrameState` contract                                                   |
+| Async glTF load               | `TAssetLoadQueue::requestLoad` + `tick`              | `takeRoot` when Ready; see [Recipes](#recipes-api-snippets)                   |
+| Named input actions           | `TActionMap` bind + `down` / `value`                 | Contexts: Gameplay / UI / Any                                                 |
+| Primitive meshes              | `TMeshPrimitives::makeBox` / `makePlane` / `makeUVSphere` | Keep the `unique_ptr` alive (asset bag / layer member)                   |
+| Switch scenes                 | `sceneManager().queueScene(...)`                     | Engine registers default systems at `switchPoint`                             |
+
+
+---
+
+
+
+## Recipes (API snippets)
+
+### Async glTF — `TAssetLoadQueue`
+
+```cpp
+auto& queue = TApplication::get().assetLoadQueue();
+queue.setGpu(TApplication::get().gpu());
+
+auto handle = queue.requestLoad("assets/props/crate.glb", "Crate");
+queue.onComplete(handle, [](TAssetLoadStatus s) {
+    if (s == TAssetLoadStatus::Failed) { /* log */ }
+});
+
+// Each frame (main thread), before you need the root:
+queue.tick(scene());
+if (queue.isReady(handle)) {
+    if (TSceneNode* root = queue.takeRoot(handle, scene())) scene().addChild(root);
+}
+```
+
+Workers decode; GPU upload + registry happen on `tick`. `takeRoot` returns null if
+the scene was switched between build and claim.
+
+### Named actions — `TActionMap`
+
+```cpp
+TActionMap actions;
+actions.bindKey("Jump", GLFW_KEY_SPACE);
+actions.bindKeyAxis("MoveX", GLFW_KEY_A, GLFW_KEY_D);
+actions.bindGamepadAxis("MoveX", GLFW_GAMEPAD_AXIS_LEFT_X);
+
+// In a script / layer update (block while ImGui wants input):
+auto block = [] { return TImGuiBackend::ioBlocksGameInput(); };
+if (actions.pressed("Jump", m_jumpWasDown, window, block))
+    body.addForce({ 0, 600, 0 });
+float moveX = actions.value("MoveX", window, block);
+```
+
+### Primitive meshes — `TMeshPrimitives`
+
+```cpp
+auto boxMesh = TMeshPrimitives::makeBox(*gpu);       // keep alive
+auto& floor  = scene().createNode("Floor");
+floor.emplaceComponent<TMeshComponent>(boxMesh.get(), material);
+floor.m_transform.setScale({ 8.0f, 0.25f, 8.0f });
+scene().addChild(&floor);
+```
+
+Also `makePlane` and `makeUVSphere(gpu, segments, rings)`.
+
+### Config — `tomos.json`
+
+`TApplication` loads `tomos.json` (or a path you pass / `TPath::setConfigPath`) via
+`TConfigManager`. Defaults apply when the file is missing; `configManager().save()`
+writes current values.
+
+```json
+{
+  "windowWidth": 1920,
+  "windowHeight": 1080,
+  "windowTitle": "My Game",
+  "windowMode": "windowed",
+  "presentMode": "mailbox"
+}
+```
+
+`windowMode`: `windowed` / `borderless` / `exclusive`. `presentMode`: `fifo` /
+`mailbox` / `immediate`. Access live values with `app.config().m_presentMode` etc.
+
+### Scene switch — `queueScene` / `switchPoint`
+
+```cpp
+TApplication::get().sceneManager().queueScene([] {
+    return std::make_shared<TScene>("Level2");
+});
+// End of frame: TApplication calls switchPoint(), which replaces the scene,
+// registers default systems (same set as TSceneLayer::onAttach), and activates it.
+```
+
+Spawn content in the factory or on the next attach/hook after the switch. Do not
+keep raw pointers into the old scene’s level store across `switchPoint`.
 
 
 ---
@@ -1478,22 +1575,37 @@ docs/DEVELOPING.md                  # this file
    is a fixed ortho around the sun node (`kDirShadowHalfSize` /
    `kDirShadowDepth` in `TLightSystem`); rotate the sun, don’t rely on
    translating it for coverage.
-7. **Validation layers.** Sandbox enables them only in Debug (`TOMOS_DEBUG`);
+7. **Validation layers.** Enable them only in Debug (`TOMOS_DEBUG`);
   Release turns them off for usable profiles. Fix every validation ERROR in
    Debug before chasing “why is it dark.”
 8. **ImGui only in `onUi()`.** `TUiLayer` begins the ImGui frame then asserts
   `TImGuiBackend::withinUiFrame()` before `onUi()`. Scene layers update earlier —
    calling `ImGui::…` there hits a not-yet-begun (or already-ended) frame.
    Prefer `TImGuiBackend::assertWithinUiFrame()` at the top of custom UI code.
-9. **Sprites are depth-sorted** back-to-front (camera distance), then consecutive
-  same-texture runs are batched. Overlapping translucent sprites blend in order;
-   many texture switches still mean more draws. Use alpha < 1 only when you
-   need blending (Sandbox light gizmos are opaque).
+9. **Sprite sorting is mode-specific.** Cutout sprites sort by texture only
+  (depth write handles order). Blend sprites sort **back-to-front** by camera
+   distance, then consecutive same-texture runs batch. Overlapping translucent
+   sprites are approximate; use cutout / opaque when you can.
 10. **Vulkan projection.** Y is flipped (`proj[1][1] *= -1`) and depth is 0–1.
   Frustum cull / SAO / fog depend on this.
 11. **Opaque meshes batch by mesh+material.** Blend draws stay one instance each
   so they can sort. Shared mesh+material opaque instances become one
     `vkCmdDraw*` with `m_instanceCount > 1`.
+12. **Don’t put dynamics on animated joints.** Animation runs after physics and
+  overwrites joint locals — a rigid body on the same node fights the clip every
+   frame. Keep dynamics on non-animated roots (or kinematic proxies).
+13. **Overlap Enter/Stay can fire per fixed substep** (up to 8×/frame with the
+  default max substeps). Debounce gameplay reactions if you only want once per
+   display frame.
+14. **FIF race on shared GPU targets.** `g_kFramesInFlight = 3`, but HDR / depth /
+  sceneColor / bloom mips / SAO scratch+history / the shadow atlas are single
+  copies — a later frame can rewrite them while an earlier in-flight frame still
+  samples. Particle SSBOs / material UBO ring have the same family of issues (#15).
+15. **Material UBO / sprite descriptor caches** are fragile under FIF > 1 (same
+  family as #14). Prefer not to mutate shared descriptor state for resources
+  still referenced by in-flight frames.
+16. **GLSL `#define` caps** (clusters, lights, bones, …) must stay hand-synced
+  with `TRenderLimits.hh` — there is no codegen bridge yet.
 
 ---
 
@@ -1501,7 +1613,7 @@ docs/DEVELOPING.md                  # this file
 
 ## Suggested learning path on *this* codebase
 
-1. Fly around Sandbox; toggle lights in `Sandbox/main.cc` and observe cluster + shadow behaviour.
+1. Wire a minimal game (`TApplication` + `TSceneLayer`) and load a glTF via `TGltfLoader`.
 2. Write a tiny `TScript` that orbits a fill light.
 3. Change ambient in `forward.frag`, or bloom/fog sliders in the debug UI.
 4. Add a `m_emissiveBoost` float to the material UBO and pipe it through — or live-tune
@@ -1509,8 +1621,7 @@ docs/DEVELOPING.md                  # this file
 5. Open the Hierarchy / Inspector overlays — add a light node and tune intensity live.
 6. Attach a `TSpriteComponent` with a real texture (load a `TVkImage`) and try the three billboard modes.
 7. Drop a `TParticleEmitterComponent` near a light and tweak rate / colors from the Inspector.
-8. Scene → Save, then Scene → Load (or restart and Load) to confirm
-  `assets/scenes/sandbox.json` round-trips the graph — startup alone does not auto-load it.
+8. Scene → Save, then Scene → Load to confirm your scene JSON round-trips the graph.
 9. Add a tiny `TPostEffect` (e.g. grayscale) before tonemap.
 10. Only then attempt a new scene pass inside `TVkClusteredRenderer`.
 

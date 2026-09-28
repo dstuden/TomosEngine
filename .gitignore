@@ -17,16 +17,10 @@ compile_commands.json
 *.obj
 *.a
 
-# Runtime written next to an in-source Sandbox binary
-Sandbox/SandBox
-Sandbox/resources/
-Sandbox/tomos.json
 imgui.ini
 
 # editor files
 .idea/
 .vscode/
-Sandbox/assets/*.png~
 
-# CEF binary distributions (large)
 third_party/
