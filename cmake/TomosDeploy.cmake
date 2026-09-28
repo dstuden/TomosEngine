@@ -201,6 +201,10 @@ function(tomos_deploy_runtime APP)
 	endif()
 
 	foreach(_res IN LISTS ARG_RESOURCES)
+		if(NOT IS_DIRECTORY "${_res}")
+			file(MAKE_DIRECTORY "${_res}")
+			message(STATUS "tomos_deploy_runtime(${APP}): created missing RESOURCES '${_res}'")
+		endif()
 		add_custom_command(TARGET ${APP} POST_BUILD
 			COMMAND ${CMAKE_COMMAND} -E copy_directory
 				"${_res}"
@@ -211,6 +215,10 @@ function(tomos_deploy_runtime APP)
 	endforeach()
 
 	foreach(_assets IN LISTS ARG_ASSETS)
+		if(NOT IS_DIRECTORY "${_assets}")
+			file(MAKE_DIRECTORY "${_assets}")
+			message(STATUS "tomos_deploy_runtime(${APP}): created missing ASSETS '${_assets}'")
+		endif()
 		add_custom_command(TARGET ${APP} POST_BUILD
 			COMMAND ${CMAKE_COMMAND} -E copy_directory
 				"${_assets}"
